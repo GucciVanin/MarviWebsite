@@ -1,0 +1,15 @@
+<h2>Create a client account</h2>
+
+<form (ngSubmit)="submit()">
+  <input type="text" name="companyName" [(ngModel)]="companyName" placeholder="Company name" required />
+  <input type="text" name="billingAddress" [(ngModel)]="billingAddress" placeholder="Billing address" required />
+  <input type="email" name="email" [(ngModel)]="email" placeholder="Email" required />
+  <input type="password" name="password" [(ngModel)]="password" placeholder="Password" required />
+  <button type="submit">Register</button>
+</form>
+
+@if (error) {
+  <p>{{ error }}</p>
+}
+
+<p>Already have an account? <a routerLink="/login">Log in</a></p>

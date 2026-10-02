@@ -1,0 +1,17 @@
+@Marvi.Api_HostAddress = http://localhost:5083
+
+### Public: product catalog
+GET {{Marvi.Api_HostAddress}}/api/products
+Accept: application/json
+
+### Public: coverage check
+POST {{Marvi.Api_HostAddress}}/api/coverage/check
+Content-Type: application/json
+
+{ "address": "1 Main St, Springfield" }
+
+### Public: login
+POST {{Marvi.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "client@example.com", "password": "ChangeMe123!" }

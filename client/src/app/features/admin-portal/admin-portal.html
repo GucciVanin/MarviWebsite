@@ -1,0 +1,119 @@
+<h2>Admin Portal</h2>
+
+<section>
+  <h3>Create Employee</h3>
+  <input type="email" [(ngModel)]="newEmployeeEmail" placeholder="Email" />
+  <input type="password" [(ngModel)]="newEmployeePassword" placeholder="Password" />
+  <input type="text" [(ngModel)]="newEmployeeCode" placeholder="Employee Code" />
+  <button type="button" (click)="createEmployee()">Create</button>
+</section>
+
+<section>
+  <h3>Products</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Name</th>
+        <th>Active</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (product of products; track product.id) {
+        <tr>
+          <td>{{ product.sku }}</td>
+          <td>{{ product.name }}</td>
+          <td>{{ product.isActive ? 'Yes' : 'No' }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h3>Deals</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Discount</th>
+        <th>Start</th>
+        <th>End</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (deal of deals; track deal.id) {
+        <tr>
+          <td>{{ deal.name }}</td>
+          <td>{{ deal.discountType }} {{ deal.discountValue }}</td>
+          <td>{{ deal.startDate }}</td>
+          <td>{{ deal.endDate }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h3>Warehouses</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Address</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (warehouse of warehouses; track warehouse.id) {
+        <tr>
+          <td>{{ warehouse.name }}</td>
+          <td>{{ warehouse.address }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h3>Coverage Areas</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Warehouse</th>
+        <th>Type</th>
+        <th>Radius (mi)</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (area of coverageAreas; track area.id) {
+        <tr>
+          <td>{{ area.warehouseId }}</td>
+          <td>{{ area.type }}</td>
+          <td>{{ area.radiusMiles }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h3>Audit Log</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Action</th>
+        <th>Entity</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (entry of auditLog; track entry.id) {
+        <tr>
+          <td>{{ entry.timestamp }}</td>
+          <td>{{ entry.action }}</td>
+          <td>{{ entry.entityName }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>

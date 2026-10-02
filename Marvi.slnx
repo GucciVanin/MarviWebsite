@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Marvi.Api/Marvi.Api.csproj" />
+    <Project Path="src/Marvi.Domain/Marvi.Domain.csproj" />
+    <Project Path="src/Marvi.Infrastructure/Marvi.Infrastructure.csproj" />
+    <Project Path="src/Marvi.Shared/Marvi.Shared.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Marvi.Tests/Marvi.Tests.csproj" />
+  </Folder>
+</Solution>

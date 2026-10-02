@@ -1,0 +1,51 @@
+<h2>Storefront</h2>
+
+<section>
+  <h3>Coverage Check</h3>
+  <input type="text" [(ngModel)]="coverageAddress" placeholder="Enter address" />
+  <button type="button" (click)="checkCoverage()">Check</button>
+  @if (coverageResult) {
+    <p>
+      @if (coverageResult.supported) {
+        Covered by {{ coverageResult.warehouseName }}
+      } @else {
+        Not covered
+      }
+    </p>
+  }
+</section>
+
+<section>
+  <h3>Active Deals</h3>
+  <ul>
+    @for (deal of deals; track deal.id) {
+      <li>{{ deal.name }} — {{ deal.discountType }} {{ deal.discountValue }}</li>
+    }
+  </ul>
+</section>
+
+<section>
+  <h3>Products</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Name</th>
+        <th>Price</th>
+        <th>Deal</th>
+        <th>In Stock</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (product of products; track product.id) {
+        <tr>
+          <td>{{ product.sku }}</td>
+          <td>{{ product.name }}</td>
+          <td>{{ product.price }}</td>
+          <td>{{ product.dealName }}</td>
+          <td>{{ product.inStock ? 'Yes' : 'No' }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>

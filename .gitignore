@@ -1,0 +1,7 @@
+bin/
+obj/
+.vs/
+*.user
+client/node_modules/
+client/dist/
+client/.angular/

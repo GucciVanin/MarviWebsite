@@ -1,0 +1,64 @@
+<h2>Employee Portal</h2>
+
+<section>
+  <h3>Quote Queue (Submitted)</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Client</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Line Items</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (quote of quoteQueue; track quote.id) {
+        <tr>
+          <td>{{ quote.clientAccountId }}</td>
+          <td>{{ quote.status }}</td>
+          <td>{{ quote.createdAt }}</td>
+          <td>{{ quote.lineItems.length }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h3>Inventory</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Warehouse</th>
+        <th>On Hand</th>
+        <th>Reserved</th>
+        <th>Reorder Point</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (record of inventory; track record.id) {
+        <tr>
+          <td>{{ record.productName }}</td>
+          <td>{{ record.warehouseId }}</td>
+          <td>{{ record.qtyOnHand }}</td>
+          <td>{{ record.qtyReserved }}</td>
+          <td>{{ record.reorderPoint }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h3>Client Lookup</h3>
+  <input type="text" [(ngModel)]="lookupClientId" placeholder="Client ID" />
+  <button type="button" (click)="lookupClient()">Lookup</button>
+  @if (clientProfile) {
+    <div>
+      <p>{{ clientProfile.companyName }} — {{ clientProfile.status }}</p>
+      <p>Credit limit: {{ clientProfile.creditLimit }}</p>
+      <p>Pricing tier: {{ clientProfile.pricingTierName }}</p>
+    </div>
+  }
+</section>

@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: marvi
+      POSTGRES_USER: marvi
+      POSTGRES_PASSWORD: marvi
+    ports:
+      - "5432:5432"
+    volumes:
+      - marvi-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marvi -d marvi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    environment:
+      ConnectionStrings__AppDb: "Host=postgres;Port=5432;Database=marvi;Username=marvi;Password=marvi"
+      # Development defaults: override Jwt__Key and the admin seed before any real deployment.
+      Jwt__Key: "dev-only-compose-signing-key-CHANGE-ME-before-production-1234567890"
+      Seed__AdminEmail: "admin@marvi.local"
+      Seed__AdminPassword: "Marvi-Dev-Admin-1!"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  client:
+    build:
+      context: ../client
+      dockerfile: ../deploy/Dockerfile.client
+      additional_contexts:
+        deploy: ../deploy
+    ports:
+      - "4200:4200"
+    depends_on:
+      - api
+
+volumes:
+  marvi-db-data:
