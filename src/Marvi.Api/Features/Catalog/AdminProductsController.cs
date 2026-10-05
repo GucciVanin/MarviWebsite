@@ -44,6 +44,11 @@ public class AdminProductsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ProductAdminDto>> CreateProduct(UpsertProductRequest request)
     {
+        if (!await CategoryExistsAsync(request.CategoryId))
+        {
+            return BadRequest("Unknown category.");
+        }
+
         var product = new Product
         {
             Id = Guid.NewGuid(),
@@ -57,7 +62,10 @@ public class AdminProductsController : ControllerBase
         };
 
         _dbContext.Products.Add(product);
-        await _dbContext.SaveChangesAsync();
+        if (!await TrySaveAsync())
+        {
+            return BadRequest("Unknown category.");
+        }
 
         await _auditLogger.LogAsync("Create", nameof(Product), product.Id, request);
 
@@ -73,6 +81,11 @@ public class AdminProductsController : ControllerBase
             return NotFound();
         }
 
+        if (!await CategoryExistsAsync(request.CategoryId))
+        {
+            return BadRequest("Unknown category.");
+        }
+
         product.Sku = request.Sku;
         product.Name = request.Name;
         product.Description = request.Description;
@@ -80,7 +93,10 @@ public class AdminProductsController : ControllerBase
         product.ImageUrl = request.ImageUrl;
         product.IsActive = request.IsActive;
         product.Attributes = request.Attributes;
-        await _dbContext.SaveChangesAsync();
+        if (!await TrySaveAsync())
+        {
+            return BadRequest("Unknown category.");
+        }
 
         await _auditLogger.LogAsync("Update", nameof(Product), id, request);
 
@@ -103,6 +119,25 @@ public class AdminProductsController : ControllerBase
 
         return NoContent();
     }
+
+    // The category can be deleted between the existence check above and the save; the foreign key then rejects the
+    // write, which is a client error (unknown category), not a 500. Other database failures propagate.
+    private async Task<bool> TrySaveAsync()
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+        catch (DbUpdateException exception) when (exception.IsConstraintViolation())
+        {
+            return false;
+        }
+    }
+
+    // A product may have no category; when it has one, it must be a real category.
+    private async Task<bool> CategoryExistsAsync(Guid? categoryId) =>
+        categoryId is null || await _dbContext.Categories.AnyAsync(c => c.Id == categoryId);
 
     private static ProductAdminDto ToDto(Product product) =>
         new(product.Id, product.Sku, product.Name, product.Description, product.CategoryId, product.ImageUrl, product.IsActive, product.Attributes);

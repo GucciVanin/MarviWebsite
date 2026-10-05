@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Feature modules: each owns the service registrations for its folder under Features/.
@@ -45,6 +46,7 @@ app.UseCors("SpaClient");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 if (!app.Environment.IsEnvironment("Testing"))
 {

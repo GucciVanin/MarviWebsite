@@ -1,0 +1,7 @@
+# Opt-in: publish Postgres on localhost only, so `dotnet run --project src/Marvi.Api` can use the compose database.
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev-db.yml up -d postgres
+# The default stack keeps Postgres internal to the compose network.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"

@@ -1,0 +1,44 @@
+// Design tokens (project.md §10.2). Colors are approximate and accepted by the owner; change them here only.
+:root {
+  --color-navy-900: #0a1230;
+  --color-navy-700: #142049;
+  --color-gold-500: #f5b700;
+  --color-gold-600: #d99e00;
+  --color-red-500: #d8202f;
+  --color-blue-600: #1f3fa8;
+  --color-paper: #f6f7fa;
+  --color-surface: #ffffff;
+  --color-text: #10162f;
+  --color-text-muted: #4a5170;
+  --color-text-inverse: #ffffff;
+  --color-border: #d9dce8;
+  --color-success: #1b7f4b;
+
+  --font-sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+
+  --radius-pill: 999px;
+  --radius-card: 16px;
+  --radius-field: 10px;
+
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+  --space-5: 3rem;
+  --section-padding: clamp(3rem, 8vw, 6rem);
+
+  --motion-fast: 150ms;
+  --motion-base: 300ms;
+  --motion-slow: 800ms;
+
+  --shadow-card: 0 6px 24px rgba(10, 18, 48, 0.08);
+  --focus-ring: 0 0 0 3px rgba(245, 183, 0, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+}

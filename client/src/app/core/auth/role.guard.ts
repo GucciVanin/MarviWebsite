@@ -8,9 +8,17 @@ function roleGuard(allowedRoles: string[]): CanActivateFn {
   return () => {
     const authService = inject(AuthService);
     const router = inject(Router);
-    return allowedRoles.includes(authService.role() ?? '') ? true : router.parseUrl('');
+    const allowed = authService.isAuthenticated() && allowedRoles.includes(authService.role() ?? '');
+    return allowed ? true : router.parseUrl('');
   };
 }
+
+// Keeps signed-in users off /login and /register (registering again would silently replace their session).
+export const guestGuard: CanActivateFn = () => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+  return authService.isAuthenticated() ? router.parseUrl(authService.homeUrl()) : true;
+};
 
 export const clientGuard: CanActivateFn = roleGuard(['Client']);
 export const employeeGuard: CanActivateFn = roleGuard(['Employee', 'Admin']);

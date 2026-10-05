@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   AdminService,
@@ -17,40 +17,42 @@ import {
 export class AdminPortal implements OnInit {
   private readonly adminService = inject(AdminService);
 
-  products: ProductAdmin[] = [];
-  deals: DealAdmin[] = [];
-  warehouses: Warehouse[] = [];
-  coverageAreas: CoverageArea[] = [];
-  auditLog: AuditLogEntry[] = [];
+  // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
+  protected readonly products = signal<ProductAdmin[]>([]);
+  protected readonly deals = signal<DealAdmin[]>([]);
+  protected readonly warehouses = signal<Warehouse[]>([]);
+  protected readonly coverageAreas = signal<CoverageArea[]>([]);
+  protected readonly auditLog = signal<AuditLogEntry[]>([]);
 
-  newEmployeeEmail = '';
-  newEmployeePassword = '';
-  newEmployeeCode = '';
+  // Form fields reset inside an HTTP callback, so they are signals too ([(ngModel)] binds to a writable signal).
+  protected readonly newEmployeeEmail = signal('');
+  protected readonly newEmployeePassword = signal('');
+  protected readonly newEmployeeCode = signal('');
 
   ngOnInit(): void {
-    this.adminService.getProducts().subscribe((products) => (this.products = products));
-    this.adminService.getDeals().subscribe((deals) => (this.deals = deals));
-    this.adminService.getWarehouses().subscribe((warehouses) => (this.warehouses = warehouses));
-    this.adminService.getCoverageAreas().subscribe((areas) => (this.coverageAreas = areas));
-    this.adminService.getAuditLog().subscribe((entries) => (this.auditLog = entries));
+    this.adminService.getProducts().subscribe((products) => this.products.set(products));
+    this.adminService.getDeals().subscribe((deals) => this.deals.set(deals));
+    this.adminService.getWarehouses().subscribe((warehouses) => this.warehouses.set(warehouses));
+    this.adminService.getCoverageAreas().subscribe((areas) => this.coverageAreas.set(areas));
+    this.adminService.getAuditLog().subscribe((entries) => this.auditLog.set(entries));
   }
 
   createEmployee(): void {
-    if (!this.newEmployeeEmail || !this.newEmployeePassword || !this.newEmployeeCode) {
+    if (!this.newEmployeeEmail() || !this.newEmployeePassword() || !this.newEmployeeCode()) {
       return;
     }
     this.adminService
       .createEmployee({
-        email: this.newEmployeeEmail,
-        password: this.newEmployeePassword,
-        employeeCode: this.newEmployeeCode,
+        email: this.newEmployeeEmail(),
+        password: this.newEmployeePassword(),
+        employeeCode: this.newEmployeeCode(),
         department: null,
         hireDate: new Date().toISOString(),
       })
       .subscribe(() => {
-        this.newEmployeeEmail = '';
-        this.newEmployeePassword = '';
-        this.newEmployeeCode = '';
+        this.newEmployeeEmail.set('');
+        this.newEmployeePassword.set('');
+        this.newEmployeeCode.set('');
       });
   }
 }

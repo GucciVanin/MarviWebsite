@@ -110,6 +110,8 @@ flowchart LR
         C2[DealsController]
         C3[AdminProductsController]
         C4[AdminDealsController]
+        C6[CategoriesController]
+        C7[AdminCategoriesController]
         C5[PricingService]
     end
     subgraph Coverage
@@ -138,7 +140,7 @@ flowchart LR
     C1 & O2 & Q1 --> C5
     Q1 & Q2 --> Q3
     V1 --> V4
-    I2 & I3 & C3 & C4 & V2 & V3 --> A2
+    I2 & I3 & C3 & C4 & C7 & V2 & V3 --> A2
 ```
 
 Cross-feature coupling that exists today (keep it minimal): Orders and Quotes call `PricingService`;
@@ -210,6 +212,7 @@ erDiagram
     ApplicationUser ||--o| EmployeeAccount : "has (Employee role)"
     PricingTier ||--o{ ClientAccount : "assigned to"
     PricingTier ||--o{ ProductPricing : prices
+    Category |o--o{ Product : "groups (FK, restrict)"
     Product ||--o{ ProductPricing : "priced by tier"
     Product ||--o{ InventoryRecord : "stocked as"
     Warehouse ||--o{ InventoryRecord : holds
@@ -240,6 +243,12 @@ erDiagram
         string EmployeeCode
         string Department
         datetime HireDate
+    }
+    Category {
+        guid Id
+        string Name
+        int SortOrder
+        bool IsActive
     }
     Product {
         guid Id
@@ -309,8 +318,9 @@ erDiagram
     }
 ```
 
-Not drawn as relationships because they are plain id lists: `Deal.ProductIds`, `Deal.CategoryIds`,
-and `Product.CategoryId` (no `Category` entity exists yet; MRV-1.6). `ClientAccount.ShippingAddresses`
+`Product.CategoryId` is a real foreign key to `Category` (restrict delete; nullable). Not drawn as
+relationships because they are plain id lists: `Deal.ProductIds` and `Deal.CategoryIds` (no foreign key, so
+`AdminCategoriesController` checks deals itself before deleting). `ClientAccount.ShippingAddresses`
 is a string list column. `AuditLogEntry.ActorUserId` is not a foreign key.
 
 ## 6. Authentication and authorization
@@ -342,8 +352,9 @@ sequenceDiagram
 
 - Roles: `Client`, `Employee`, `Admin`. Only `POST /api/admin/employees` creates an Employee user.
 - Claims: `sub` (user id), role, and `client_id` or `employee_id`.
-- The role claim key is the long URI `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/role`
-  (`ClaimTypes.Role`), not `"role"`. The SPA's `AuthService` decodes it; any new JWT consumer must too.
+- The role claim key is the long URI `http://schemas.microsoft.com/ws/2008/06/identity/claims/role`
+  (`ClaimTypes.Role` on .NET 10; older frameworks used `xmlsoap.org/2005/...`), not `"role"`. The SPA's `AuthService` decodes it; any new JWT consumer must too.
+  The SPA once used the old URI, so `role()` was always null and every portal bounced the user home; `auth.service.spec.ts` now pins a payload copied from a real login.
 - Settings: `Jwt:Key`, `Jwt:Issuer` (`Marvi.Api`), `Jwt:Audience` (`Marvi.Client`). No refresh tokens.
 - `ClientAccountStatus`: registration yields `Approved`. `Suspended` clients cannot create or accept quotes (`QuotesController`); employee orders require `Approved`.
 - **Admins have no employee account**, so no `employee_id` claim. Employee-area endpoints accept Admin and record a null employee (`Quote.PricedByEmployeeId`, `Order.PlacedByEmployeeId`).
@@ -461,6 +472,18 @@ flowchart TD
 - Build with `npm run build`. Do not pass a ternary between `{key: v}` and `{}` as `HttpClient`
   `params` (wrong overload); build a `Record<string, string>` and assign conditionally (see
   `products.service.ts`).
+- **Design system (MRV-2.3a):** tokens, element defaults and primitive classes (`.container .page .btn .card .field .alert .eyebrow`) live
+  in `src/styles/_tokens.scss`, `_base.scss`, `_components.scss`, loaded by `src/styles.scss`. Colors are CSS custom properties; change them only in `_tokens.scss`.
+  Shared components are in `shared/ui` (`app-header`, `app-footer`), composed by the shell in `app.html` (skip link, header, `<main id="content">`, footer).
+  The landing page and the React hero island (MRV-2.3c/d) are still planned (`project.md` §10).
+- **Session state:** `AuthService.isAuthenticated()` is a plain function (not a `computed`, which would never notice expiry) meaning an unexpired token that carries a known role; a stale or role-less token in storage is dropped at startup. The role guards require it, and `guestGuard` keeps signed-in users off `/login` and `/register` (registering again would silently replace their session).
+  The skip link focuses `<main>` in code (a bare `#content` href would resolve against `<base href="/">` and leave the page).
+- **Copy:** all user-facing text is in `core/i18n/pt-br.ts` (pt-BR only); templates read from `PT`, never hard-code strings. The API's English Identity errors are mapped to pt-BR in `core/i18n/identity-errors.ts`; unknown messages fall back to a generic one, so English never reaches the user.
+- **Zoneless:** there is no `zone.js`. State that changes inside an async callback (HTTP, timers) **must be a signal**; assigning a plain field
+  there does not re-render. Plain fields are fine only for `ngModel` bindings that are never written from a callback; form fields that are reset after an HTTP call are signals (`[(ngModel)]` binds to a writable signal). The storefront and the three portals were converted to signals on 2026-10-02 (they
+  had never rendered API data); keep new screens on signals.
+- **Client tests:** vitest via `ng test`, specs beside the code; `core/auth/testing/fake-token.ts` builds a JWT for role-dependent tests. With Node < 22.22.3 run
+  them in Docker (README).
 
 ## 9. Deployment
 
@@ -475,6 +498,10 @@ flowchart LR
 - `docker-compose.yml` builds `postgres`, `api` (`Dockerfile.api`: SDK build → ASP.NET runtime) and
   `client` (`Dockerfile.client`: Node build → nginx, config from `nginx.conf`).
 - In compose the browser sees one origin, so CORS matters only for `ng serve` at :4200 against :5083.
+- Secrets (`POSTGRES_PASSWORD`, `JWT_KEY`, `SEED_ADMIN_*`) come from untracked `deploy/.env`; copy `deploy/.env.example`. Compose fails fast if one is missing.
+- To run the API from the IDE against the compose database, layer `deploy/docker-compose.dev-db.yml` (publishes Postgres on 127.0.0.1 only); see README.
+- The Postgres password reaches the API as `PGPASSWORD`, not inside the connection string, so `;`, `=` or quotes in it are safe.
+- Only the SPA (:4200) and API (:8080) are published; Postgres is reachable only inside the compose network. The API runs as the non-root `app` user and exposes `GET /health`; the `client` waits for it to be healthy.
 - `.dockerignore` (root, for the API image) and `client/.dockerignore` keep host `bin/obj` and `node_modules` out of build contexts.
 - Migrations run automatically at API startup. The compose stack is verified end to end (MRV-3.1). Configuration (`Jwt:Key`, geocoding key, DB credentials) must be overridden for production.
 
@@ -505,6 +532,12 @@ flowchart LR
 - **`Quote.Draft`/`Expired` and `Order.Backordered/Fulfilled/Cancelled`** exist as enum values with
   no workflow yet.
 - **`Marvi.Shared` and `Marvi.Infrastructure/Class1.cs`** are empty template leftovers.
+- **Enums go over the API as names** (`"Priced"`, `"Approved"`), via `[JsonConverter(typeof(JsonStringEnumConverter))]` on each exposed enum in the domain; the SPA models are string unions and the database still stores integers. A new exposed enum needs the attribute (`EnumContractTests`).
+- **Known limitation:** deleting a category and creating a deal that targets it at the same instant can leave the deal with a dangling id (no foreign key on a list; the check is not atomic). Accepted for the admin-only volume; a join table would remove it.
+- **Category names are capped at 200 characters** by the controller (keeps them under the btree index row limit).
+- **Constraint races return 409, other database errors do not:** `DbUpdateException.IsConstraintViolation()` (Infrastructure) is true only for Postgres unique (23505) and foreign-key (23503) violations; controllers that pre-check and then save use it so a timeout is never reported as a duplicate.
+- **A deal's `CategoryIds` are validated by `AdminDealsController`** (no foreign key on a list); products rely on the real foreign key plus a controller check.
+- **Categories are deactivated, not deleted, once in use:** `DELETE /api/admin/categories/{id}` returns 409 while a product or deal references it. Category names are unique ignoring case: checked in the controller, and enforced by the hand-written expression index `ix_categories_name_lower` on `lower(name)` (migration `CaseInsensitiveCategoryNames`; EF cannot model it, so it is absent from the model and a duplicate race surfaces as 409 via `DbUpdateException`).
 - **Default tier:** exactly one `PricingTier.IsDefault` (unique filtered index). Anonymous visitors and new clients use it; pre-flag data is self-healed by promoting the alphabetically first tier on startup/registration.
 - **Missing price is not free:** quotes leave `SuggestedUnitPrice` null for unpriced products (the employee must set it); employee orders reject them with 400.
 - **There is no rate limiting** on any endpoint (planned in MRV-3.3).

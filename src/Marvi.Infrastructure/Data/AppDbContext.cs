@@ -23,6 +23,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
     public DbSet<EmployeeAccount> EmployeeAccounts => Set<EmployeeAccount>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Category> Categories => Set<Category>();
     public DbSet<PricingTier> PricingTiers => Set<PricingTier>();
     public DbSet<ProductPricing> ProductPricings => Set<ProductPricing>();
     public DbSet<Deal> Deals => Set<Deal>();
@@ -63,6 +64,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<CoverageArea>()
             .Property(c => c.PolygonGeoJson)
             .HasColumnType("jsonb");
+
+        // Category names are unique ignoring case. That is an expression index on lower(name), which EF cannot model,
+        // so it is created by hand in migration CaseInsensitiveCategoryNames and is deliberately absent from the model.
+
+        // No navigation properties: products reference a category by id only. Restrict keeps a used category from being deleted.
+        builder.Entity<Product>()
+            .HasOne<Category>()
+            .WithMany()
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // At most one default tier; the filter is ignored by non-relational test providers.
         builder.Entity<PricingTier>()

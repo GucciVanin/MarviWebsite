@@ -19,7 +19,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (quote of quotes; track quote.id) {
+      @for (quote of quotes(); track quote.id) {
         <tr>
           <td>{{ quote.status }}</td>
           <td>{{ quote.createdAt }}</td>
@@ -46,7 +46,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (order of orders; track order.id) {
+      @for (order of orders(); track order.id) {
         <tr>
           <td>{{ order.status }}</td>
           <td>{{ order.deliveryAddress }}</td>

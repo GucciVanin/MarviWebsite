@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { Quote } from '../../shared/models/quote.model';
 import { EmployeeService, ClientProfile, InventoryRecord } from './api/employee.service';
@@ -11,14 +11,15 @@ import { EmployeeService, ClientProfile, InventoryRecord } from './api/employee.
 export class EmployeePortal implements OnInit {
   private readonly employeeService = inject(EmployeeService);
 
-  quoteQueue: Quote[] = [];
-  inventory: InventoryRecord[] = [];
+  // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
+  protected readonly quoteQueue = signal<Quote[]>([]);
+  protected readonly inventory = signal<InventoryRecord[]>([]);
+  protected readonly clientProfile = signal<ClientProfile | null>(null);
   lookupClientId = '';
-  clientProfile: ClientProfile | null = null;
 
   ngOnInit(): void {
-    this.employeeService.getQuoteQueue().subscribe((quotes) => (this.quoteQueue = quotes));
-    this.employeeService.getInventory().subscribe((records) => (this.inventory = records));
+    this.employeeService.getQuoteQueue().subscribe((quotes) => this.quoteQueue.set(quotes));
+    this.employeeService.getInventory().subscribe((records) => this.inventory.set(records));
   }
 
   lookupClient(): void {
@@ -27,6 +28,6 @@ export class EmployeePortal implements OnInit {
     }
     this.employeeService
       .getClient(this.lookupClientId)
-      .subscribe((profile) => (this.clientProfile = profile));
+      .subscribe((profile) => this.clientProfile.set(profile));
   }
 }

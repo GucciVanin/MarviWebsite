@@ -1,0 +1,31 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1;
+  // Focused by code after the skip link; a ring around the whole page would only be noise.
+  outline: none;
+  scroll-margin-top: 6rem; // keep the target clear of the sticky header
+
+  &:focus-visible {
+    box-shadow: none;
+  }
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0.5rem;
+  z-index: 20;
+  padding: 0.5rem 1rem;
+  color: var(--color-navy-900);
+  background: var(--color-gold-500);
+  border-radius: var(--radius-pill);
+
+  &:focus {
+    left: 0.5rem;
+  }
+}

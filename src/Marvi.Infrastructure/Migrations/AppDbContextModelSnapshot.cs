@@ -63,6 +63,32 @@ namespace Marvi.Infrastructure.Migrations
                     b.ToTable("audit_log_entries", (string)null);
                 });
 
+            modelBuilder.Entity("Marvi.Domain.Catalog.Category", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Id")
+                        .HasName("pk_categories");
+
+                    b.ToTable("categories", (string)null);
+                });
+
             modelBuilder.Entity("Marvi.Domain.Catalog.Deal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -178,6 +204,9 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_products");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("ix_products_category_id");
 
                     b.ToTable("products", (string)null);
                 });
@@ -802,6 +831,15 @@ namespace Marvi.Infrastructure.Migrations
                         .HasName("pk_asp_net_user_tokens");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("Marvi.Domain.Catalog.Product", b =>
+                {
+                    b.HasOne("Marvi.Domain.Catalog.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_products_categories_category_id");
                 });
 
             modelBuilder.Entity("Marvi.Domain.Catalog.ProductPricing", b =>

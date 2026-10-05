@@ -4,10 +4,10 @@
   <h3>Coverage Check</h3>
   <input type="text" [(ngModel)]="coverageAddress" placeholder="Enter address" />
   <button type="button" (click)="checkCoverage()">Check</button>
-  @if (coverageResult) {
+  @if (coverageResult(); as result) {
     <p>
-      @if (coverageResult.supported) {
-        Covered by {{ coverageResult.warehouseName }}
+      @if (result.supported) {
+        Covered by {{ result.warehouseName }}
       } @else {
         Not covered
       }
@@ -18,7 +18,7 @@
 <section>
   <h3>Active Deals</h3>
   <ul>
-    @for (deal of deals; track deal.id) {
+    @for (deal of deals(); track deal.id) {
       <li>{{ deal.name }} — {{ deal.discountType }} {{ deal.discountValue }}</li>
     }
   </ul>
@@ -37,7 +37,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (product of products; track product.id) {
+      @for (product of products(); track product.id) {
         <tr>
           <td>{{ product.sku }}</td>
           <td>{{ product.name }}</td>

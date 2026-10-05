@@ -1,0 +1,63 @@
+<header class="header">
+  <div class="container header__bar">
+    <a class="brand" routerLink="/" (click)="closeMenu()">
+      <span class="brand__badge" aria-hidden="true">M</span>
+      <span class="brand__text">
+        <span class="brand__name">{{ t.brand.name }}</span>
+        <span class="brand__tagline">{{ t.brand.tagline }}</span>
+      </span>
+    </a>
+
+    <button
+      type="button"
+      class="header__toggle"
+      [attr.aria-expanded]="menuOpen()"
+      aria-controls="main-nav"
+      (click)="toggleMenu()"
+    >
+      {{ t.nav.menu }}
+    </button>
+
+    <nav
+      id="main-nav"
+      class="header__nav"
+      [class.header__nav--open]="menuOpen()"
+      [attr.aria-label]="t.nav.mainLabel"
+    >
+      <ul class="header__links">
+        <li>
+          <a
+            routerLink="/"
+            routerLinkActive="is-active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            (click)="closeMenu()"
+            >{{ t.nav.home }}</a
+          >
+        </li>
+        <li>
+          <a routerLink="/storefront" routerLinkActive="is-active" (click)="closeMenu()">{{
+            t.nav.products
+          }}</a>
+        </li>
+      </ul>
+
+      <div class="header__actions">
+        @if (isAuthenticated()) {
+          <a class="btn btn--ghost" [routerLink]="homeUrl()" (click)="closeMenu()">{{
+            areaLabel()
+          }}</a>
+          <button type="button" class="header__logout" (click)="logout()">
+            {{ t.nav.logout }}
+          </button>
+        } @else {
+          <a class="btn btn--ghost" routerLink="/login" (click)="closeMenu()">{{
+            t.nav.login
+          }}</a>
+          <a class="btn btn--primary" routerLink="/register" (click)="closeMenu()">{{
+            t.nav.register
+          }}</a>
+        }
+      </div>
+    </nav>
+  </div>
+</header>

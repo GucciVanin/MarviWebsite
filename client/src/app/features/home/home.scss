@@ -1,0 +1,29 @@
+.hero {
+  padding-block: var(--section-padding);
+  color: var(--color-text-inverse);
+  background:
+    linear-gradient(120deg, rgba(216, 32, 47, 0.25), transparent 35%),
+    linear-gradient(240deg, rgba(31, 63, 168, 0.35), transparent 40%),
+    var(--color-navy-900);
+}
+
+h1 {
+  color: var(--color-text-inverse);
+}
+
+.hero__accent {
+  color: var(--color-gold-500);
+}
+
+.hero__subtitle {
+  max-width: 34rem;
+  font-size: 1.15rem;
+  opacity: 0.9;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}

@@ -44,6 +44,11 @@ public class AdminDealsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<DealAdminDto>> CreateDeal(UpsertDealRequest request)
     {
+        if (!await CategoriesExistAsync(request.CategoryIds))
+        {
+            return BadRequest("Unknown category.");
+        }
+
         var deal = new Deal
         {
             Id = Guid.NewGuid(),
@@ -72,6 +77,11 @@ public class AdminDealsController : ControllerBase
         if (deal is null)
         {
             return NotFound();
+        }
+
+        if (!await CategoriesExistAsync(request.CategoryIds))
+        {
+            return BadRequest("Unknown category.");
         }
 
         deal.Name = request.Name;
@@ -104,6 +114,14 @@ public class AdminDealsController : ControllerBase
         await _auditLogger.LogAsync("Delete", nameof(Deal), id);
 
         return NoContent();
+    }
+
+    // A deal's category ids are a plain list (no foreign key), so each one is checked here; an unknown id would
+    // otherwise be stored and silently never match anything.
+    private async Task<bool> CategoriesExistAsync(List<Guid> categoryIds)
+    {
+        var distinct = categoryIds.Distinct().ToList();
+        return distinct.Count == 0 || await _dbContext.Categories.CountAsync(c => distinct.Contains(c.Id)) == distinct.Count;
     }
 
     private static DealAdminDto ToDto(Deal deal) =>
