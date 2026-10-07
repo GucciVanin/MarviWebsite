@@ -3,13 +3,20 @@ using Marvi.Api.Features.Catalog;
 using Marvi.Api.Features.Coverage;
 using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Quotes;
+using Marvi.Api.Http;
 using Marvi.Infrastructure.Data;
 using Marvi.Infrastructure.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+// Do not advertise the server software on every response.
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter()));
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<InvalidTextExceptionHandler>();
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -41,6 +48,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// First, so it wraps everything: unknown failures become a generic 500 (no stack trace), bad input text a 400.
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseCors("SpaClient");
 app.UseAuthentication();

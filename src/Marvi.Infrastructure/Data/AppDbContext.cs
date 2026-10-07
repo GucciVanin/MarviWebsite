@@ -75,6 +75,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             .HasForeignKey(p => p.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // History is never deleted by a cascade. Quote and order lines record what was sold; deleting a product (or the
+        // client / warehouse behind an order) must not silently remove them and leave totals that no longer add up.
+        // Controllers return 409 first; Restrict is the database-level backstop.
+        builder.Entity<OrderLineItem>().HasOne(l => l.Product).WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<QuoteLineItem>().HasOne(l => l.Product).WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Order>().HasOne(o => o.ClientAccount).WithMany(c => c.Orders).HasForeignKey(o => o.ClientAccountId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Quote>().HasOne(q => q.ClientAccount).WithMany(c => c.Quotes).HasForeignKey(q => q.ClientAccountId).OnDelete(DeleteBehavior.Restrict);
+        // Stock records are deleted deliberately, never as a side effect of deleting the warehouse.
+        builder.Entity<InventoryRecord>().HasOne(i => i.Warehouse).WithMany(w => w.InventoryRecords).HasForeignKey(i => i.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+
+        // Product SKUs are unique ignoring case. That is an expression index on lower(sku), which EF cannot model, so it
+        // is created by hand in migration ProtectHistoryAndUniqueSkus and is deliberately absent from the model.
+
         // At most one default tier; the filter is ignored by non-relational test providers.
         builder.Entity<PricingTier>()
             .HasIndex(t => t.IsDefault)

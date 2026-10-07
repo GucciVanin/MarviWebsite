@@ -33,6 +33,23 @@ describe('Storefront', () => {
     expect(text).toContain('Verão');
   });
 
+  // Regression: an unpriced product used to arrive as price 0 and read as free.
+  it('shows "on request" for a product without a price and the number when there is one', async () => {
+    const { fixture, http } = setup();
+    http.expectOne((r) => r.url === '/api/products').flush([
+      { id: 'p1', sku: 'A', name: 'Com preço', imageUrl: null, attributes: {}, price: 12.5, dealName: null, inStock: true },
+      { id: 'p2', sku: 'B', name: 'Sem preço', imageUrl: null, attributes: {}, price: null, dealName: null, inStock: false },
+    ]);
+    http.expectOne('/api/deals').flush([]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr');
+    expect(rows[0].textContent).toContain('12.5');
+    expect(rows[1].textContent).toContain('Sob consulta');
+    expect(rows[1].textContent).not.toMatch(/0/);
+  });
+
   it('shows the coverage result after a check', async () => {
     const { fixture, http } = setup();
     http.expectOne((r) => r.url === '/api/products').flush([]);

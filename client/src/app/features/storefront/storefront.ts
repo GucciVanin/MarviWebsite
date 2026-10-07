@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { PT } from '../../core/i18n/pt-br';
 import { ProductsService, ProductListItem } from './api/products.service';
 import { DealsService, Deal } from './api/deals.service';
 import { CoverageService, CoverageCheckResult } from './api/coverage.service';
@@ -10,6 +11,7 @@ import { CoverageService, CoverageCheckResult } from './api/coverage.service';
   templateUrl: './storefront.html',
 })
 export class Storefront implements OnInit {
+  protected readonly t = PT.storefront;
   private readonly productsService = inject(ProductsService);
   private readonly dealsService = inject(DealsService);
   private readonly coverageService = inject(CoverageService);

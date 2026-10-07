@@ -41,7 +41,7 @@
         <tr>
           <td>{{ product.sku }}</td>
           <td>{{ product.name }}</td>
-          <td>{{ product.price }}</td>
+          <td>{{ product.price ?? t.priceOnRequest }}</td>
           <td>{{ product.dealName }}</td>
           <td>{{ product.inStock ? 'Yes' : 'No' }}</td>
         </tr>

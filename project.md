@@ -121,7 +121,7 @@ Why first: the API is ahead of the UI, and the owner cannot exercise the product
 | MRV-3.2 | Continuous integration | Pipeline runs `dotnet build/test` and the client build/test on every change (needs Node >= 22.22.3) |
 | MRV-3.3 | Production hardening | Secrets via environment/secret store, rate limiting on auth and coverage, JWT key rotation plan, HTTPS. **Refuse to start in Production** when the JWT key, admin password or DB password still holds a placeholder/example value (`deploy/.env.example` ships working dev values; a straight copy is currently accepted) |
 | MRV-3.4 | Exercise geocoding providers against real keys | Azure and Google paths each have a documented smoke test; optional address cache |
-| MRV-3.5 | Raise test coverage | Integration tests for every controller; frontend service/guard tests |
+| MRV-3.5 | Raise test coverage (a data/security runtime test now exists in `test/runtime/`; add the Chrome UI run to CI) | Integration tests for every controller; frontend service/guard tests |
 
 ### Release 2
 
@@ -183,6 +183,8 @@ permissions.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
+| **Runtime data/security test (2026-10-06) found 15 defects the 75 tests of the time missed** — deleting a product cascaded into order lines (order totals no longer added up); no cascade protection for warehouses/clients; NUL characters, zone-less dates, bad paging and unknown ids caused 500s; deals, warehouses, coverage areas, credit limits, SKUs and emails were not validated; duplicate SKUs allowed; search was case-sensitive; unpriced products showed price 0 | Corrupted financial history, avoidable 500s, nonsense data | All fixed (see architecture.md §11) with 63 new tests (104 API tests in all); a final review pass fixed ten more edge cases (deal update with null lists, undefined enum values, GeoJSON validity, trimming/length limits, delete races, and `run.sh` isolation); the checks are kept in `test/runtime/` and must stay green |
+| Remaining known gaps from that run | No brute-force protection on login (12 wrong passwords did not lock the account); coverage check cannot be exercised with real geocoding yet; the SPA is served without security headers (CSP etc.) | Rate limiting and headers in MRV-3.3; real geocoding keys in MRV-3.4 |
 | Polygon coverage is not implemented | Release 2 areas unusable | Unit-test point-in-polygon with real area data, or adopt PostGIS |
 | Geocoding provider outage or rate limits | Coverage checks fail | Provider abstraction exists; add a result cache (MRV-3.4) |
 | Spec/code drift (history endpoints, quote reject, credit) | Wrong behavior shipped | Sprint 3 closes known drift (the UI sprint comes first); section 4 is the checklist |

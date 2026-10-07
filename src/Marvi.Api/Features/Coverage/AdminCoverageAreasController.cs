@@ -44,13 +44,19 @@ public class AdminCoverageAreasController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<CoverageAreaDto>> CreateCoverageArea(UpsertCoverageAreaRequest request)
     {
+        var error = await ValidateAsync(request);
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
         var area = new CoverageArea
         {
             Id = Guid.NewGuid(),
             WarehouseId = request.WarehouseId,
             Type = request.Type,
             RadiusMiles = request.RadiusMiles,
-            PolygonGeoJson = request.PolygonGeoJson
+            PolygonGeoJson = PolygonFor(request)
         };
 
         _dbContext.CoverageAreas.Add(area);
@@ -70,10 +76,16 @@ public class AdminCoverageAreasController : ControllerBase
             return NotFound();
         }
 
+        var error = await ValidateAsync(request);
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
         area.WarehouseId = request.WarehouseId;
         area.Type = request.Type;
         area.RadiusMiles = request.RadiusMiles;
-        area.PolygonGeoJson = request.PolygonGeoJson;
+        area.PolygonGeoJson = PolygonFor(request);
         await _dbContext.SaveChangesAsync();
 
         await _auditLogger.LogAsync("Update", nameof(CoverageArea), id, request);
@@ -97,6 +109,54 @@ public class AdminCoverageAreasController : ControllerBase
 
         return NoContent();
     }
+
+    private async Task<string?> ValidateAsync(UpsertCoverageAreaRequest request)
+    {
+        if (!await _dbContext.Warehouses.AnyAsync(w => w.Id == request.WarehouseId))
+        {
+            return "Unknown warehouse.";
+        }
+
+        if (!Enum.IsDefined(request.Type))
+        {
+            return "Unknown coverage area type.";
+        }
+
+        // 20,000 miles is already more than half the planet's circumference; anything larger is a typo.
+        if (request.Type == CoverageAreaType.Radius && (request.RadiusMiles is not > 0 or > 20000 || !double.IsFinite(request.RadiusMiles.Value)))
+        {
+            return "A radius area needs a radius greater than 0 and at most 20000 miles.";
+        }
+
+        if (request.Type == CoverageAreaType.Polygon && !IsJsonObject(request.PolygonGeoJson))
+        {
+            return "A polygon area needs its GeoJSON (a valid JSON object).";
+        }
+
+        return null;
+    }
+
+    private static bool IsJsonObject(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
+    // A radius area has no polygon; a stray one sent along would be stored beside it and confuse polygon coverage later.
+    private static string? PolygonFor(UpsertCoverageAreaRequest request) =>
+        request.Type == CoverageAreaType.Polygon ? request.PolygonGeoJson : null;
 
     private static CoverageAreaDto ToDto(CoverageArea area) =>
         new(area.Id, area.WarehouseId, area.Type, area.RadiusMiles, area.PolygonGeoJson);

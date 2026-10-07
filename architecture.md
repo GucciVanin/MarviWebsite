@@ -71,6 +71,7 @@ src/
     Migrations/               EF Core migrations
   Marvi.Shared/               empty placeholder (candidate for removal)
 test/Marvi.Tests/<Feature>/   unit + integration tests; Support/ holds MarviApiFactory, fakes
+test/runtime/                 data + security runtime test against the real stack (`bash test/runtime/run.sh`)
 client/src/app/               core/ · shared/ · features/<feature>/
 deploy/                       Dockerfile.api, Dockerfile.client, nginx.conf, docker-compose.yml
 ```
@@ -515,6 +516,7 @@ flowchart LR
   in `<X>Module.cs` and is called from `Program.cs`.
 - **Domain:** C# `class` entities with public setters (EF Core), enums stored as defined; services
   are pure and unit-tested in `test/Marvi.Tests/<Feature>`.
+- **Runtime tests:** `bash test/runtime/run.sh` uses its own compose project (`marvi-runtime`: separate containers, network and volume), so its `down -v` can never delete your dev database; it refuses to run if port 8080 is already in use. `test/runtime/api-security.mjs` seeds realistic data through the API and checks accuracy, every endpoint x every role, abuse inputs and database integrity on real Postgres (the in-memory provider cannot see foreign keys, indexes or cascades). Run it after any change to controllers, migrations or the model.
 - **Tests:** integration tests use `MarviApiFactory` (EF InMemory + `FakeGeocodingProvider`,
   environment `Testing`, which skips migration/seed; the factory seeds roles itself).
 - **Frontend:** standalone components, one `*.routes.ts` per feature, no business/price logic.
@@ -533,6 +535,14 @@ flowchart LR
   no workflow yet.
 - **`Marvi.Shared` and `Marvi.Infrastructure/Class1.cs`** are empty template leftovers.
 - **Enums go over the API as names** (`"Priced"`, `"Approved"`), via `[JsonConverter(typeof(JsonStringEnumConverter))]` on each exposed enum in the domain; the SPA models are string unions and the database still stores integers. A new exposed enum needs the attribute (`EnumContractTests`).
+- **History is never deleted by a cascade.** Foreign keys from `order_line_items`/`quote_line_items` to products, from `orders`/`quotes` to client accounts and from `inventory_records` to warehouses are `Restrict`. `DELETE /api/admin/products/{id}` and `/warehouses/{id}` return 409 when history or stock exists (deactivate products instead); a warehouse's coverage areas do cascade. This was found when deleting a product silently removed its order lines and left order totals that no longer added up.
+- **SKUs and category names are unique ignoring case** through hand-written expression indexes (`ix_products_sku_lower`, `ix_categories_name_lower`); the controllers pre-check and map the race to 409.
+- **Input rules:** deals (0-100% or non-negative fixed, start < end, min qty >= 1), warehouses (lat/long ranges), coverage areas (real warehouse, radius 0-20000 mi), approvals (existing tier, credit >= 0), products (SKU/name required and bounded) and emails (format) are validated and answered 400/409; nothing here should ever be a 500.
+- **Dates are read as UTC** (`UtcDateTimeConverter`): a date without a time zone used to reach Npgsql as `Unspecified` and fail with a 500.
+- **Bad text:** characters Postgres cannot store (NUL) become a 400 through `InvalidTextExceptionHandler`; `UseExceptionHandler` returns a generic 500 without internals for anything unexpected. The server header is removed.
+- **A product without a price has `price: null`** in the public catalog (the SPA shows "Sob consulta"); 0 would read as free. Only `NoPriceException` (a subtype of `InvalidOperationException`, thrown by `PricingService`) is turned into null; any other pricing failure must surface.
+- **More input rules:** enum fields must be defined values; a Polygon area needs a JSON object and a Radius area never keeps polygon data; registration trims and bounds company name (200), address (500) and employee code (50). Dates without a time zone mean UTC, and a date-only value means midnight UTC, so the UI should send full timestamps for deal ends.
+- **Audit paging** is validated (page/pageSize >= 1, pageSize capped at 200).
 - **Known limitation:** deleting a category and creating a deal that targets it at the same instant can leave the deal with a dangling id (no foreign key on a list; the check is not atomic). Accepted for the admin-only volume; a join table would remove it.
 - **Category names are capped at 200 characters** by the controller (keeps them under the btree index row limit).
 - **Constraint races return 409, other database errors do not:** `DbUpdateException.IsConstraintViolation()` (Infrastructure) is true only for Postgres unique (23505) and foreign-key (23503) violations; controllers that pre-check and then save use it so a timeout is never reported as a duplicate.

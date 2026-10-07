@@ -9,7 +9,7 @@ public class PricingService
             .OrderByDescending(p => p.MinQty)
             .Select(p => (decimal?)p.UnitPrice)
             .FirstOrDefault()
-            ?? throw new InvalidOperationException($"No pricing found for product '{product.Id}' and tier '{tier.Id}'.");
+            ?? throw new NoPriceException($"No pricing found for product '{product.Id}' and tier '{tier.Id}'.");
 
         var now = DateTime.UtcNow;
         var applicableDeals = activeDeals.Where(d =>

@@ -13,6 +13,8 @@ namespace Marvi.Api.Features.Identity;
 [Authorize(Roles = "Admin")]
 public class AdminEmployeesController : ControllerBase
 {
+    private const int MaxEmployeeCodeLength = 50;
+
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly AppDbContext _dbContext;
     private readonly AuditLogger _auditLogger;
@@ -28,6 +30,17 @@ public class AdminEmployeesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(CreateEmployeeRequest request)
     {
+        if (!EmailAddressValidator.IsValid(request.Email))
+        {
+            return BadRequest(new[] { "Invalid email address." });
+        }
+
+        var employeeCode = request.EmployeeCode?.Trim();
+        if (string.IsNullOrWhiteSpace(employeeCode) || employeeCode.Length > MaxEmployeeCodeLength)
+        {
+            return BadRequest(new[] { $"Employee code is required and limited to {MaxEmployeeCodeLength} characters." });
+        }
+
         var user = new ApplicationUser
         {
             UserName = request.Email,
@@ -46,7 +59,7 @@ public class AdminEmployeesController : ControllerBase
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            EmployeeCode = request.EmployeeCode,
+            EmployeeCode = employeeCode,
             Department = request.Department,
             HireDate = request.HireDate
         };

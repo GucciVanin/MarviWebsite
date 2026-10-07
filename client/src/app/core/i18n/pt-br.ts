@@ -25,6 +25,9 @@ export const PT = {
     explore: 'Conheça nosso catálogo',
     register: 'Criar conta de cliente',
   },
+  storefront: {
+    priceOnRequest: 'Sob consulta',
+  },
   auth: {
     loginTitle: 'Entrar',
     registerTitle: 'Criar conta de cliente',

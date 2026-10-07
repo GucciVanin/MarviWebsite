@@ -20,6 +20,7 @@ src/Marvi.Domain/      Entities, enums, business rules — <Feature>/
 src/Marvi.Infrastructure/  EF Core/Postgres, Identity, geocoding providers, migrations
 src/Marvi.Shared/      Empty placeholder project (candidate for removal)
 test/Marvi.Tests/      xUnit unit + integration tests, organised by feature
+test/runtime/          data + security runtime test against the real stack (see its README)
 client/                Angular SPA — src/app/{core,shared,features}
 deploy/                Dockerfiles, nginx.conf, docker-compose.yml
 docs/archive/          Superseded planning documents (history only)

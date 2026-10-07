@@ -37,7 +37,8 @@ public class ProductsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(p => p.Name.Contains(search) || p.Sku.Contains(search));
+            var term = search.Trim().ToLower();
+            query = query.Where(p => p.Name.ToLower().Contains(term) || p.Sku.ToLower().Contains(term));
         }
 
         var products = await query.ToListAsync();
@@ -102,17 +103,19 @@ public class ProductsController : ControllerBase
         return new ProductListItemDto(product.Id, product.Sku, product.Name, product.ImageUrl, product.Attributes, price, dealName, inStock);
     }
 
-    private (decimal Price, string? DealName) TryResolvePrice(Product product, PricingTier tier, IEnumerable<ProductPricing> pricingRows, IEnumerable<Deal> activeDeals)
+    // A null price means "no price configured for this tier" (shown as "on request"); it must never read as a price of 0.
+    private (decimal? Price, string? DealName) TryResolvePrice(Product product, PricingTier tier, IEnumerable<ProductPricing> pricingRows, IEnumerable<Deal> activeDeals)
     {
         try
         {
             var result = _pricingService.ResolvePrice(product, tier, pricingRows, activeDeals, qty: 1);
             return (result.UnitPrice, result.AppliedDeal?.Name);
         }
-        catch (InvalidOperationException)
+        catch (NoPriceException)
         {
-            // No pricing row configured for this product/tier combination.
-            return (0m, null);
+            // No pricing row configured for this product/tier combination. Only this case: any other failure is a bug
+            // and must surface, not be shown to customers as "on request".
+            return (null, null);
         }
     }
 }
