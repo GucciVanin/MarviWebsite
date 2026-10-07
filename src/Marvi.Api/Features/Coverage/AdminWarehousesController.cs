@@ -44,11 +44,17 @@ public class AdminWarehousesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<WarehouseDto>> CreateWarehouse(UpsertWarehouseRequest request)
     {
+        var error = Validate(request);
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
         var warehouse = new Warehouse
         {
             Id = Guid.NewGuid(),
-            Name = request.Name,
-            Address = request.Address,
+            Name = request.Name.Trim(),
+            Address = request.Address.Trim(),
             Latitude = request.Latitude,
             Longitude = request.Longitude
         };
@@ -70,8 +76,14 @@ public class AdminWarehousesController : ControllerBase
             return NotFound();
         }
 
-        warehouse.Name = request.Name;
-        warehouse.Address = request.Address;
+        var error = Validate(request);
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
+        warehouse.Name = request.Name.Trim();
+        warehouse.Address = request.Address.Trim();
         warehouse.Latitude = request.Latitude;
         warehouse.Longitude = request.Longitude;
         await _dbContext.SaveChangesAsync();
@@ -90,12 +102,47 @@ public class AdminWarehousesController : ControllerBase
             return NotFound();
         }
 
+        // Stock and order history point at the warehouse; deleting it would erase them (inventory) or be refused by
+        // the database (orders). Coverage areas belong to the warehouse and go with it.
+        if (await _dbContext.InventoryRecords.AnyAsync(i => i.WarehouseId == id) || await _dbContext.Orders.AnyAsync(o => o.WarehouseId == id))
+        {
+            return Conflict("The warehouse still has inventory or orders. Clear its stock first; warehouses with order history cannot be deleted.");
+        }
+
         _dbContext.Warehouses.Remove(warehouse);
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (exception.IsConstraintViolation())
+        {
+            // Stock or an order appeared between the check above and the delete.
+            return Conflict("The warehouse still has inventory or orders.");
+        }
 
         await _auditLogger.LogAsync("Delete", nameof(Warehouse), id);
 
         return NoContent();
+    }
+
+    private static string? Validate(UpsertWarehouseRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Address))
+        {
+            return "Name and address are required.";
+        }
+
+        if (!double.IsFinite(request.Latitude) || request.Latitude is < -90 or > 90)
+        {
+            return "Latitude must be between -90 and 90.";
+        }
+
+        if (!double.IsFinite(request.Longitude) || request.Longitude is < -180 or > 180)
+        {
+            return "Longitude must be between -180 and 180.";
+        }
+
+        return null;
     }
 
     private static WarehouseDto ToDto(Warehouse warehouse) =>

@@ -31,6 +31,16 @@ public class AdminClientsController : ControllerBase
             return NotFound();
         }
 
+        if (request.CreditLimit < 0)
+        {
+            return BadRequest("Credit limit cannot be negative.");
+        }
+
+        if (!await _dbContext.PricingTiers.AnyAsync(t => t.Id == request.PricingTierId))
+        {
+            return BadRequest("Unknown pricing tier.");
+        }
+
         clientAccount.Status = ClientAccountStatus.Approved;
         clientAccount.PricingTierId = request.PricingTierId;
         clientAccount.CreditLimit = request.CreditLimit;

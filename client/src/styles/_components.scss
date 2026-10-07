@@ -1,0 +1,84 @@
+// UI primitives as global classes: .container .page .btn .card .field .alert .eyebrow
+.container {
+  width: min(100% - 2rem, 72rem);
+  margin-inline: auto;
+}
+
+.page {
+  padding-block: var(--space-4) var(--section-padding);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-1);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--color-gold-500);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.7rem 1.4rem;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: background var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
+
+  &--primary {
+    color: var(--color-navy-900);
+    background: var(--color-gold-500);
+    &:hover { background: var(--color-gold-600); }
+  }
+
+  &--ghost {
+    color: var(--color-text-inverse);
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.55);
+    &:hover { border-color: var(--color-gold-500); color: var(--color-gold-500); }
+  }
+
+  &--outline {
+    color: var(--color-navy-900);
+    background: transparent;
+    border-color: var(--color-navy-900);
+    &:hover { background: var(--color-navy-900); color: var(--color-text-inverse); }
+  }
+}
+
+.card {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: var(--space-2);
+
+  label {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  input,
+  select,
+  textarea { max-width: none; }
+}
+
+.alert {
+  margin-block: var(--space-2);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-field);
+  border-left: 4px solid var(--color-blue-600);
+  background: #eaeefb;
+
+  &--error { border-color: var(--color-red-500); background: #fde8ea; color: #7a111b; }
+  &--success { border-color: var(--color-success); background: #e4f4ea; color: #0f4a2b; }
+}

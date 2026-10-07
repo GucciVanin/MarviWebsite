@@ -19,7 +19,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (product of products; track product.id) {
+      @for (product of products(); track product.id) {
         <tr>
           <td>{{ product.sku }}</td>
           <td>{{ product.name }}</td>
@@ -42,7 +42,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (deal of deals; track deal.id) {
+      @for (deal of deals(); track deal.id) {
         <tr>
           <td>{{ deal.name }}</td>
           <td>{{ deal.discountType }} {{ deal.discountValue }}</td>
@@ -64,7 +64,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (warehouse of warehouses; track warehouse.id) {
+      @for (warehouse of warehouses(); track warehouse.id) {
         <tr>
           <td>{{ warehouse.name }}</td>
           <td>{{ warehouse.address }}</td>
@@ -85,7 +85,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (area of coverageAreas; track area.id) {
+      @for (area of coverageAreas(); track area.id) {
         <tr>
           <td>{{ area.warehouseId }}</td>
           <td>{{ area.type }}</td>
@@ -107,7 +107,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (entry of auditLog; track entry.id) {
+      @for (entry of auditLog(); track entry.id) {
         <tr>
           <td>{{ entry.timestamp }}</td>
           <td>{{ entry.action }}</td>

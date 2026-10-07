@@ -1,0 +1,16 @@
+<section class="hero">
+  <div class="container">
+    <p class="eyebrow">{{ t.eyebrow }}</p>
+    <h1>
+      {{ t.headlineLine1 }}<br />
+      <span class="hero__accent">{{ t.headlineLine2 }}</span>
+    </h1>
+    <p class="hero__subtitle">{{ t.subtitle }}</p>
+    <div class="hero__actions">
+      <a class="btn btn--primary" routerLink="/storefront">{{ t.explore }}</a>
+      @if (!isAuthenticated()) {
+        <a class="btn btn--ghost" routerLink="/register">{{ t.register }}</a>
+      }
+    </div>
+  </div>
+</section>

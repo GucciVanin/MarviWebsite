@@ -1,0 +1,115 @@
+// Element defaults. They also make the plain, unclassed markup in the portals readable until each portal is redesigned.
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-paper);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--space-2);
+  line-height: 1.15;
+  font-weight: 800;
+  color: var(--color-navy-900);
+}
+
+h1 { font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 900; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
+h3 { font-size: 1.15rem; }
+
+p { margin: 0 0 var(--space-2); }
+
+a {
+  color: var(--color-blue-600);
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  // A transparent outline is still drawn in forced-colors (high-contrast) mode, where box-shadow is not.
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+  border-radius: 4px;
+}
+
+img { max-width: 100%; height: auto; }
+
+input,
+select,
+textarea {
+  width: 100%;
+  max-width: 28rem;
+  padding: 0.65rem 0.85rem;
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-field);
+  transition: border-color var(--motion-fast);
+
+  &:focus { border-color: var(--color-gold-500); }
+}
+
+button {
+  padding: 0.6rem 1.2rem;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-navy-900);
+  background: var(--color-gold-500);
+  border: 0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--motion-fast);
+
+  &:hover { background: var(--color-gold-600); }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  border-radius: var(--radius-field);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+th,
+td {
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+th {
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: var(--color-paper);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

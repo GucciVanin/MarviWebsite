@@ -8,7 +8,8 @@ export interface ProductListItem {
   name: string;
   imageUrl: string | null;
   attributes: Record<string, string>;
-  price: number;
+  /** null when the product has no price for the caller's tier (show "on request", never 0). */
+  price: number | null;
   dealName: string | null;
   inStock: boolean;
 }
@@ -20,7 +21,7 @@ export interface ProductDetail {
   description: string | null;
   imageUrl: string | null;
   attributes: Record<string, string>;
-  price: number;
+  price: number | null;
   dealName: string | null;
   inStock: boolean;
 }

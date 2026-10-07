@@ -7,6 +7,6 @@ public record ProductDetailDto(
     string? Description,
     string? ImageUrl,
     Dictionary<string, string> Attributes,
-    decimal Price,
+    decimal? Price,
     string? DealName,
     bool InStock);

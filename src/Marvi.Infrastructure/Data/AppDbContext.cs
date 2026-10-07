@@ -23,6 +23,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
     public DbSet<EmployeeAccount> EmployeeAccounts => Set<EmployeeAccount>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Category> Categories => Set<Category>();
     public DbSet<PricingTier> PricingTiers => Set<PricingTier>();
     public DbSet<ProductPricing> ProductPricings => Set<ProductPricing>();
     public DbSet<Deal> Deals => Set<Deal>();
@@ -63,6 +64,29 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<CoverageArea>()
             .Property(c => c.PolygonGeoJson)
             .HasColumnType("jsonb");
+
+        // Category names are unique ignoring case. That is an expression index on lower(name), which EF cannot model,
+        // so it is created by hand in migration CaseInsensitiveCategoryNames and is deliberately absent from the model.
+
+        // No navigation properties: products reference a category by id only. Restrict keeps a used category from being deleted.
+        builder.Entity<Product>()
+            .HasOne<Category>()
+            .WithMany()
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // History is never deleted by a cascade. Quote and order lines record what was sold; deleting a product (or the
+        // client / warehouse behind an order) must not silently remove them and leave totals that no longer add up.
+        // Controllers return 409 first; Restrict is the database-level backstop.
+        builder.Entity<OrderLineItem>().HasOne(l => l.Product).WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<QuoteLineItem>().HasOne(l => l.Product).WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Order>().HasOne(o => o.ClientAccount).WithMany(c => c.Orders).HasForeignKey(o => o.ClientAccountId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Quote>().HasOne(q => q.ClientAccount).WithMany(c => c.Quotes).HasForeignKey(q => q.ClientAccountId).OnDelete(DeleteBehavior.Restrict);
+        // Stock records are deleted deliberately, never as a side effect of deleting the warehouse.
+        builder.Entity<InventoryRecord>().HasOne(i => i.Warehouse).WithMany(w => w.InventoryRecords).HasForeignKey(i => i.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+
+        // Product SKUs are unique ignoring case. That is an expression index on lower(sku), which EF cannot model, so it
+        // is created by hand in migration ProtectHistoryAndUniqueSkus and is deliberately absent from the model.
 
         // At most one default tier; the filter is ignored by non-relational test providers.
         builder.Entity<PricingTier>()

@@ -1,0 +1,27 @@
+<footer class="footer">
+  <div class="container footer__grid">
+    <div>
+      <p class="footer__brand">{{ t.brand.name }}</p>
+      <p class="footer__tagline">{{ t.brand.tagline }}</p>
+    </div>
+    <nav [attr.aria-label]="t.footer.explore">
+      <p class="footer__title">{{ t.footer.explore }}</p>
+      <ul>
+        <li><a routerLink="/">{{ t.nav.home }}</a></li>
+        <li><a routerLink="/storefront">{{ t.nav.products }}</a></li>
+      </ul>
+    </nav>
+    @if (!isAuthenticated()) {
+      <nav [attr.aria-label]="t.footer.account">
+        <p class="footer__title">{{ t.footer.account }}</p>
+        <ul>
+          <li><a routerLink="/login">{{ t.nav.login }}</a></li>
+          <li><a routerLink="/register">{{ t.nav.register }}</a></li>
+        </ul>
+      </nav>
+    }
+  </div>
+  <p class="container footer__legal">
+    © {{ year }} {{ t.brand.name }} — {{ t.brand.tagline }}. {{ t.footer.rights }}
+  </p>
+</footer>

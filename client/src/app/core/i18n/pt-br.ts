@@ -1,0 +1,47 @@
+// All user-facing copy lives here (pt-BR only, per project.md §10.1). Edit text here, not in templates.
+export const PT = {
+  brand: { name: 'MARVI', tagline: 'Exímia Distribuidora de Bebidas' },
+  nav: {
+    skipToContent: 'Ir para o conteúdo',
+    home: 'Início',
+    products: 'Produtos',
+    menu: 'Menu',
+    login: 'Entrar',
+    register: 'Cadastrar',
+    logout: 'Sair',
+    mainLabel: 'Navegação principal',
+    areas: { Client: 'Minha área', Employee: 'Painel do funcionário', Admin: 'Administração' } as Record<string, string>,
+  },
+  footer: {
+    rights: 'Todos os direitos reservados.',
+    explore: 'Explorar',
+    account: 'Conta',
+  },
+  home: {
+    eyebrow: 'Distribuição que entrega',
+    headlineLine1: 'Seu abastecimento,',
+    headlineLine2: 'resolvido.',
+    subtitle: 'Mantemos as bebidas certas em movimento para o seu negócio focar no que importa.',
+    explore: 'Conheça nosso catálogo',
+    register: 'Criar conta de cliente',
+  },
+  storefront: {
+    priceOnRequest: 'Sob consulta',
+  },
+  auth: {
+    loginTitle: 'Entrar',
+    registerTitle: 'Criar conta de cliente',
+    email: 'E-mail',
+    password: 'Senha',
+    companyName: 'Nome da empresa',
+    billingAddress: 'Endereço de cobrança',
+    submitLogin: 'Entrar',
+    submitRegister: 'Cadastrar',
+    loginFailed: 'Não foi possível entrar. Verifique seu e-mail e sua senha.',
+    registerFailed: 'Não foi possível concluir o cadastro. Verifique os dados e tente novamente.',
+    newClient: 'Novo cliente?',
+    createAccount: 'Crie sua conta',
+    haveAccount: 'Já tem uma conta?',
+    goToLogin: 'Entrar',
+  },
+};

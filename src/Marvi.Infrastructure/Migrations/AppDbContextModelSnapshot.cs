@@ -63,6 +63,32 @@ namespace Marvi.Infrastructure.Migrations
                     b.ToTable("audit_log_entries", (string)null);
                 });
 
+            modelBuilder.Entity("Marvi.Domain.Catalog.Category", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Id")
+                        .HasName("pk_categories");
+
+                    b.ToTable("categories", (string)null);
+                });
+
             modelBuilder.Entity("Marvi.Domain.Catalog.Deal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -178,6 +204,9 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_products");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("ix_products_category_id");
 
                     b.ToTable("products", (string)null);
                 });
@@ -804,6 +833,15 @@ namespace Marvi.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Marvi.Domain.Catalog.Product", b =>
+                {
+                    b.HasOne("Marvi.Domain.Catalog.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_products_categories_category_id");
+                });
+
             modelBuilder.Entity("Marvi.Domain.Catalog.ProductPricing", b =>
                 {
                     b.HasOne("Marvi.Domain.Catalog.PricingTier", "PricingTier")
@@ -859,7 +897,7 @@ namespace Marvi.Infrastructure.Migrations
                     b.HasOne("Marvi.Domain.Coverage.Warehouse", "Warehouse")
                         .WithMany("InventoryRecords")
                         .HasForeignKey("WarehouseId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_inventory_records_warehouses_warehouse_id");
 
@@ -873,7 +911,7 @@ namespace Marvi.Infrastructure.Migrations
                     b.HasOne("Marvi.Domain.Identity.ClientAccount", "ClientAccount")
                         .WithMany("Orders")
                         .HasForeignKey("ClientAccountId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_orders_client_accounts_client_account_id");
 
@@ -913,7 +951,7 @@ namespace Marvi.Infrastructure.Migrations
                     b.HasOne("Marvi.Domain.Catalog.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_order_line_items_products_product_id");
 
@@ -927,7 +965,7 @@ namespace Marvi.Infrastructure.Migrations
                     b.HasOne("Marvi.Domain.Identity.ClientAccount", "ClientAccount")
                         .WithMany("Quotes")
                         .HasForeignKey("ClientAccountId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_quotes_client_accounts_client_account_id");
 
@@ -946,7 +984,7 @@ namespace Marvi.Infrastructure.Migrations
                     b.HasOne("Marvi.Domain.Catalog.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_quote_line_items_products_product_id");
 

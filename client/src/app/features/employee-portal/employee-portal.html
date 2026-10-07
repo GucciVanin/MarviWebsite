@@ -12,7 +12,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (quote of quoteQueue; track quote.id) {
+      @for (quote of quoteQueue(); track quote.id) {
         <tr>
           <td>{{ quote.clientAccountId }}</td>
           <td>{{ quote.status }}</td>
@@ -37,7 +37,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (record of inventory; track record.id) {
+      @for (record of inventory(); track record.id) {
         <tr>
           <td>{{ record.productName }}</td>
           <td>{{ record.warehouseId }}</td>
@@ -54,11 +54,11 @@
   <h3>Client Lookup</h3>
   <input type="text" [(ngModel)]="lookupClientId" placeholder="Client ID" />
   <button type="button" (click)="lookupClient()">Lookup</button>
-  @if (clientProfile) {
+  @if (clientProfile(); as profile) {
     <div>
-      <p>{{ clientProfile.companyName }} — {{ clientProfile.status }}</p>
-      <p>Credit limit: {{ clientProfile.creditLimit }}</p>
-      <p>Pricing tier: {{ clientProfile.pricingTierName }}</p>
+      <p>{{ profile.companyName }} — {{ profile.status }}</p>
+      <p>Credit limit: {{ profile.creditLimit }}</p>
+      <p>Pricing tier: {{ profile.pricingTierName }}</p>
     </div>
   }
 </section>

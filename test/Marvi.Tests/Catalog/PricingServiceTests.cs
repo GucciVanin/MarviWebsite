@@ -102,4 +102,17 @@ public class PricingServiceTests
         Assert.Equal(100m, result.UnitPrice);
         Assert.Null(result.AppliedDeal);
     }
+
+    // The public catalog catches exactly this type (so it shows "on request" for an unpriced product) and must not
+    // swallow other InvalidOperationExceptions, which would be pricing bugs.
+    [Fact]
+    public void ResolvePrice_ThrowsTheSpecificNoPriceException_WhenNoRowMatches()
+    {
+        var product = new Product { Id = Guid.NewGuid(), Sku = "X", Name = "X" };
+        var tier = new PricingTier { Id = Guid.NewGuid(), Name = "T" };
+
+        var exception = Assert.Throws<NoPriceException>(() => _sut.ResolvePrice(product, tier, [], [], 1));
+
+        Assert.IsAssignableFrom<InvalidOperationException>(exception); // existing callers that catch the base type still work
+    }
 }

@@ -1,12 +1,11 @@
+# Secrets come from deploy/.env (untracked). Copy deploy/.env.example to deploy/.env and edit it.
 services:
   postgres:
     image: postgres:16
     environment:
       POSTGRES_DB: marvi
       POSTGRES_USER: marvi
-      POSTGRES_PASSWORD: marvi
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
     volumes:
       - marvi-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -20,16 +19,25 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.api
     environment:
-      ConnectionStrings__AppDb: "Host=postgres;Port=5432;Database=marvi;Username=marvi;Password=marvi"
-      # Development defaults: override Jwt__Key and the admin seed before any real deployment.
-      Jwt__Key: "dev-only-compose-signing-key-CHANGE-ME-before-production-1234567890"
-      Seed__AdminEmail: "admin@marvi.local"
-      Seed__AdminPassword: "Marvi-Dev-Admin-1!"
+      # The password goes through PGPASSWORD (read by Npgsql), not into the connection string, so characters such as
+      # ; = " in it cannot corrupt or inject connection-string settings.
+      ConnectionStrings__AppDb: "Host=postgres;Port=5432;Database=marvi;Username=marvi"
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      Jwt__Key: ${JWT_KEY:?set JWT_KEY in deploy/.env}
+      Seed__AdminEmail: ${SEED_ADMIN_EMAIL:?set SEED_ADMIN_EMAIL in deploy/.env}
+      Seed__AdminPassword: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in deploy/.env}
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # The aspnet image has no curl/wget, so probe /health over bash's /dev/tcp.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q 200"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   client:
     build:
@@ -40,7 +48,8 @@ services:
     ports:
       - "4200:4200"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   marvi-db-data:
