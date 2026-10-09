@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { translateIdentityErrors } from '../../../core/i18n/identity-errors';
+import { describeApiError } from '../../../core/http/api-error';
 import { PT } from '../../../core/i18n/pt-br';
 
 @Component({
@@ -44,8 +45,8 @@ export class Register {
     });
   }
 
-  // The API returns Identity's validation messages (English) as an array; show them translated to pt-BR.
+  // The API returns Identity's validation messages (English) as an array on 400; show them translated to pt-BR. Other failures use the shared status message.
   private describe(response: HttpErrorResponse): string {
-    return translateIdentityErrors(response.error);
+    return response.status === 400 ? translateIdentityErrors(response.error) : describeApiError(response).message;
   }
 }

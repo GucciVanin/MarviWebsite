@@ -37,6 +37,22 @@ describe('Login', () => {
     expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
   });
 
+  // "Check your email and password" is the wrong advice when the server is down.
+  it('does not blame the credentials when the server or network fails', () => {
+    const { fixture, http } = setup();
+    const element = fixture.nativeElement as HTMLElement;
+
+    fixture.componentInstance.submit();
+    http.expectOne('/api/auth/login').error(new ProgressEvent('error'));
+    fixture.detectChanges();
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('conectar ao servidor');
+
+    fixture.componentInstance.submit();
+    http.expectOne('/api/auth/login').flush('x', { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('Erro no servidor');
+  });
+
   it('sends the user to the area for their role after login', () => {
     const { fixture, http, router } = setup();
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);

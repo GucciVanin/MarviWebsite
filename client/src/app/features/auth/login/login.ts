@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
+import { describeApiError, hasStatus } from '../../../core/http/api-error';
 import { PT } from '../../../core/i18n/pt-br';
 
 @Component({
@@ -27,9 +28,10 @@ export class Login {
     this.busy.set(true);
     this.authService.login({ email: this.email, password: this.password }).subscribe({
       next: () => this.router.navigateByUrl(this.authService.homeUrl()),
-      error: () => {
+      error: (failure: unknown) => {
         this.busy.set(false);
-        this.error.set(this.t.loginFailed);
+        // Wrong credentials are 400/401; anything else (network, server) is not the user's typing.
+        this.error.set(hasStatus(failure, 400, 401) ? this.t.loginFailed : describeApiError(failure).message);
       },
     });
   }
