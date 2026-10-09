@@ -2,7 +2,7 @@
 
 High-level technical spec, organised with SCRUM. Companion documents: [goal.md](goal.md) (why — wins
 any conflict), [architecture.md](architecture.md) (how it is built).
-Last reviewed: 2026-10-01. Status values: **Done**, **Partial**, **Not started**.
+Last reviewed: 2026-10-09. Status values: **Done**, **Partial**, **Not started**.
 
 ## 1. Product vision
 
@@ -86,9 +86,26 @@ people, catalog, pricing, warehouses and audit. See [goal.md](goal.md).
 - Frontend: added the missing registration page and role-based redirect after login.
 - Docker: client image used Node 20 (Angular CLI needs 22.22.3+); compose now passes the admin seed and JWT key.
 
+**Sprint 2b — Architecture fixes (Not started; runs before MRV-2.4a)** — from the architecture review of 2026-10-06. Each story is one PR and one GitHub issue (the issue holds the full spec). Rules for all of them: no behaviour change except where stated; characterization tests first; existing API tests stay green; runtime checks added to `test/runtime/` for every endpoint touched (success, 400, 403, 404, 409, never 500). Vocabulary in `CONTEXT.md`; naming decision in `docs/adr/0001-customer-in-prose-client-in-code.md`.
+
+| ID | Story | Issue | Approved behaviour change |
+|---|---|---|---|
+| MRV-4.1 | Front-end loading and error handling with pt-BR messages by HTTP status; applied to every existing screen | [#2](https://github.com/GucciVanin/MarviWebsite/issues/2) | None (API unchanged) |
+| MRV-4.2 | Customer eligibility as one Domain rule | [#3](https://github.com/GucciVanin/MarviWebsite/issues/3) | Pending customers are refused (403) when requesting or accepting a quote |
+| MRV-4.3 | Basket pricing in one Domain module (Deal window once, missing price as a result, shared order building) | [#4](https://github.com/GucciVanin/MarviWebsite/issues/4) | Accepting a quote with an unpriced line returns 409 instead of creating a zero-price order |
+| MRV-4.4 | Admin mutations save and audit in one transaction | [#5](https://github.com/GucciVanin/MarviWebsite/issues/5) | None on success |
+| MRV-4.5 | Constraint races map to 409 on all admin controllers | [#6](https://github.com/GucciVanin/MarviWebsite/issues/6) | Races that returned 500 now return 409 |
+| MRV-4.6 | Shared admin input policy and delete guards | [#7](https://github.com/GucciVanin/MarviWebsite/issues/7) | None (new limits on deals, tiers and warehouses need owner approval) |
+| MRV-4.7 | Identity claims issued and read in one module | [#8](https://github.com/GucciVanin/MarviWebsite/issues/8) | None |
+| MRV-4.8 | Geocoding outcomes distinguish unavailable from not found (internal; visitor response unchanged) | [#9](https://github.com/GucciVanin/MarviWebsite/issues/9) | None |
+| MRV-4.9 | Default pricing tier and coverage-area selection move into Domain | [#10](https://github.com/GucciVanin/MarviWebsite/issues/10) | None |
+| MRV-4.10 | Stock availability in Domain; public product list stops loading all stock | [#11](https://github.com/GucciVanin/MarviWebsite/issues/11) | None |
+
+Order of work: 4.1 → 4.2 → 4.3 → 4.4 → 4.5 → 4.6 → 4.7 → 4.8 → 4.9 → 4.10. Open owner decisions raised by these specs: new length limits for deals, tiers and warehouses (4.6); showing visitors a distinct "unavailable" message for coverage (4.8); optional stable API error codes (follow-up to 4.1).
+
 **Sprint 2 — Front end, so the product can be used and tested (In progress, started 2026-10-02)**
 
-Why first: the API is ahead of the UI, and the owner cannot exercise the product without screens. Order of work: 2.3a → 2.4a → 2.3e → 2.3b → 2.3c → 2.3d.
+Why first: the API is ahead of the UI, and the owner cannot exercise the product without screens. Order of work: 2.3a → (Sprint 2b) → 2.4a → 2.3e → 2.3b → 2.3c → 2.3d.
 
 | ID | Story | Acceptance criteria |
 |---|---|---|
@@ -119,13 +136,13 @@ Why first: the API is ahead of the UI, and the owner cannot exercise the product
 |---|---|---|
 | MRV-3.1 | Verify Docker Compose end to end | `docker compose up --build` yields a working SPA → API → DB. **Done** (verified 2026-10-02: images build, API migrates and seeds, SPA and `/api` proxy respond) |
 | MRV-3.2 | Continuous integration | Pipeline runs `dotnet build/test` and the client build/test on every change (needs Node >= 22.22.3) |
-| MRV-3.3 | Production hardening | Secrets via environment/secret store, rate limiting on auth and coverage, JWT key rotation plan, HTTPS. **Refuse to start in Production** when the JWT key, admin password or DB password still holds a placeholder/example value (`deploy/.env.example` ships working dev values; a straight copy is currently accepted) |
+| MRV-3.3 | Production hardening | Secrets via environment/secret store, rate limiting on auth and coverage, JWT key rotation plan, HTTPS (run the `test/runtime/` suite once against an HTTPS endpoint). **Refuse to start in Production** when the JWT key, admin password or DB password still holds a placeholder/example value (`deploy/.env.example` ships working dev values; a straight copy is currently accepted) |
 | MRV-3.4 | Exercise geocoding providers against real keys | Azure and Google paths each have a documented smoke test; optional address cache |
 | MRV-3.5 | Raise test coverage (a data/security runtime test now exists in `test/runtime/`; add the Chrome UI run to CI) | Integration tests for every controller; frontend service/guard tests |
 
 ### Release 2
 
-Multi-warehouse routing • polygon coverage areas (ray casting or PostGIS) • inventory tracking with
+Reserve and release stock on orders ([#12](https://github.com/GucciVanin/MarviWebsite/issues/12); needs the order lifecycle, warehouse routing and MRV-1.2) • Multi-warehouse routing • polygon coverage areas (ray casting or PostGIS) • inventory tracking with
 backorders and per-line status • delivery scheduling • invoices/PDF • returns/RMA • audit-log UI •
 reporting dashboards.
 
