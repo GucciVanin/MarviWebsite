@@ -1,58 +1,66 @@
-<h2>Client Portal</h2>
+<h2>{{ t.title }}</h2>
 
 <section>
-  <h3>Request a Quote</h3>
-  <input type="text" [(ngModel)]="newProductId" placeholder="Product ID" />
+  <h3>{{ t.requestTitle }}</h3>
+  <input type="text" [(ngModel)]="newProductId" [placeholder]="t.productId" />
   <input type="number" [(ngModel)]="newQty" min="1" />
-  <button type="button" (click)="requestQuote()">Request Quote</button>
+  <button type="button" [disabled]="requestAction.busy()" (click)="requestQuote()">{{ t.requestQuote }}</button>
+  <app-error-alert [error]="requestAction.error()" />
 </section>
 
 <section>
-  <h3>My Quotes</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Status</th>
-        <th>Created</th>
-        <th>Line Items</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (quote of quotes(); track quote.id) {
+  <h3>{{ t.quotesTitle }}</h3>
+  <app-load-state [state]="quotes" [emptyText]="t.noQuotes" />
+  <app-error-alert [error]="acceptAction.error()" />
+  @if (quotes.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ quote.status }}</td>
-          <td>{{ quote.createdAt }}</td>
-          <td>{{ quote.lineItems.length }}</td>
-          <td>
-            @if (quote.status === 'Priced') {
-              <button type="button" (click)="acceptQuote(quote.id)">Accept</button>
-            }
-          </td>
+          <th>{{ t.status }}</th>
+          <th>{{ t.created }}</th>
+          <th>{{ t.lineItems }}</th>
+          <th></th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (quote of quotes.data(); track quote.id) {
+          <tr>
+            <td>{{ quote.status }}</td>
+            <td>{{ quote.createdAt }}</td>
+            <td>{{ quote.lineItems.length }}</td>
+            <td>
+              @if (quote.status === 'Priced') {
+                <button type="button" [disabled]="acceptAction.busy()" (click)="acceptQuote(quote.id)">{{ t.accept }}</button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>
 
 <section>
-  <h3>My Orders</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Status</th>
-        <th>Delivery Address</th>
-        <th>Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (order of orders(); track order.id) {
+  <h3>{{ t.ordersTitle }}</h3>
+  <app-load-state [state]="orders" [emptyText]="t.noOrders" />
+  @if (orders.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ order.status }}</td>
-          <td>{{ order.deliveryAddress }}</td>
-          <td>{{ order.totalAmount }}</td>
+          <th>{{ t.status }}</th>
+          <th>{{ t.deliveryAddress }}</th>
+          <th>{{ t.total }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (order of orders.data(); track order.id) {
+          <tr>
+            <td>{{ order.status }}</td>
+            <td>{{ order.deliveryAddress }}</td>
+            <td>{{ order.totalAmount }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>

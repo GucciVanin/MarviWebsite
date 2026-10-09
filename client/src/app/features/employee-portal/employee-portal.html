@@ -1,64 +1,71 @@
-<h2>Employee Portal</h2>
+<h2>{{ t.title }}</h2>
 
 <section>
-  <h3>Quote Queue (Submitted)</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Client</th>
-        <th>Status</th>
-        <th>Created</th>
-        <th>Line Items</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (quote of quoteQueue(); track quote.id) {
+  <h3>{{ t.queueTitle }}</h3>
+  <app-load-state [state]="quoteQueue" [emptyText]="t.noQueue" />
+  @if (quoteQueue.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ quote.clientAccountId }}</td>
-          <td>{{ quote.status }}</td>
-          <td>{{ quote.createdAt }}</td>
-          <td>{{ quote.lineItems.length }}</td>
+          <th>{{ t.client }}</th>
+          <th>{{ t.status }}</th>
+          <th>{{ t.created }}</th>
+          <th>{{ t.lineItems }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (quote of quoteQueue.data(); track quote.id) {
+          <tr>
+            <td>{{ quote.clientAccountId }}</td>
+            <td>{{ quote.status }}</td>
+            <td>{{ quote.createdAt }}</td>
+            <td>{{ quote.lineItems.length }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>
 
 <section>
-  <h3>Inventory</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Warehouse</th>
-        <th>On Hand</th>
-        <th>Reserved</th>
-        <th>Reorder Point</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (record of inventory(); track record.id) {
+  <h3>{{ t.inventoryTitle }}</h3>
+  <app-load-state [state]="inventory" [emptyText]="t.noInventory" />
+  @if (inventory.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ record.productName }}</td>
-          <td>{{ record.warehouseId }}</td>
-          <td>{{ record.qtyOnHand }}</td>
-          <td>{{ record.qtyReserved }}</td>
-          <td>{{ record.reorderPoint }}</td>
+          <th>{{ t.product }}</th>
+          <th>{{ t.warehouse }}</th>
+          <th>{{ t.onHand }}</th>
+          <th>{{ t.reserved }}</th>
+          <th>{{ t.reorderPoint }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (record of inventory.data(); track record.id) {
+          <tr>
+            <td>{{ record.productName }}</td>
+            <td>{{ record.warehouseId }}</td>
+            <td>{{ record.qtyOnHand }}</td>
+            <td>{{ record.qtyReserved }}</td>
+            <td>{{ record.reorderPoint }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>
 
 <section>
-  <h3>Client Lookup</h3>
-  <input type="text" [(ngModel)]="lookupClientId" placeholder="Client ID" />
-  <button type="button" (click)="lookupClient()">Lookup</button>
+  <h3>{{ t.lookupTitle }}</h3>
+  <input type="text" [(ngModel)]="lookupClientId" [placeholder]="t.clientId" />
+  <button type="button" [disabled]="lookupAction.busy()" (click)="lookupClient()">{{ t.lookup }}</button>
+  <app-error-alert [error]="lookupAction.error()" />
   @if (clientProfile(); as profile) {
     <div>
       <p>{{ profile.companyName }} — {{ profile.status }}</p>
-      <p>Credit limit: {{ profile.creditLimit }}</p>
-      <p>Pricing tier: {{ profile.pricingTierName }}</p>
+      <p>{{ t.creditLimit }}: {{ profile.creditLimit }}</p>
+      <p>{{ t.pricingTier }}: {{ profile.pricingTierName }}</p>
     </div>
   }
 </section>
