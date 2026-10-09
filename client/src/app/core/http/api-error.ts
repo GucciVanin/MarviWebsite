@@ -30,6 +30,11 @@ function messageFor(status: number): string {
   return PT.errors.generic;
 }
 
+/** True when `error` is an HTTP failure with one of the given statuses (e.g. 400/401 for rejected credentials). */
+export function hasStatus(error: unknown, ...statuses: number[]): boolean {
+  return error instanceof HttpErrorResponse && statuses.includes(error.status);
+}
+
 export function describeApiError(error: unknown): ApiError {
   if (!(error instanceof HttpErrorResponse)) {
     return { status: 0, message: PT.errors.generic, detail: null };

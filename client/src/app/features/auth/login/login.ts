@@ -2,9 +2,8 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
-import { describeApiError } from '../../../core/http/api-error';
+import { describeApiError, hasStatus } from '../../../core/http/api-error';
 import { PT } from '../../../core/i18n/pt-br';
-import { HttpErrorResponse } from '@angular/common/http';
 
 @Component({
   selector: 'app-login',
@@ -32,8 +31,7 @@ export class Login {
       error: (failure: unknown) => {
         this.busy.set(false);
         // Wrong credentials are 400/401; anything else (network, server) is not the user's typing.
-        const credentialsRejected = failure instanceof HttpErrorResponse && (failure.status === 400 || failure.status === 401);
-        this.error.set(credentialsRejected ? this.t.loginFailed : describeApiError(failure).message);
+        this.error.set(hasStatus(failure, 400, 401) ? this.t.loginFailed : describeApiError(failure).message);
       },
     });
   }
