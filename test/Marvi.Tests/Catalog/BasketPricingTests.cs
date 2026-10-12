@@ -184,8 +184,12 @@ public class BasketPricingTests : IClassFixture<MarviApiFactory>
         return quote;
     }
 
-    private static async Task<Guid> DefaultTierIdAsync(HttpClient admin) =>
-        (await admin.GetFromJsonAsync<List<PricingTierDto>>("/api/admin/pricing-tiers"))!.Single(t => t.IsDefault).Id;
+    private async Task<Guid> DefaultTierIdAsync(HttpClient admin)
+    {
+        // The default tier is created on first use (registration), so make sure it exists whatever order tests run in.
+        await _factory.RegisterClientAsync();
+        return (await admin.GetFromJsonAsync<List<PricingTierDto>>("/api/admin/pricing-tiers"))!.Single(t => t.IsDefault).Id;
+    }
 
     private static async Task PriceAsync(HttpClient admin, Guid productId, Guid tierId, decimal unitPrice, int minQty) =>
         (await admin.PutAsJsonAsync($"/api/admin/products/{productId}/pricing", new UpsertProductPricingRequest(tierId, unitPrice, minQty))).EnsureSuccessStatusCode();
