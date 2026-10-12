@@ -1,6 +1,6 @@
+using Marvi.Api.Features.Catalog;
 using Marvi.Api.Features.Orders.Contracts;
 using Marvi.Api.Features.Quotes.Contracts;
-using Marvi.Api.Features.Catalog;
 using Marvi.Domain.Catalog;
 using Marvi.Domain.Identity;
 using Marvi.Domain.Orders;

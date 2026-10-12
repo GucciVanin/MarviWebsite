@@ -10,7 +10,7 @@ using Marvi.Infrastructure.Data;
 using Marvi.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Marvi.Tests.Quotes;
+namespace Marvi.Tests.Catalog;
 
 /// <summary>
 /// Basket pricing (CONTEXT.md): the same prices must come out of the quote request, the employee order and the
