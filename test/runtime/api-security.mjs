@@ -220,6 +220,7 @@ ok('client B quotes list does not include A\'s quotes', !(await call('GET', '/ap
 
 section('ELIGIBILITY: only an Approved customer may transact (quote, accept, order)');
 // No endpoint produces Pending (registration approves immediately), so set it in the database like a legacy account.
+// ClientAccountStatus is stored as an integer: 0 = Pending, 1 = Approved, 2 = Suspended.
 const clientP = await registerClient('Loja Pendente', 'loja@pendente.test');
 const orderLine = { productId: prod.cola.id, qty: 1 };
 const pendingQuote = (await call('POST', '/api/quotes', { token: clientP.token, body: { lineItems: [orderLine] } })).json;
