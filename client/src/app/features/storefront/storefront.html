@@ -1,51 +1,56 @@
-<h2>Storefront</h2>
+<h2>{{ t.title }}</h2>
 
 <section>
-  <h3>Coverage Check</h3>
-  <input type="text" [(ngModel)]="coverageAddress" placeholder="Enter address" />
-  <button type="button" (click)="checkCoverage()">Check</button>
+  <h3>{{ t.coverageTitle }}</h3>
+  <input type="text" [(ngModel)]="coverageAddress" [placeholder]="t.addressPlaceholder" />
+  <button type="button" [disabled]="coverageAction.busy()" (click)="checkCoverage()">{{ t.check }}</button>
+  <app-error-alert [error]="coverageAction.error()" />
   @if (coverageResult(); as result) {
     <p>
       @if (result.supported) {
-        Covered by {{ result.warehouseName }}
+        {{ t.coveredBy }} {{ result.warehouseName }}
       } @else {
-        Not covered
+        {{ t.notCovered }}
       }
     </p>
   }
 </section>
 
 <section>
-  <h3>Active Deals</h3>
+  <h3>{{ t.dealsTitle }}</h3>
+  <app-load-state [state]="deals" />
   <ul>
-    @for (deal of deals(); track deal.id) {
+    @for (deal of deals.data(); track deal.id) {
       <li>{{ deal.name }} — {{ deal.discountType }} {{ deal.discountValue }}</li>
     }
   </ul>
 </section>
 
 <section>
-  <h3>Products</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>SKU</th>
-        <th>Name</th>
-        <th>Price</th>
-        <th>Deal</th>
-        <th>In Stock</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (product of products(); track product.id) {
+  <h3>{{ t.productsTitle }}</h3>
+  <app-load-state [state]="products" [emptyText]="t.noProducts" />
+  @if (products.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ product.sku }}</td>
-          <td>{{ product.name }}</td>
-          <td>{{ product.price ?? t.priceOnRequest }}</td>
-          <td>{{ product.dealName }}</td>
-          <td>{{ product.inStock ? 'Yes' : 'No' }}</td>
+          <th>{{ t.sku }}</th>
+          <th>{{ t.name }}</th>
+          <th>{{ t.price }}</th>
+          <th>{{ t.deal }}</th>
+          <th>{{ t.inStock }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (product of products.data(); track product.id) {
+          <tr>
+            <td>{{ product.sku }}</td>
+            <td>{{ product.name }}</td>
+            <td>{{ product.price ?? t.priceOnRequest }}</td>
+            <td>{{ product.dealName }}</td>
+            <td>{{ product.inStock ? t.yes : t.no }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>

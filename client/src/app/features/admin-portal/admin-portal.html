@@ -1,119 +1,135 @@
-<h2>Admin Portal</h2>
+<h2>{{ t.title }}</h2>
 
 <section>
-  <h3>Create Employee</h3>
-  <input type="email" [(ngModel)]="newEmployeeEmail" placeholder="Email" />
-  <input type="password" [(ngModel)]="newEmployeePassword" placeholder="Password" />
-  <input type="text" [(ngModel)]="newEmployeeCode" placeholder="Employee Code" />
-  <button type="button" (click)="createEmployee()">Create</button>
+  <h3>{{ t.createEmployeeTitle }}</h3>
+  <input type="email" [(ngModel)]="newEmployeeEmail" [placeholder]="t.email" />
+  <input type="password" [(ngModel)]="newEmployeePassword" [placeholder]="t.password" />
+  <input type="text" [(ngModel)]="newEmployeeCode" [placeholder]="t.employeeCode" />
+  <button type="button" [disabled]="createEmployeeAction.busy()" (click)="createEmployee()">{{ t.create }}</button>
+  <app-error-alert [error]="createEmployeeAction.error()" />
 </section>
 
 <section>
-  <h3>Products</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>SKU</th>
-        <th>Name</th>
-        <th>Active</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (product of products(); track product.id) {
+  <h3>{{ t.productsTitle }}</h3>
+  <app-load-state [state]="products" [emptyText]="t.noProducts" />
+  @if (products.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ product.sku }}</td>
-          <td>{{ product.name }}</td>
-          <td>{{ product.isActive ? 'Yes' : 'No' }}</td>
+          <th>{{ t.sku }}</th>
+          <th>{{ t.name }}</th>
+          <th>{{ t.active }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (product of products.data(); track product.id) {
+          <tr>
+            <td>{{ product.sku }}</td>
+            <td>{{ product.name }}</td>
+            <td>{{ product.isActive ? t.yes : t.no }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>
 
 <section>
-  <h3>Deals</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Discount</th>
-        <th>Start</th>
-        <th>End</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (deal of deals(); track deal.id) {
+  <h3>{{ t.dealsTitle }}</h3>
+  <app-load-state [state]="deals" [emptyText]="t.noDeals" />
+  @if (deals.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ deal.name }}</td>
-          <td>{{ deal.discountType }} {{ deal.discountValue }}</td>
-          <td>{{ deal.startDate }}</td>
-          <td>{{ deal.endDate }}</td>
+          <th>{{ t.name }}</th>
+          <th>{{ t.discount }}</th>
+          <th>{{ t.start }}</th>
+          <th>{{ t.end }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (deal of deals.data(); track deal.id) {
+          <tr>
+            <td>{{ deal.name }}</td>
+            <td>{{ deal.discountType }} {{ deal.discountValue }}</td>
+            <td>{{ deal.startDate }}</td>
+            <td>{{ deal.endDate }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>
 
 <section>
-  <h3>Warehouses</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Address</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (warehouse of warehouses(); track warehouse.id) {
+  <h3>{{ t.warehousesTitle }}</h3>
+  <app-load-state [state]="warehouses" [emptyText]="t.noWarehouses" />
+  @if (warehouses.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ warehouse.name }}</td>
-          <td>{{ warehouse.address }}</td>
+          <th>{{ t.name }}</th>
+          <th>{{ t.address }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (warehouse of warehouses.data(); track warehouse.id) {
+          <tr>
+            <td>{{ warehouse.name }}</td>
+            <td>{{ warehouse.address }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>
 
 <section>
-  <h3>Coverage Areas</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Warehouse</th>
-        <th>Type</th>
-        <th>Radius (mi)</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (area of coverageAreas(); track area.id) {
+  <h3>{{ t.coverageTitle }}</h3>
+  <app-load-state [state]="coverageAreas" [emptyText]="t.noCoverage" />
+  @if (coverageAreas.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ area.warehouseId }}</td>
-          <td>{{ area.type }}</td>
-          <td>{{ area.radiusMiles }}</td>
+          <th>{{ t.warehouse }}</th>
+          <th>{{ t.type }}</th>
+          <th>{{ t.radius }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (area of coverageAreas.data(); track area.id) {
+          <tr>
+            <td>{{ area.warehouseId }}</td>
+            <td>{{ area.type }}</td>
+            <td>{{ area.radiusMiles }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>
 
 <section>
-  <h3>Audit Log</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Timestamp</th>
-        <th>Action</th>
-        <th>Entity</th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (entry of auditLog(); track entry.id) {
+  <h3>{{ t.auditTitle }}</h3>
+  <app-load-state [state]="auditLog" [emptyText]="t.noAudit" />
+  @if (auditLog.data().length) {
+    <table>
+      <thead>
         <tr>
-          <td>{{ entry.timestamp }}</td>
-          <td>{{ entry.action }}</td>
-          <td>{{ entry.entityName }}</td>
+          <th>{{ t.timestamp }}</th>
+          <th>{{ t.action }}</th>
+          <th>{{ t.entity }}</th>
         </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (entry of auditLog.data(); track entry.id) {
+          <tr>
+            <td>{{ entry.timestamp }}</td>
+            <td>{{ entry.action }}</td>
+            <td>{{ entry.entityName }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
 </section>

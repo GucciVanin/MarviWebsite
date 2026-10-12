@@ -442,6 +442,9 @@ Angular project name: `marvi-client`; build output `dist/marvi-client/browser`.
 src/app/
   app.ts · app.html (<router-outlet />) · app.config.ts · app.routes.ts
   core/auth/                AuthService, jwt.interceptor.ts, role.guard.ts
+  core/http/                loadable, action, describeApiError (loading and error state, see below)
+  core/i18n/                pt-br.ts (all copy), identity-errors.ts
+  shared/ui/                app-header, app-footer, load-state, error-alert
   shared/models/            types used by more than one feature (quote.model.ts, order.model.ts)
   features/
     home/                   placeholder awaiting the owner's design
@@ -483,6 +486,7 @@ flowchart TD
 - **Zoneless:** there is no `zone.js`. State that changes inside an async callback (HTTP, timers) **must be a signal**; assigning a plain field
   there does not re-render. Plain fields are fine only for `ngModel` bindings that are never written from a callback; form fields that are reset after an HTTP call are signals (`[(ngModel)]` binds to a writable signal). The storefront and the three portals were converted to signals on 2026-10-02 (they
   had never rendered API data); keep new screens on signals.
+- **Loading and errors (MRV-4.1):** never call `.subscribe` on an API request from a screen (the one exception is login and register, which own their credential-specific messages and busy state). Use `loadable(() => service.get(), initial)` (`core/http/loadable.ts`) for data a section shows (signals `data`, `loading`, `loaded`, `error`, plus `load()` to retry) and `action()` (`core/http/action.ts`) for things the user triggers (`busy`, `error`, `run(request, onSuccess)`). Render them with `<app-load-state [state] [emptyText]>` (loading, failure with retry, empty message) and `<app-error-alert [error]>` (action failures) from `shared/ui`. `describeApiError` (`core/http/api-error.ts`) maps the HTTP status (0, 400, 403, 404, 409, 5xx) to a pt-BR message and keeps the server's own text as secondary `detail`; the API has no error codes, so do not parse server text. Login treats only 400/401 as wrong credentials; register keeps the Identity translation for 400. Known gap, deferred to MRV-2.4a: enum values such as quote and order status, and deal discount type, are still shown as the API's English names; map them to pt-BR when those screens are rebuilt.
 - **Client tests:** vitest via `ng test`, specs beside the code; `core/auth/testing/fake-token.ts` builds a JWT for role-dependent tests. With Node < 22.22.3 run
   them in Docker (README).
 

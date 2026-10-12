@@ -90,7 +90,7 @@ people, catalog, pricing, warehouses and audit. See [goal.md](goal.md).
 
 | ID | Story | Issue | Approved behaviour change |
 |---|---|---|---|
-| MRV-4.1 | Front-end loading and error handling with pt-BR messages by HTTP status; applied to every existing screen | [#2](https://github.com/GucciVanin/MarviWebsite/issues/2) | None (API unchanged) |
+| MRV-4.1 | ~~Front-end loading and error handling with pt-BR messages by HTTP status; applied to every existing screen~~ **Done (2026-10-09, PR pending review)** — `loadable`/`action`/`describeApiError` in `core/http`, `app-load-state`/`app-error-alert` in `shared/ui`; storefront, Customer, employee and admin portals, login and register use them; hard-coded English moved to pt-BR; 59 client tests (was 35) | [#2](https://github.com/GucciVanin/MarviWebsite/issues/2) | None (API unchanged) |
 | MRV-4.2 | Customer eligibility as one Domain rule | [#3](https://github.com/GucciVanin/MarviWebsite/issues/3) | Pending customers are refused (403) when requesting or accepting a quote |
 | MRV-4.3 | Basket pricing in one Domain module (Deal window once, missing price as a result, shared order building) | [#4](https://github.com/GucciVanin/MarviWebsite/issues/4) | Accepting a quote with an unpriced line returns 409 instead of creating a zero-price order |
 | MRV-4.4 | Admin mutations save and audit in one transaction | [#5](https://github.com/GucciVanin/MarviWebsite/issues/5) | None on success |
