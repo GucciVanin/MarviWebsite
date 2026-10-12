@@ -20,3 +20,9 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 - **Never merge a PR.** Open it and leave it for the owner's review. Don't enable auto-merge.
 - Start the next story only from an up-to-date `dev` (merge `main` into `dev` after the owner merges a PR).
 - Use the `gh` CLI for PRs (see `docs/agents/issue-tracker.md`). If `gh` isn't on `PATH` in the shell, use `C:\Program Files\GitHub CLI\gh.exe`.
+
+## Local stack and ports
+
+- This project's docker compose stack (`deploy/docker-compose.yml`, compose project `deploy`) is the agent's to manage: **4200** is the SPA (nginx) and **8080** is the API. Anything you find on those ports is this project's stack, not someone else's.
+- `test/runtime/run.sh` refuses to start while 8080 is taken. Before running it: `docker compose -f deploy/docker-compose.yml down` (never `-v`, which would delete the dev database). The suite uses its own compose project (`marvi-runtime`) and tears it down when finished. Afterwards restore the dev stack: `docker compose -f deploy/docker-compose.yml up -d --build`.
+- Always put the stack back the way you found it, and say in the PR whether the runtime suite was run.

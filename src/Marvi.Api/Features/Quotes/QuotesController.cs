@@ -44,7 +44,7 @@ public class QuotesController : ControllerBase
         var clientAccount = await _dbContext.ClientAccounts
             .Include(c => c.PricingTier)
             .FirstOrDefaultAsync(c => c.Id == clientId.Value);
-        if (clientAccount is null || clientAccount.Status == ClientAccountStatus.Suspended)
+        if (clientAccount is null || !CustomerEligibility.IsEligible(clientAccount.Status))
         {
             return StatusCode(StatusCodes.Status403Forbidden, "Client account is not active.");
         }
@@ -140,7 +140,7 @@ public class QuotesController : ControllerBase
             .Where(c => c.Id == clientId.Value)
             .Select(c => c.Status)
             .FirstOrDefaultAsync();
-        if (accountStatus == ClientAccountStatus.Suspended)
+        if (!CustomerEligibility.IsEligible(accountStatus))
         {
             return StatusCode(StatusCodes.Status403Forbidden, "Client account is not active.");
         }

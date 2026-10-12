@@ -51,7 +51,7 @@ public class EmployeeOrdersController : ControllerBase
             return BadRequest("Client not found.");
         }
 
-        if (clientAccount.Status != ClientAccountStatus.Approved)
+        if (!CustomerEligibility.IsEligible(clientAccount.Status))
         {
             return StatusCode(StatusCodes.Status403Forbidden, "Client account is not approved.");
         }
