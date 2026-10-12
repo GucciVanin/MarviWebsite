@@ -86,7 +86,7 @@ people, catalog, pricing, warehouses and audit. See [goal.md](goal.md).
 - Frontend: added the missing registration page and role-based redirect after login.
 - Docker: client image used Node 20 (Angular CLI needs 22.22.3+); compose now passes the admin seed and JWT key.
 
-**Sprint 2b — Architecture fixes (Not started; runs before MRV-2.4a)** — from the architecture review of 2026-10-06. Each story is one PR and one GitHub issue (the issue holds the full spec). Rules for all of them: no behaviour change except where stated; characterization tests first; existing API tests stay green; runtime checks added to `test/runtime/` for every endpoint touched (success, 400, 403, 404, 409, never 500). Vocabulary in `CONTEXT.md`; naming decision in `docs/adr/0001-customer-in-prose-client-in-code.md`.
+**Sprint 2b — Architecture fixes (Not started; runs before MRV-2.4a)** — from the architecture review of 2026-10-06. Each story is one commit and one GitHub issue (the issue holds the full spec); stories are delivered one PR per feature: **Quotes and orders** (4.2, 4.3), **Admin mutations** (4.4, 4.5, 4.6), **Identity claims** (4.7), **Coverage** (4.8, 4.9), **Inventory** (4.10), **Front end** (4.1, delivered in PR 14). Rules for all of them: no behaviour change except where stated; characterization tests first; existing API tests stay green; runtime checks added to `test/runtime/` for every endpoint touched (success, 400, 403, 404, 409, never 500). Vocabulary in `CONTEXT.md`; naming decision in `docs/adr/0001-customer-in-prose-client-in-code.md`.
 
 | ID | Story | Issue | Approved behaviour change |
 |---|---|---|---|

@@ -16,9 +16,11 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 
 - `dev` is the agent's development branch; `main` is the protected integration branch. Work, commit and push on `dev`.
 - Commit and push to `origin`/`PersonalWebsite` `dev` yourself; no need to ask first.
-- Open **one PR from `dev` to `main` per user story** (e.g. `MRV-2.4a`; IDs are in `project.md`). Keep each PR compact and verifiable: only that story's changes, with tests, plus the `project.md`/`architecture.md` updates the Definition of Done requires.
+- **One commit per user story** (an `MRV-<n>.<m>` row in `project.md`, e.g. `MRV-4.3`), and **one PR from `dev` to `main` per feature**: the backlog stories that belong to the same feature area (the Sprint 2b grouping is in `project.md`; otherwise the feature folders in architecture.md: Identity, Catalog, Coverage, Quotes, Orders, Inventory, Auditing, or the SPA).
+- Each story commit is self-contained: its tests, its code and the `project.md`/`architecture.md` updates the Definition of Done requires, and it names its issue (`Closes #n`). Review fixes go in follow-up commits that name the story.
+- Keep each PR compact and verifiable: only that feature's stories. The PR description lists which stories it carries and how each was verified (tests, runtime suite).
 - **Never merge a PR.** Open it and leave it for the owner's review. Don't enable auto-merge.
-- Start the next story only from an up-to-date `dev` (merge `main` into `dev` after the owner merges a PR).
+- Start the next feature only from an up-to-date `dev` (merge `main` into `dev` after the owner merges a PR). While a feature PR is open, further stories of that same feature go on `dev` and join that PR; stories of a different feature wait for the merge.
 - Use the `gh` CLI for PRs (see `docs/agents/issue-tracker.md`). If `gh` isn't on `PATH` in the shell, use `C:\Program Files\GitHub CLI\gh.exe`.
 
 ## Local stack and ports
