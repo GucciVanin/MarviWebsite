@@ -12,10 +12,10 @@ public class PricingService
             ?? throw new NoPriceException($"No pricing found for product '{product.Id}' and tier '{tier.Id}'.");
 
         var now = DateTime.UtcNow;
-        var applicableDeals = activeDeals.Where(d =>
-            d.StartDate <= now && d.EndDate >= now &&
-            qty >= d.MinQty &&
-            (d.ProductIds.Contains(product.Id) || (product.CategoryId.HasValue && d.CategoryIds.Contains(product.CategoryId.Value))));
+        var applicableDeals = activeDeals
+            .Where(Deal.ActiveAt(now).Compile())
+            .Where(d => qty >= d.MinQty &&
+                (d.ProductIds.Contains(product.Id) || (product.CategoryId.HasValue && d.CategoryIds.Contains(product.CategoryId.Value))));
 
         Deal? bestDeal = null;
         var bestPrice = basePrice;

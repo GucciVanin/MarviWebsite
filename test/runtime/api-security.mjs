@@ -239,6 +239,17 @@ sql(`update client_accounts set status=1 where id='${clientP.id}'`);
 const approvedAccept = await call('POST', `/api/quotes/${pendingQuote.id}/accept`, { token: clientP.token });
 ok('once Approved again, the same customer can accept (201)', approvedAccept.status === 201, String(approvedAccept.status));
 
+section('BASKET PRICING: a quote with an unpriced line is never accepted as a free order');
+const ordersBefore = (await call('GET', '/api/orders/mine', { token: clientA.token })).json.length;
+const freeQuote = (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).json;
+ok('a quote can be priced by an employee (200)', (await call('PUT', `/api/employee/quotes/${freeQuote.id}/price`, { token: emp, body: { lineItems: [{ lineItemId: freeQuote.lineItems[0].id, finalUnitPrice: 5 }] } })).status === 200);
+// The API cannot produce a Priced quote with a missing final price, so corrupt one in the database (a legacy or hand-edited row).
+sql(`update quote_line_items set final_unit_price=null where id='${freeQuote.lineItems[0].id}'`);
+const freeAccept = await call('POST', `/api/quotes/${freeQuote.id}/accept`, { token: clientA.token });
+ok('accepting a quote with a line that has no final price is refused (409)', freeAccept.status === 409, String(freeAccept.status));
+ok('...and no order was created', (await call('GET', '/api/orders/mine', { token: clientA.token })).json.length === ordersBefore);
+ok('...and the quote is still Priced', (await call('GET', '/api/quotes/mine', { token: clientA.token })).json.find((q) => q.id === freeQuote.id)?.status === 'Priced');
+
 // ---------------------------------------------------------------- security
 section('SECURITY: authorization matrix (every endpoint x every role)');
 const ID = crypto.randomUUID();

@@ -12,12 +12,12 @@ namespace Marvi.Api.Features.Catalog;
 public class ProductsController : ControllerBase
 {
     private readonly AppDbContext _dbContext;
-    private readonly PricingService _pricingService;
+    private readonly BasketPricingService _basketPricing;
 
-    public ProductsController(AppDbContext dbContext, PricingService pricingService)
+    public ProductsController(AppDbContext dbContext, BasketPricingService basketPricing)
     {
         _dbContext = dbContext;
-        _pricingService = pricingService;
+        _basketPricing = basketPricing;
     }
 
     [HttpGet]
@@ -44,7 +44,7 @@ public class ProductsController : ControllerBase
         var products = await query.ToListAsync();
         var pricingRows = await _dbContext.ProductPricings.Where(pp => pp.PricingTierId == tier.Id).ToListAsync();
         var now = DateTime.UtcNow;
-        var activeDeals = await _dbContext.Deals.Where(d => d.StartDate <= now && d.EndDate >= now).ToListAsync();
+        var activeDeals = await _dbContext.Deals.Where(Deal.ActiveAt(now)).ToListAsync();
         var inventory = await _dbContext.InventoryRecords.ToListAsync();
 
         var result = products.Select(p => BuildListItem(p, tier, pricingRows, activeDeals, inventory)).ToList();
@@ -68,7 +68,7 @@ public class ProductsController : ControllerBase
 
         var pricingRows = await _dbContext.ProductPricings.Where(pp => pp.PricingTierId == tier.Id).ToListAsync();
         var now = DateTime.UtcNow;
-        var activeDeals = await _dbContext.Deals.Where(d => d.StartDate <= now && d.EndDate >= now).ToListAsync();
+        var activeDeals = await _dbContext.Deals.Where(Deal.ActiveAt(now)).ToListAsync();
         var inventory = await _dbContext.InventoryRecords.Where(i => i.ProductId == id).ToListAsync();
 
         var (price, dealName) = TryResolvePrice(product, tier, pricingRows, activeDeals);
@@ -106,16 +106,7 @@ public class ProductsController : ControllerBase
     // A null price means "no price configured for this tier" (shown as "on request"); it must never read as a price of 0.
     private (decimal? Price, string? DealName) TryResolvePrice(Product product, PricingTier tier, IEnumerable<ProductPricing> pricingRows, IEnumerable<Deal> activeDeals)
     {
-        try
-        {
-            var result = _pricingService.ResolvePrice(product, tier, pricingRows, activeDeals, qty: 1);
-            return (result.UnitPrice, result.AppliedDeal?.Name);
-        }
-        catch (NoPriceException)
-        {
-            // No pricing row configured for this product/tier combination. Only this case: any other failure is a bug
-            // and must surface, not be shown to customers as "on request".
-            return (null, null);
-        }
+        var line = _basketPricing.PriceLine(product, tier, pricingRows, activeDeals, qty: 1);
+        return (line.UnitPrice, line.DealName);
     }
 }

@@ -63,26 +63,17 @@ public class QuoteWorkflowService
             throw new InvalidOperationException($"Quote must be in '{QuoteStatus.Priced}' status to be accepted, but was '{quote.Status}'.");
         }
 
+        // A missing final price is not a free product: refuse before touching the quote.
+        if (quote.LineItems.Any(li => li.FinalUnitPrice is null))
+        {
+            throw new QuoteNotFullyPricedException("Every line item of the quote must have a final price before it can be accepted.");
+        }
+
         quote.Status = QuoteStatus.Accepted;
 
-        var order = new Order
-        {
-            Id = Guid.NewGuid(),
-            ClientAccountId = quote.ClientAccountId,
-            QuoteId = quote.Id,
-            Status = OrderStatus.Placed,
-            TotalAmount = quote.LineItems.Sum(li => (li.FinalUnitPrice ?? 0m) * li.Qty)
-        };
-
-        order.LineItems = quote.LineItems.Select(li => new OrderLineItem
-        {
-            Id = Guid.NewGuid(),
-            OrderId = order.Id,
-            ProductId = li.ProductId,
-            Qty = li.Qty,
-            UnitPrice = li.FinalUnitPrice ?? 0m
-        }).ToList();
-
-        return order;
+        return OrderFactory.Place(
+            quote.ClientAccountId,
+            quote.LineItems.Select(li => new OrderLineInput(li.ProductId, li.Qty, li.FinalUnitPrice!.Value)),
+            quoteId: quote.Id);
     }
 }

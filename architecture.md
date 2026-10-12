@@ -170,6 +170,7 @@ chosen by `Geocoding:Provider` (`Google`, otherwise Azure Maps).
 
 | Service | Responsibility |
 |---|---|
+| `BasketPricingService` (MRV-4.3) | The one way to price a Basket (CONTEXT.md): `Validate(lines)` (non-empty, quantity >= 1), `Price(lines, PricingData)` and `PriceLine(...)`. Returns each line in request order as `PricedBasketLine` (`Product` null = unknown product, `UnitPrice` null = no price for the tier; never 0). Quotes, employee orders and the public catalog all price through it; `PricingDataLoader` (Api) loads the data. Deals are filtered with the single definition `Deal.ActiveAt(now)` |
 | `PricingService.ResolvePrice(product, tier, pricingRows, activeDeals, qty)` | Tier unit price by quantity break (rows unique per product + tier + `MinQty`), then best active deal → `PricingResult`; throws `InvalidOperationException` when the tier has no price for the product |
 | `CoverageService.CheckCoverage(lat, lng, areas)` | Radius check by haversine distance; `Polygon` throws `NotSupportedException` |
 | `QuoteWorkflowService` | `CreateQuote`, `PriceQuote` (Submitted → Priced; every line needs a non-negative final price; employee id nullable for admins), `AcceptQuote` (Priced → Accepted, returns the new `Order`); invalid transitions throw `InvalidOperationException` |
@@ -428,8 +429,8 @@ sequenceDiagram
 
 ### 7.4 Employee order and admin audit
 
-`EmployeeOrdersController.Create` loads the client, requires `Approved`, prices each line with
-`PricingService` using that client's tier, and saves an `Order` with `PlacedByEmployeeId`.
+`EmployeeOrdersController.Create` loads the client, requires Customer eligibility (`Approved`), prices each line with
+`BasketPricingService` using that client's tier, builds the `Order` through `OrderFactory.Place` (also used by `AcceptQuote`, so a total is always the sum of its lines) with `PlacedByEmployeeId`, and saves it. `AcceptQuote` refuses a quote that has a line without a final price (`QuoteNotFullyPricedException`, 409): a missing price is never a free order.
 Admin controllers save the change, then call `AuditLogger.LogAsync(action, entityName, entityId, details)`,
 which writes an `AuditLogEntry` with the actor taken from the JWT `sub` claim.
 
