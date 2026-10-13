@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Catalog.Contracts;
 using Marvi.Domain.Catalog;
@@ -32,12 +33,12 @@ public class AdminPricingTiersController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<PricingTierDto>> CreateTier(UpsertPricingTierRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (AdminInput.IsBlank(request.Name))
         {
             return BadRequest("Name is required.");
         }
 
-        var tier = new PricingTier { Id = Guid.NewGuid(), Name = request.Name.Trim() };
+        var tier = new PricingTier { Id = Guid.NewGuid(), Name = AdminInput.Clean(request.Name) };
         _dbContext.PricingTiers.Add(tier);
 
         // The first tier ever created is always the default, whatever the request says.
@@ -65,7 +66,7 @@ public class AdminPricingTiersController : ControllerBase
             return NotFound();
         }
 
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (AdminInput.IsBlank(request.Name))
         {
             return BadRequest("Name is required.");
         }
@@ -81,7 +82,7 @@ public class AdminPricingTiersController : ControllerBase
             tier.IsDefault = true;
         }
 
-        tier.Name = request.Name.Trim();
+        tier.Name = AdminInput.Clean(request.Name);
         if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(PricingTier), tier.Id, request))
         {
             return Conflict(AuditLogger.ConflictMessage);

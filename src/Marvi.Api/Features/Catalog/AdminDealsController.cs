@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Catalog.Contracts;
 using Marvi.Domain.Catalog;
@@ -133,7 +134,7 @@ public class AdminDealsController : ControllerBase
 
     private static string? Validate(UpsertDealRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (AdminInput.IsBlank(request.Name))
         {
             return "Name is required.";
         }

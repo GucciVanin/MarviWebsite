@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Coverage.Contracts;
 using Marvi.Domain.Coverage;
@@ -53,8 +54,8 @@ public class AdminWarehousesController : ControllerBase
         var warehouse = new Warehouse
         {
             Id = Guid.NewGuid(),
-            Name = request.Name.Trim(),
-            Address = request.Address.Trim(),
+            Name = AdminInput.Clean(request.Name),
+            Address = AdminInput.Clean(request.Address),
             Latitude = request.Latitude,
             Longitude = request.Longitude
         };
@@ -83,8 +84,8 @@ public class AdminWarehousesController : ControllerBase
             return BadRequest(error);
         }
 
-        warehouse.Name = request.Name.Trim();
-        warehouse.Address = request.Address.Trim();
+        warehouse.Name = AdminInput.Clean(request.Name);
+        warehouse.Address = AdminInput.Clean(request.Address);
         warehouse.Latitude = request.Latitude;
         warehouse.Longitude = request.Longitude;
         if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Warehouse), id, request))
@@ -106,9 +107,12 @@ public class AdminWarehousesController : ControllerBase
 
         // Stock and order history point at the warehouse; deleting it would erase them (inventory) or be refused by
         // the database (orders). Coverage areas belong to the warehouse and go with it.
-        if (await _dbContext.InventoryRecords.AnyAsync(i => i.WarehouseId == id) || await _dbContext.Orders.AnyAsync(o => o.WarehouseId == id))
+        var blocked = await DeleteGuards.BlockingMessageAsync(new DeleteGuard(
+            async () => await _dbContext.InventoryRecords.AnyAsync(i => i.WarehouseId == id) || await _dbContext.Orders.AnyAsync(o => o.WarehouseId == id),
+            "The warehouse still has inventory or orders. Clear its stock first; warehouses with order history cannot be deleted."));
+        if (blocked is not null)
         {
-            return Conflict("The warehouse still has inventory or orders. Clear its stock first; warehouses with order history cannot be deleted.");
+            return Conflict(blocked);
         }
 
         _dbContext.Warehouses.Remove(warehouse);
@@ -123,7 +127,7 @@ public class AdminWarehousesController : ControllerBase
 
     private static string? Validate(UpsertWarehouseRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Address))
+        if (AdminInput.IsBlank(request.Name) || AdminInput.IsBlank(request.Address))
         {
             return "Name and address are required.";
         }

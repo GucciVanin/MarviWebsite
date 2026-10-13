@@ -271,6 +271,25 @@ await auditCase('delete warehouse (and its areas)', () => call('DELETE', `/api/a
 await auditCase('approve client', () => call('PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 100 } }), 1);
 ok('every audit row has an actor', Number(sql(`select count(*) from audit_log_entries where actor_user_id = '00000000-0000-0000-0000-000000000000'`)) === 0);
 
+section('INPUT POLICY: trimming, limits, duplicates ignoring case, delete protection (on real Postgres)');
+const policySku = `Pol-${crypto.randomUUID().slice(0, 8)}`;
+const policyProduct = await call('POST', '/api/admin/products', { token: admin, body: { sku: `  ${policySku}  `, name: '  Policy product  ', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
+ok('product SKU and name are stored trimmed', policyProduct.status === 201 && policyProduct.json.sku === policySku && policyProduct.json.name === 'Policy product', JSON.stringify(policyProduct.json));
+const policyDuplicate = await call('POST', '/api/admin/products', { token: admin, body: { sku: policySku.toUpperCase(), name: 'Other', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
+ok('a SKU differing only by case is refused (409) by the database comparison', policyDuplicate.status === 409, String(policyDuplicate.status));
+ok('a 65-character SKU is refused (400)', (await call('POST', '/api/admin/products', { token: admin, body: { sku: 'x'.repeat(65), name: 'Long', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).status === 400);
+const policyCatName = `Pol cat ${crypto.randomUUID().slice(0, 8)}`;
+const policyCat = (await call('POST', '/api/admin/categories', { token: admin, body: { name: `  ${policyCatName}  `, sortOrder: 1, isActive: true } })).json;
+ok('category name is stored trimmed', policyCat?.name === policyCatName);
+ok('a category name differing only by case is refused (409)', (await call('POST', '/api/admin/categories', { token: admin, body: { name: policyCatName.toUpperCase(), sortOrder: 1, isActive: true } })).status === 409);
+ok('a 201-character category name is refused (400)', (await call('POST', '/api/admin/categories', { token: admin, body: { name: 'c'.repeat(201), sortOrder: 1, isActive: true } })).status === 400);
+await call('POST', '/api/admin/products', { token: admin, body: { sku: `PolC-${crypto.randomUUID().slice(0, 8)}`, name: 'In category', description: null, categoryId: policyCat.id, imageUrl: null, isActive: true, attributes: {} } });
+ok('a category that still has products cannot be deleted (409)', (await call('DELETE', `/api/admin/categories/${policyCat.id}`, { token: admin })).status === 409);
+ok('a product on quotes cannot be deleted (409)', (await call('DELETE', `/api/admin/products/${prod.cola.id}`, { token: admin })).status === 409);
+ok('a warehouse with stock cannot be deleted (409)', (await call('DELETE', `/api/admin/warehouses/${wh1.id}`, { token: admin })).status === 409);
+const policyDeal = await call('POST', '/api/admin/deals', { token: admin, body: { name: '  Padded deal  ', discountType: 'Percent', discountValue: 5, startDate: new Date(Date.now() - 864e5).toISOString(), endDate: new Date(Date.now() + 864e5).toISOString(), productIds: [], categoryIds: [], minQty: 1 } });
+ok('a deal name keeps its padding and has no length limit today (201)', policyDeal.status === 201 && policyDeal.json.name === '  Padded deal  ', String(policyDeal.status));
+
 section('RACES: concurrent admin writes never end in a 500 (the database decides, the API answers 409)');
 const burst = (n, fn) => Promise.all(Array.from({ length: n }, (_, i) => fn(i)));
 const noServerErrors = (name, results) => ok(`${name}: no 500s (statuses ${[...new Set(results.map((r) => r.status))].sort().join(',')})`, results.every((r) => r.status < 500));
@@ -546,7 +565,8 @@ for (const need of ['Create:Product', 'Create:Category', 'Create:Deal', 'Create:
 }
 const auditDump = JSON.stringify(audit);
 ok('audit log never contains any password', !/Vendas-1234|Client-1234|Evil-1234|Marvi-Dev-Admin|"password"/i.test(auditDump));
-ok('audit entries are newest-first', audit.every((a, i) => i === 0 || audit[i - 1].timestamp >= a.timestamp));
+// Compare as times, not strings: Postgres trims trailing zeros from fractional seconds, so '.12345Z' sorts after '.123456Z' as text.
+ok('audit entries are newest-first', audit.every((a, i) => i === 0 || Date.parse(audit[i - 1].timestamp) >= Date.parse(a.timestamp)));
 ok('employee/client actions that are not admin mutations are not in the admin audit trail', !audit.some((a) => a.entityName === 'Quote' || a.entityName === 'Order'));
 ok('audit rows exist in the database', Number(q(`select count(*) from audit_log_entries`)) >= audit.length);
 

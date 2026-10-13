@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Catalog.Contracts;
 using Marvi.Domain.Catalog;
@@ -62,7 +63,7 @@ public class AdminCategoriesController : ControllerBase
         var category = new Category
         {
             Id = Guid.NewGuid(),
-            Name = request.Name.Trim(),
+            Name = AdminInput.Clean(request.Name),
             SortOrder = request.SortOrder,
             IsActive = request.IsActive
         };
@@ -91,7 +92,7 @@ public class AdminCategoriesController : ControllerBase
             return error;
         }
 
-        category.Name = request.Name.Trim();
+        category.Name = AdminInput.Clean(request.Name);
         category.SortOrder = request.SortOrder;
         category.IsActive = request.IsActive;
         if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Category), id, request))
@@ -112,14 +113,12 @@ public class AdminCategoriesController : ControllerBase
             return NotFound();
         }
 
-        if (await _dbContext.Products.AnyAsync(p => p.CategoryId == id))
+        var blocked = await DeleteGuards.BlockingMessageAsync(
+            new DeleteGuard(() => _dbContext.Products.AnyAsync(p => p.CategoryId == id), "The category still has products. Move them or deactivate the category instead."),
+            new DeleteGuard(() => _dbContext.Deals.AnyAsync(d => d.CategoryIds.Contains(id)), "A deal still targets this category. Update the deal or deactivate the category instead."));
+        if (blocked is not null)
         {
-            return Conflict("The category still has products. Move them or deactivate the category instead.");
-        }
-
-        if (await _dbContext.Deals.AnyAsync(d => d.CategoryIds.Contains(id)))
-        {
-            return Conflict("A deal still targets this category. Update the deal or deactivate the category instead.");
+            return Conflict(blocked);
         }
 
         _dbContext.Categories.Remove(category);
@@ -133,18 +132,18 @@ public class AdminCategoriesController : ControllerBase
 
     private async Task<ActionResult?> ValidateAsync(UpsertCategoryRequest request, Guid? existingId)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (AdminInput.IsBlank(request.Name))
         {
             return BadRequest("Name is required.");
         }
 
-        var name = request.Name.Trim();
-        if (name.Length > MaxNameLength)
+        var name = AdminInput.Clean(request.Name);
+        if (AdminInput.ExceedsLength(name, MaxNameLength))
         {
             return BadRequest($"Name must be at most {MaxNameLength} characters.");
         }
 
-        var duplicate = await _dbContext.Categories.AnyAsync(c => c.Id != existingId && c.Name.ToLower() == name.ToLower());
+        var duplicate = await _dbContext.Categories.Where(c => c.Id != existingId).AnyAsync(AdminInput.EqualsIgnoreCase<Category>(c => c.Name, name));
         return duplicate ? Conflict("A category with this name already exists.") : null;
     }
 
