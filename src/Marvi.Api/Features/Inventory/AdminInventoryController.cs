@@ -57,7 +57,10 @@ public class AdminInventoryController : ControllerBase
 
         record.QtyOnHand = request.QtyOnHand;
         record.ReorderPoint = request.ReorderPoint;
-        await _auditLogger.SaveAsync(AuditActions.Upsert, nameof(InventoryRecord), record.Id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Upsert, nameof(InventoryRecord), record.Id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return Ok(new InventoryRecordDto(record.Id, record.ProductId, product.Name, record.WarehouseId, record.QtyOnHand, record.QtyReserved, record.ReorderPoint));
     }

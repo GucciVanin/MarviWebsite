@@ -60,7 +60,10 @@ public class AdminWarehousesController : ControllerBase
         };
 
         _dbContext.Warehouses.Add(warehouse);
-        await _auditLogger.SaveAsync(AuditActions.Create, nameof(Warehouse), warehouse.Id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Warehouse), warehouse.Id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return CreatedAtAction(nameof(GetWarehouse), new { id = warehouse.Id }, ToDto(warehouse));
     }
@@ -84,7 +87,10 @@ public class AdminWarehousesController : ControllerBase
         warehouse.Address = request.Address.Trim();
         warehouse.Latitude = request.Latitude;
         warehouse.Longitude = request.Longitude;
-        await _auditLogger.SaveAsync(AuditActions.Update, nameof(Warehouse), id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Warehouse), id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return NoContent();
     }

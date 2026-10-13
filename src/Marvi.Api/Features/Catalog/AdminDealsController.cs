@@ -69,7 +69,10 @@ public class AdminDealsController : ControllerBase
         };
 
         _dbContext.Deals.Add(deal);
-        await _auditLogger.SaveAsync(AuditActions.Create, nameof(Deal), deal.Id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Deal), deal.Id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return CreatedAtAction(nameof(GetDeal), new { id = deal.Id }, ToDto(deal));
     }
@@ -102,7 +105,10 @@ public class AdminDealsController : ControllerBase
         deal.ProductIds = request.ProductIds;
         deal.CategoryIds = request.CategoryIds;
         deal.MinQty = request.MinQty;
-        await _auditLogger.SaveAsync(AuditActions.Update, nameof(Deal), id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Deal), id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return NoContent();
     }
@@ -117,7 +123,10 @@ public class AdminDealsController : ControllerBase
         }
 
         _dbContext.Deals.Remove(deal);
-        await _auditLogger.SaveAsync(AuditActions.Delete, nameof(Deal), id);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Deal), id))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return NoContent();
     }

@@ -271,6 +271,35 @@ await auditCase('delete warehouse (and its areas)', () => call('DELETE', `/api/a
 await auditCase('approve client', () => call('PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 100 } }), 1);
 ok('every audit row has an actor', Number(sql(`select count(*) from audit_log_entries where actor_user_id = '00000000-0000-0000-0000-000000000000'`)) === 0);
 
+section('RACES: concurrent admin writes never end in a 500 (the database decides, the API answers 409)');
+const burst = (n, fn) => Promise.all(Array.from({ length: n }, (_, i) => fn(i)));
+const noServerErrors = (name, results) => ok(`${name}: no 500s (statuses ${[...new Set(results.map((r) => r.status))].sort().join(',')})`, results.every((r) => r.status < 500));
+const raceProduct = (await call('POST', '/api/admin/products', { token: admin, body: { sku: `RACE-${crypto.randomUUID().slice(0, 8)}`, name: 'Race product', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).json;
+
+const priceRace = await burst(12, () => call('PUT', `/api/admin/products/${raceProduct.id}/pricing`, { token: admin, body: { pricingTierId: wholesale.id, unitPrice: 5, minQty: 1 } }));
+noServerErrors('12 simultaneous price upserts for one product, tier and minimum quantity', priceRace);
+ok('...and exactly one price row exists', sql(`select count(*) from product_pricings where product_id='${raceProduct.id}'`) === '1');
+ok('...and every refusal is a 409 conflict', priceRace.every((r) => r.status < 300 || r.status === 409));
+
+const stockRace = await burst(12, (i) => call('PUT', '/api/admin/inventory', { token: admin, body: { productId: raceProduct.id, warehouseId: wh1.id, qtyOnHand: 10 + i, reorderPoint: 1 } }));
+noServerErrors('12 simultaneous stock upserts for one product and warehouse', stockRace);
+ok('...and exactly one stock row exists', sql(`select count(*) from inventory_records where product_id='${raceProduct.id}' and warehouse_id='${wh1.id}'`) === '1');
+ok('...and every refusal is a 409 conflict', stockRace.every((r) => r.status < 300 || r.status === 409));
+
+const raceWarehouse = (await call('POST', '/api/admin/warehouses', { token: admin, body: { name: `Race ${crypto.randomUUID().slice(0, 8)}`, address: 'Rua R, 1', latitude: -23.5, longitude: -46.6 } })).json;
+const areaRace = await Promise.all([
+  call('DELETE', `/api/admin/warehouses/${raceWarehouse.id}`, { token: admin }),
+  ...Array.from({ length: 12 }, () => call('POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: raceWarehouse.id, type: 'Radius', radiusMiles: 5 } })),
+]);
+noServerErrors('a warehouse deleted while coverage areas are being added to it', areaRace);
+
+const defaultRace = await burst(12, (i) => call('POST', '/api/admin/pricing-tiers', { token: admin, body: { name: `Race tier ${i} ${crypto.randomUUID().slice(0, 6)}`, isDefault: true } }));
+noServerErrors('12 tiers created at once, each asking to be the default', defaultRace);
+ok('...and exactly one default tier exists', sql(`select count(*) from pricing_tiers where is_default`) === '1');
+// Put the seeded Standard tier back as the default so the checks below price as designed.
+ok('the Standard tier is made the default again (200/204)', [200, 204].includes((await call('PUT', `/api/admin/pricing-tiers/${standard.id}`, { token: admin, body: { name: standard.name, isDefault: true } })).status));
+ok('...and exactly one default tier exists', sql(`select count(*) from pricing_tiers where is_default`) === '1');
+
 section('SECURITY: authorization matrix (every endpoint x every role)');
 const ID = crypto.randomUUID();
 const tokens = { anon: undefined, client: clientA.token, employee: emp, admin };

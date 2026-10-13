@@ -81,7 +81,10 @@ public class AdminProductPricingController : ControllerBase
 
         row.UnitPrice = request.UnitPrice;
         row.PricingTier = tier;
-        await _auditLogger.SaveAsync(AuditActions.Upsert, nameof(ProductPricing), row.Id, new { productId, request.PricingTierId, request.UnitPrice, request.MinQty });
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Upsert, nameof(ProductPricing), row.Id, new { productId, request.PricingTierId, request.UnitPrice, request.MinQty }))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return Ok(ToDto(row));
     }
@@ -97,7 +100,10 @@ public class AdminProductPricingController : ControllerBase
         }
 
         _dbContext.ProductPricings.Remove(row);
-        await _auditLogger.SaveAsync(AuditActions.Delete, nameof(ProductPricing), row.Id, new { productId, pricingTierId, minQty });
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(ProductPricing), row.Id, new { productId, pricingTierId, minQty }))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return NoContent();
     }

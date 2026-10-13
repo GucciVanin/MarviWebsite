@@ -65,7 +65,10 @@ public class AdminEmployeesController : ControllerBase
         };
 
         _dbContext.EmployeeAccounts.Add(employeeAccount);
-        await _auditLogger.SaveAsync(AuditActions.Create, nameof(EmployeeAccount), employeeAccount.Id, new { request.Email, request.EmployeeCode, request.Department });
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(EmployeeAccount), employeeAccount.Id, new { request.Email, request.EmployeeCode, request.Department }))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return Created(string.Empty, new { employeeAccount.Id });
     }

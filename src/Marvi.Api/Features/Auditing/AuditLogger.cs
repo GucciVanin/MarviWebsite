@@ -35,16 +35,19 @@ public class AuditLogger
         _httpContextAccessor = httpContextAccessor;
     }
 
-    /// <summary>Saves the pending changes together with their audit entry.</summary>
-    public async Task SaveAsync(string action, string entityName, Guid entityId, object? details = null)
+    /// <summary>What a controller answers (409) when <see cref="TrySaveAsync"/> reports that the database refused the change.</summary>
+    public const string ConflictMessage = "The data was changed by someone else, or something it refers to was just removed. Reload and try again.";
+
+    // Private on purpose: an admin mutation must go through TrySaveAsync so a race is a 409, never a 500.
+    private async Task SaveAsync(string action, string entityName, Guid entityId, object? details = null)
     {
         _dbContext.AuditLogEntries.Add(CreateEntry(action, entityName, entityId, details));
         await _dbContext.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Like <see cref="SaveAsync"/>, but a unique-index or foreign-key rejection (a race that passed the application-level
-    /// check) returns false and saves nothing, so the caller can answer 409. Other database failures still propagate.
+    /// Saves the pending changes together with their audit entry in ONE save. A unique-index or foreign-key rejection (a race that passed the application-level
+    /// check) returns false and saves nothing, so the caller answers 409. Other database failures still propagate.
     /// </summary>
     public async Task<bool> TrySaveAsync(string action, string entityName, Guid entityId, object? details = null)
     {

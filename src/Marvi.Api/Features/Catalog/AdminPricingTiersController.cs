@@ -48,7 +48,10 @@ public class AdminPricingTiersController : ControllerBase
             tier.IsDefault = true;
         }
 
-        await _auditLogger.SaveAsync(AuditActions.Create, nameof(PricingTier), tier.Id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(PricingTier), tier.Id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return Created(string.Empty, ToDto(tier));
     }
@@ -79,7 +82,10 @@ public class AdminPricingTiersController : ControllerBase
         }
 
         tier.Name = request.Name.Trim();
-        await _auditLogger.SaveAsync(AuditActions.Update, nameof(PricingTier), tier.Id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(PricingTier), tier.Id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return Ok(ToDto(tier));
     }
