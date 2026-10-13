@@ -23,8 +23,8 @@ Contents: 1 Rules for agents · 2 System context · 3 Repository map · 4 Backen
    from `PricingService` (and employee final prices on quotes).
 6. **Admin mutations are audited, atomically** (MRV-4.4): a controller makes its change on the tracked entities and then commits with `AuditLogger.TrySaveAsync(AuditActions.X, entityName, entityId, details)` and answers `Conflict(AuditLogger.ConflictMessage)` (or a specific 409 message) when it returns false (MRV-4.5: a unique-index or foreign-key rejection, i.e. a race that passed the pre-checks, is a 409, never a 500; other database failures still propagate). That is ONE save of the change plus its audit entry, so a change can never be stored without its audit entry. `SaveAsync` is private so nothing can skip this; never call `SaveChangesAsync` directly in an admin mutation. Known exception: `AdminPricingTiersController.ClearDefaultAsync` flushes the un-flagging of the old default tier first (the unique "single default" index needs it), then the final save and audit are atomic.
 7. **Admin input rules live in `AdminInput` / `DeleteGuards`** (`Api/Features/Admin`, MRV-4.6): `Clean` (trim), `IsBlank`, `ExceedsLength`, `EqualsIgnoreCase` (a database-side "same name ignoring case" filter) and `DeleteGuard`s ("still referenced, cannot delete" with its message). Controllers keep their own limits and messages but must not re-implement trimming, case-insensitive comparison or the delete pre-check. Today deals do not trim or limit names, and deal, pricing-tier and warehouse names have no length limit; adding limits there is an owner decision, not a refactor.
-7. **Schema changes need an EF migration** in `Marvi.Infrastructure/Migrations`.
-8. After a change run `dotnet test Marvi.slnx` and (client) `npx tsc -p tsconfig.app.json --noEmit`
+8. **Schema changes need an EF migration** in `Marvi.Infrastructure/Migrations`.
+9. After a change run `dotnet test Marvi.slnx` and (client) `npx tsc -p tsconfig.app.json --noEmit`
    or `npm run build` (needs Node >= 22.22.3).
 
 ## 2. System context
