@@ -14,6 +14,10 @@ namespace Marvi.Api.Features.Coverage;
 [Authorize(Roles = "Admin")]
 public class AdminWarehousesController : ControllerBase
 {
+    private const string InUseMessage = "The warehouse still has inventory or orders. Clear its stock first; warehouses with order history cannot be deleted.";
+    // Stock or an order appeared between the guard and the delete.
+    private const string DeleteRaceMessage = "The warehouse still has inventory or orders.";
+
     private readonly AppDbContext _dbContext;
     private readonly AuditLogger _auditLogger;
 
@@ -48,7 +52,7 @@ public class AdminWarehousesController : ControllerBase
         var error = Validate(request);
         if (error is not null)
         {
-            return BadRequest(error);
+            return error.ToResult(this);
         }
 
         var warehouse = new Warehouse
@@ -81,7 +85,7 @@ public class AdminWarehousesController : ControllerBase
         var error = Validate(request);
         if (error is not null)
         {
-            return BadRequest(error);
+            return error.ToResult(this);
         }
 
         warehouse.Name = AdminInput.Clean(request.Name);
@@ -109,7 +113,7 @@ public class AdminWarehousesController : ControllerBase
         // the database (orders). Coverage areas belong to the warehouse and go with it.
         var blocked = await DeleteGuards.BlockingMessageAsync(new DeleteGuard(
             async () => await _dbContext.InventoryRecords.AnyAsync(i => i.WarehouseId == id) || await _dbContext.Orders.AnyAsync(o => o.WarehouseId == id),
-            "The warehouse still has inventory or orders. Clear its stock first; warehouses with order history cannot be deleted."));
+            InUseMessage));
         if (blocked is not null)
         {
             return Conflict(blocked);
@@ -119,27 +123,27 @@ public class AdminWarehousesController : ControllerBase
         if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Warehouse), id))
         {
             // Stock or an order appeared between the check above and the delete.
-            return Conflict("The warehouse still has inventory or orders.");
+            return Conflict(DeleteRaceMessage);
         }
 
         return NoContent();
     }
 
-    private static string? Validate(UpsertWarehouseRequest request)
+    private static InputProblem? Validate(UpsertWarehouseRequest request)
     {
         if (AdminInput.IsBlank(request.Name) || AdminInput.IsBlank(request.Address))
         {
-            return "Name and address are required.";
+            return InputProblem.BadRequest("Name and address are required.");
         }
 
         if (!double.IsFinite(request.Latitude) || request.Latitude is < -90 or > 90)
         {
-            return "Latitude must be between -90 and 90.";
+            return InputProblem.BadRequest("Latitude must be between -90 and 90.");
         }
 
         if (!double.IsFinite(request.Longitude) || request.Longitude is < -180 or > 180)
         {
-            return "Longitude must be between -180 and 180.";
+            return InputProblem.BadRequest("Longitude must be between -180 and 180.");
         }
 
         return null;

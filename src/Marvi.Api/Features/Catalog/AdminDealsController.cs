@@ -48,7 +48,7 @@ public class AdminDealsController : ControllerBase
         var error = Validate(request);
         if (error is not null)
         {
-            return BadRequest(error);
+            return error.ToResult(this);
         }
 
         if (!await CategoriesExistAsync(request.CategoryIds))
@@ -90,7 +90,7 @@ public class AdminDealsController : ControllerBase
         var error = Validate(request);
         if (error is not null)
         {
-            return BadRequest(error);
+            return error.ToResult(this);
         }
 
         if (!await CategoriesExistAsync(request.CategoryIds))
@@ -132,37 +132,37 @@ public class AdminDealsController : ControllerBase
         return NoContent();
     }
 
-    private static string? Validate(UpsertDealRequest request)
+    private static InputProblem? Validate(UpsertDealRequest request)
     {
         if (AdminInput.IsBlank(request.Name))
         {
-            return "Name is required.";
+            return InputProblem.BadRequest("Name is required.");
         }
 
         if (!Enum.IsDefined(request.DiscountType))
         {
-            return "Unknown discount type.";
+            return InputProblem.BadRequest("Unknown discount type.");
         }
 
         // A percentage over 100 or a fixed amount below 0 would make the price negative or raise it; both are typos.
         if (request.DiscountValue < 0 || (request.DiscountType == DiscountType.Percent && request.DiscountValue > 100))
         {
-            return "A percentage discount must be between 0 and 100, and a fixed discount cannot be negative.";
+            return InputProblem.BadRequest("A percentage discount must be between 0 and 100, and a fixed discount cannot be negative.");
         }
 
         if (request.StartDate >= request.EndDate)
         {
-            return "The deal must end after it starts.";
+            return InputProblem.BadRequest("The deal must end after it starts.");
         }
 
         if (request.MinQty < 1)
         {
-            return "Minimum quantity must be at least 1.";
+            return InputProblem.BadRequest("Minimum quantity must be at least 1.");
         }
 
         if (request.ProductIds is null || request.CategoryIds is null)
         {
-            return "ProductIds and CategoryIds are required (use empty lists for none).";
+            return InputProblem.BadRequest("ProductIds and CategoryIds are required (use empty lists for none).");
         }
 
         return null;

@@ -311,6 +311,7 @@ const areaRace = await Promise.all([
   ...Array.from({ length: 12 }, () => call('POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: raceWarehouse.id, type: 'Radius', radiusMiles: 5 } })),
 ]);
 noServerErrors('a warehouse deleted while coverage areas are being added to it', areaRace);
+ok('...and no coverage area is left pointing at the deleted warehouse', sql(`select count(*) from coverage_areas where warehouse_id='${raceWarehouse.id}'`) === '0');
 
 const defaultRace = await burst(12, (i) => call('POST', '/api/admin/pricing-tiers', { token: admin, body: { name: `Race tier ${i} ${crypto.randomUUID().slice(0, 6)}`, isDefault: true } }));
 noServerErrors('12 tiers created at once, each asking to be the default', defaultRace);

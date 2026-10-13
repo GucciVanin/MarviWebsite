@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Marvi.Api.Features.Admin;
 
@@ -50,4 +51,18 @@ public static class DeleteGuards
 
         return null;
     }
+}
+
+/// <summary>
+/// What an admin validator returns when the request is not acceptable: a status (400 for bad input, 409 for a duplicate)
+/// and a message. Every admin validator has this one shape; the controller turns it into the response.
+/// </summary>
+public sealed record InputProblem(int StatusCode, string Message)
+{
+    public static InputProblem BadRequest(string message) => new(StatusCodes.Status400BadRequest, message);
+
+    public static InputProblem Conflict(string message) => new(StatusCodes.Status409Conflict, message);
+
+    public ActionResult ToResult(ControllerBase controller) =>
+        StatusCode == StatusCodes.Status409Conflict ? controller.Conflict(Message) : controller.BadRequest(Message);
 }

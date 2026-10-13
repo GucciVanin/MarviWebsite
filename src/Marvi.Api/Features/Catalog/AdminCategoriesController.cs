@@ -16,6 +16,10 @@ public class AdminCategoriesController : ControllerBase
 {
     // Also keeps a name under the btree index row limit (~2.7 KB) that backs ix_categories_name_lower.
     private const int MaxNameLength = 200;
+    private const string HasProductsMessage = "The category still has products. Move them or deactivate the category instead.";
+    private const string TargetedByDealMessage = "A deal still targets this category. Update the deal or deactivate the category instead.";
+    // Something started using the category between the guards above and the delete.
+    private const string DeleteRaceMessage = "The category is still in use. Deactivate it instead.";
 
     private readonly AppDbContext _dbContext;
     private readonly AuditLogger _auditLogger;
@@ -57,7 +61,7 @@ public class AdminCategoriesController : ControllerBase
         var error = await ValidateAsync(request, existingId: null);
         if (error is not null)
         {
-            return error;
+            return error.ToResult(this);
         }
 
         var category = new Category
@@ -89,7 +93,7 @@ public class AdminCategoriesController : ControllerBase
         var error = await ValidateAsync(request, existingId: id);
         if (error is not null)
         {
-            return error;
+            return error.ToResult(this);
         }
 
         category.Name = AdminInput.Clean(request.Name);
@@ -114,8 +118,8 @@ public class AdminCategoriesController : ControllerBase
         }
 
         var blocked = await DeleteGuards.BlockingMessageAsync(
-            new DeleteGuard(() => _dbContext.Products.AnyAsync(p => p.CategoryId == id), "The category still has products. Move them or deactivate the category instead."),
-            new DeleteGuard(() => _dbContext.Deals.AnyAsync(d => d.CategoryIds.Contains(id)), "A deal still targets this category. Update the deal or deactivate the category instead."));
+            new DeleteGuard(() => _dbContext.Products.AnyAsync(p => p.CategoryId == id), HasProductsMessage),
+            new DeleteGuard(() => _dbContext.Deals.AnyAsync(d => d.CategoryIds.Contains(id)), TargetedByDealMessage));
         if (blocked is not null)
         {
             return Conflict(blocked);
@@ -124,27 +128,27 @@ public class AdminCategoriesController : ControllerBase
         _dbContext.Categories.Remove(category);
         if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Category), id))
         {
-            return Conflict("The category is still in use. Deactivate it instead.");
+            return Conflict(DeleteRaceMessage);
         }
 
         return NoContent();
     }
 
-    private async Task<ActionResult?> ValidateAsync(UpsertCategoryRequest request, Guid? existingId)
+    private async Task<InputProblem?> ValidateAsync(UpsertCategoryRequest request, Guid? existingId)
     {
         if (AdminInput.IsBlank(request.Name))
         {
-            return BadRequest("Name is required.");
+            return InputProblem.BadRequest("Name is required.");
         }
 
         var name = AdminInput.Clean(request.Name);
         if (AdminInput.ExceedsLength(name, MaxNameLength))
         {
-            return BadRequest($"Name must be at most {MaxNameLength} characters.");
+            return InputProblem.BadRequest($"Name must be at most {MaxNameLength} characters.");
         }
 
         var duplicate = await _dbContext.Categories.Where(c => c.Id != existingId).AnyAsync(AdminInput.EqualsIgnoreCase<Category>(c => c.Name, name));
-        return duplicate ? Conflict("A category with this name already exists.") : null;
+        return duplicate ? InputProblem.Conflict("A category with this name already exists.") : null;
     }
 
 

@@ -52,7 +52,7 @@ public class AdminProductsController : ControllerBase
         var invalid = await ValidateAsync(request, existingId: null);
         if (invalid is not null)
         {
-            return invalid;
+            return invalid.ToResult(this);
         }
 
         if (!await CategoryExistsAsync(request.CategoryId))
@@ -93,7 +93,7 @@ public class AdminProductsController : ControllerBase
         var invalid = await ValidateAsync(request, existingId: id);
         if (invalid is not null)
         {
-            return invalid;
+            return invalid.ToResult(this);
         }
 
         if (!await CategoryExistsAsync(request.CategoryId))
@@ -147,23 +147,23 @@ public class AdminProductsController : ControllerBase
 
     // SKU and name are required and bounded; the SKU is unique ignoring case (also enforced by an index, which turns a
     // race into a conflict through TrySaveAsync).
-    private async Task<ActionResult?> ValidateAsync(UpsertProductRequest request, Guid? existingId)
+    private async Task<InputProblem?> ValidateAsync(UpsertProductRequest request, Guid? existingId)
     {
         var sku = AdminInput.Clean(request.Sku);
         var name = AdminInput.Clean(request.Name);
         if (AdminInput.IsBlank(sku) || AdminInput.IsBlank(name))
         {
-            return BadRequest("SKU and name are required.");
+            return InputProblem.BadRequest("SKU and name are required.");
         }
 
         if (AdminInput.ExceedsLength(sku, MaxSkuLength) || AdminInput.ExceedsLength(name, MaxNameLength))
         {
-            return BadRequest($"SKU is limited to {MaxSkuLength} characters and name to {MaxNameLength}.");
+            return InputProblem.BadRequest($"SKU is limited to {MaxSkuLength} characters and name to {MaxNameLength}.");
         }
 
         if (await _dbContext.Products.Where(p => p.Id != existingId).AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, sku)))
         {
-            return Conflict("A product with this SKU already exists.");
+            return InputProblem.Conflict("A product with this SKU already exists.");
         }
 
         return null;
