@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Catalog;
 using Marvi.Api.Features.Orders.Contracts;
 using Marvi.Domain.Catalog;
 using Marvi.Domain.Identity;
@@ -15,12 +16,14 @@ namespace Marvi.Api.Features.Orders;
 public class EmployeeOrdersController : ControllerBase
 {
     private readonly AppDbContext _dbContext;
-    private readonly PricingService _pricingService;
+    private readonly BasketPricingService _basketPricing;
+    private readonly PricingDataLoader _pricingData;
 
-    public EmployeeOrdersController(AppDbContext dbContext, PricingService pricingService)
+    public EmployeeOrdersController(AppDbContext dbContext, BasketPricingService basketPricing, PricingDataLoader pricingData)
     {
         _dbContext = dbContext;
-        _pricingService = pricingService;
+        _basketPricing = basketPricing;
+        _pricingData = pricingData;
     }
 
     [HttpPost]
@@ -33,7 +36,8 @@ public class EmployeeOrdersController : ControllerBase
             return Forbid();
         }
 
-        if (request.LineItems is null || request.LineItems.Count == 0 || request.LineItems.Any(li => li.Qty < 1))
+        var requested = request.LineItems?.Select(li => new BasketLine(li.ProductId, li.Qty)).ToList();
+        if (_basketPricing.Validate(requested) is not null)
         {
             return BadRequest("An order needs at least one line item, each with a quantity of at least 1.");
         }
@@ -51,65 +55,38 @@ public class EmployeeOrdersController : ControllerBase
             return BadRequest("Client not found.");
         }
 
-        if (clientAccount.Status != ClientAccountStatus.Approved)
+        if (!CustomerEligibility.IsEligible(clientAccount.Status))
         {
             return StatusCode(StatusCodes.Status403Forbidden, "Client account is not approved.");
         }
 
-        if (clientAccount.PricingTier is null)
+        var data = await _pricingData.LoadAsync(clientAccount.PricingTier, requested!.Select(l => l.ProductId).ToList());
+        var priced = _basketPricing.Price(requested!, data);
+        if (priced.Problem == BasketProblem.NoPricingTier)
         {
             return BadRequest("No pricing tier configured for this account.");
         }
 
-        var productIds = request.LineItems.Select(li => li.ProductId).ToList();
-        var products = await _dbContext.Products.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
-        var pricingRows = await _dbContext.ProductPricings.Where(pp => pp.PricingTierId == clientAccount.PricingTier.Id).ToListAsync();
-        var now = DateTime.UtcNow;
-        var activeDeals = await _dbContext.Deals.Where(d => d.StartDate <= now && d.EndDate >= now).ToListAsync();
-
-        var lineItems = new List<OrderLineItem>();
-        foreach (var line in request.LineItems)
+        // The first problem in line order is the one reported.
+        foreach (var line in priced.Lines)
         {
-            if (!products.TryGetValue(line.ProductId, out var product))
+            if (line.Product is null)
             {
                 return BadRequest($"Product '{line.ProductId}' not found.");
             }
 
-            decimal unitPrice;
-            try
-            {
-                unitPrice = _pricingService.ResolvePrice(product, clientAccount.PricingTier, pricingRows, activeDeals, line.Qty).UnitPrice;
-            }
-            catch (InvalidOperationException)
+            if (line.UnitPrice is null)
             {
                 // Never sell at an implicit price of 0: the product has no price for this client's tier.
-                return BadRequest($"Product '{product.Sku}' has no price configured for pricing tier '{clientAccount.PricingTier.Name}'.");
+                return BadRequest($"Product '{line.Product.Sku}' has no price configured for pricing tier '{clientAccount.PricingTier!.Name}'.");
             }
-
-            lineItems.Add(new OrderLineItem
-            {
-                Id = Guid.NewGuid(),
-                ProductId = line.ProductId,
-                Qty = line.Qty,
-                UnitPrice = unitPrice
-            });
         }
 
-        var order = new Order
-        {
-            Id = Guid.NewGuid(),
-            ClientAccountId = clientAccount.Id,
-            Status = OrderStatus.Placed,
-            DeliveryAddress = request.DeliveryAddress,
-            PlacedByEmployeeId = employeeId,
-            TotalAmount = lineItems.Sum(li => li.UnitPrice * li.Qty),
-            LineItems = lineItems
-        };
-
-        foreach (var lineItem in order.LineItems)
-        {
-            lineItem.OrderId = order.Id;
-        }
+        var order = OrderFactory.Place(
+            clientAccount.Id,
+            priced.Lines.Select(l => new OrderLineInput(l.ProductId, l.Qty, l.UnitPrice!.Value)),
+            request.DeliveryAddress,
+            placedByEmployeeId: employeeId);
 
         _dbContext.Orders.Add(order);
         await _dbContext.SaveChangesAsync();

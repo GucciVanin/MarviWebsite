@@ -170,9 +170,11 @@ chosen by `Geocoding:Provider` (`Google`, otherwise Azure Maps).
 
 | Service | Responsibility |
 |---|---|
+| `BasketPricingService` (MRV-4.3) | The one way to price a Basket (CONTEXT.md): `Validate(lines)` (non-empty, quantity >= 1), `Price(lines, PricingData)` and `PriceLine(...)`. Returns each line in request order as `PricedBasketLine` (`Product` null = unknown product, `UnitPrice` null = no price for the tier; never 0). Quotes, employee orders and the public catalog all price through it; `PricingDataLoader` (Api) loads the data. Deals are filtered with the single definition `Deal.ActiveAt(now)` |
 | `PricingService.ResolvePrice(product, tier, pricingRows, activeDeals, qty)` | Tier unit price by quantity break (rows unique per product + tier + `MinQty`), then best active deal → `PricingResult`; throws `InvalidOperationException` when the tier has no price for the product |
 | `CoverageService.CheckCoverage(lat, lng, areas)` | Radius check by haversine distance; `Polygon` throws `NotSupportedException` |
-| `QuoteWorkflowService` | `CreateQuote`, `PriceQuote` (Submitted → Priced; every line needs a non-negative final price; employee id nullable for admins), `AcceptQuote` (Priced → Accepted, returns the new `Order`); invalid transitions throw `InvalidOperationException` |
+| `QuoteWorkflowService` | `CreateQuote`, `PriceQuote` (Submitted → Priced; every line needs a non-negative final price; employee id nullable for admins), `AcceptQuote` (Priced → Accepted, returns the new `Order` built by `OrderFactory`; a line without a final price throws `QuoteNotFullyPricedException` -> 409); other invalid transitions throw `InvalidOperationException` |
+| `OrderFactory.Place(customer, lines, ...)` (MRV-4.3) | The one place an `Order` is built from priced lines (ids, line items, `TotalAmount` = sum of unit price x qty); used by `AcceptQuote` and employee orders |
 
 ### 4.5 State machines
 
@@ -357,7 +359,7 @@ sequenceDiagram
   (`ClaimTypes.Role` on .NET 10; older frameworks used `xmlsoap.org/2005/...`), not `"role"`. The SPA's `AuthService` decodes it; any new JWT consumer must too.
   The SPA once used the old URI, so `role()` was always null and every portal bounced the user home; `auth.service.spec.ts` now pins a payload copied from a real login.
 - Settings: `Jwt:Key`, `Jwt:Issuer` (`Marvi.Api`), `Jwt:Audience` (`Marvi.Client`). No refresh tokens.
-- `ClientAccountStatus`: registration yields `Approved`. `Suspended` clients cannot create or accept quotes (`QuotesController`); employee orders require `Approved`.
+- `ClientAccountStatus`: registration yields `Approved`. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly.
 - **Admins have no employee account**, so no `employee_id` claim. Employee-area endpoints accept Admin and record a null employee (`Quote.PricedByEmployeeId`, `Order.PlacedByEmployeeId`).
 - **First admin:** created at startup from `Seed:AdminEmail` / `Seed:AdminPassword` (dev values in `appsettings.Development.json` and `deploy/docker-compose.yml`; set your own elsewhere). Without them no Admin exists.
 
@@ -428,8 +430,8 @@ sequenceDiagram
 
 ### 7.4 Employee order and admin audit
 
-`EmployeeOrdersController.Create` loads the client, requires `Approved`, prices each line with
-`PricingService` using that client's tier, and saves an `Order` with `PlacedByEmployeeId`.
+`EmployeeOrdersController.Create` loads the client, requires Customer eligibility (`Approved`), prices each line with
+`BasketPricingService` using that client's tier, builds the `Order` through `OrderFactory.Place` (also used by `AcceptQuote`, so a total is always the sum of its lines) with `PlacedByEmployeeId`, and saves it. `AcceptQuote` refuses a quote that has a line without a final price (`QuoteNotFullyPricedException`, 409): a missing price is never a free order.
 Admin controllers save the change, then call `AuditLogger.LogAsync(action, entityName, entityId, details)`,
 which writes an `AuditLogEntry` with the actor taken from the JWT `sub` claim.
 
@@ -528,7 +530,7 @@ flowchart LR
 
 ## 11. Gotchas and deliberate decisions
 
-- **No repository layer.** `AppDbContext` is used directly by controllers; domain services stay pure.
+- **No repository layer.** `AppDbContext` is used directly by controllers; domain services stay pure. One deliberate helper: `PricingDataLoader` (Api/Features/Catalog) loads the products, tier prices and running Deals that `BasketPricingService` needs, because quotes and employee orders needed the identical load; it holds no rules and is not a repository for other data.
 - **`Marvi.Api` shows `Microsoft.EntityFrameworkCore.Design` but gets EF Core APIs
   transitively** from `Marvi.Infrastructure`; do not remove that reference chain.
 - **Polygon coverage is unimplemented** and throws; only `Radius` works.
@@ -544,7 +546,7 @@ flowchart LR
 - **Input rules:** deals (0-100% or non-negative fixed, start < end, min qty >= 1), warehouses (lat/long ranges), coverage areas (real warehouse, radius 0-20000 mi), approvals (existing tier, credit >= 0), products (SKU/name required and bounded) and emails (format) are validated and answered 400/409; nothing here should ever be a 500.
 - **Dates are read as UTC** (`UtcDateTimeConverter`): a date without a time zone used to reach Npgsql as `Unspecified` and fail with a 500.
 - **Bad text:** characters Postgres cannot store (NUL) become a 400 through `InvalidTextExceptionHandler`; `UseExceptionHandler` returns a generic 500 without internals for anything unexpected. The server header is removed.
-- **A product without a price has `price: null`** in the public catalog (the SPA shows "Sob consulta"); 0 would read as free. Only `NoPriceException` (a subtype of `InvalidOperationException`, thrown by `PricingService`) is turned into null; any other pricing failure must surface.
+- **A product without a price has `price: null`** in the public catalog (the SPA shows "Sob consulta"); 0 would read as free. Only `NoPriceException` (a subtype of `InvalidOperationException`, thrown by `PricingService`) is turned into "no price" (a null `UnitPrice` on the `PricedBasketLine`), inside `BasketPricingService.PriceLine`; any other pricing failure must surface.
 - **More input rules:** enum fields must be defined values; a Polygon area needs a JSON object and a Radius area never keeps polygon data; registration trims and bounds company name (200), address (500) and employee code (50). Dates without a time zone mean UTC, and a date-only value means midnight UTC, so the UI should send full timestamps for deal ends.
 - **Audit paging** is validated (page/pageSize >= 1, pageSize capped at 200).
 - **Known limitation:** deleting a category and creating a deal that targets it at the same instant can leave the deal with a dangling id (no foreign key on a list; the check is not atomic). Accepted for the admin-only volume; a join table would remove it.
@@ -553,7 +555,7 @@ flowchart LR
 - **A deal's `CategoryIds` are validated by `AdminDealsController`** (no foreign key on a list); products rely on the real foreign key plus a controller check.
 - **Categories are deactivated, not deleted, once in use:** `DELETE /api/admin/categories/{id}` returns 409 while a product or deal references it. Category names are unique ignoring case: checked in the controller, and enforced by the hand-written expression index `ix_categories_name_lower` on `lower(name)` (migration `CaseInsensitiveCategoryNames`; EF cannot model it, so it is absent from the model and a duplicate race surfaces as 409 via `DbUpdateException`).
 - **Default tier:** exactly one `PricingTier.IsDefault` (unique filtered index). Anonymous visitors and new clients use it; pre-flag data is self-healed by promoting the alphabetically first tier on startup/registration.
-- **Missing price is not free:** quotes leave `SuggestedUnitPrice` null for unpriced products (the employee must set it); employee orders reject them with 400.
+- **Missing price is not free:** quotes leave `SuggestedUnitPrice` null for unpriced products (the employee must set it); employee orders reject them with 400; accepting a quote whose line has no final price is refused with 409 (`QuoteNotFullyPricedException`) rather than creating a zero-price order.
 - **There is no rate limiting** on any endpoint (planned in MRV-3.3).
 
 ## 12. How to add or remove a feature

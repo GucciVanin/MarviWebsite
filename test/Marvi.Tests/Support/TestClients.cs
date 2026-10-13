@@ -2,6 +2,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Marvi.Api.Features.Catalog.Contracts;
 using Marvi.Api.Features.Identity.Contracts;
+using Marvi.Domain.Identity;
+using Marvi.Infrastructure.Data;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Marvi.Tests.Support;
 
@@ -29,6 +32,16 @@ public static class TestClients
         register.EnsureSuccessStatusCode();
         var id = (await register.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
         return (await factory.LoginAsync(email, "Test1234!"), id);
+    }
+
+    /// <summary>Sets a client account status directly (there is no endpoint that produces Pending).</summary>
+    public static async Task SetClientStatusAsync(this MarviApiFactory factory, Guid accountId, ClientAccountStatus status)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var account = await db.ClientAccounts.FindAsync(accountId);
+        account!.Status = status;
+        await db.SaveChangesAsync();
     }
 
     public static async Task<Guid> CreateProductAsync(this HttpClient admin, string? sku = null, string name = "Widget", Guid? categoryId = null)

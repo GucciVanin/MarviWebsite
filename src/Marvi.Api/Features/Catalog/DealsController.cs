@@ -22,7 +22,7 @@ public class DealsController : ControllerBase
     {
         var now = DateTime.UtcNow;
         var deals = await _dbContext.Deals
-            .Where(d => d.StartDate <= now && d.EndDate >= now)
+            .Where(Deal.ActiveAt(now))
             .Select(d => new DealDto(d.Id, d.Name, d.DiscountType, d.DiscountValue, d.StartDate, d.EndDate))
             .ToListAsync();
 
