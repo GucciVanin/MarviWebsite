@@ -37,11 +37,20 @@ public class MarviApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();
 
-            services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(_dbName));
+            services.AddDbContext<AppDbContext>(options =>
+            {
+                options.UseInMemoryDatabase(_dbName);
+                ConfigureDb(options);
+            });
 
             services.RemoveAll<IGeocodingProvider>();
             services.AddScoped<IGeocodingProvider, FakeGeocodingProvider>();
         });
+    }
+
+    /// <summary>Lets a derived test host add EF interceptors (for example to make one kind of write fail).</summary>
+    protected virtual void ConfigureDb(DbContextOptionsBuilder options)
+    {
     }
 
     // Program.cs skips startup seeding in the Testing environment (the InMemory database has no migrations),

@@ -21,7 +21,7 @@ Contents: 1 Rules for agents · 2 System context · 3 Repository map · 4 Backen
    `[AllowAnonymous]`) and enforces ownership (`client_id` claim) in code. Angular guards are UX.
 5. **Never accept a price from the client.** The SPA sends product ids and quantities; prices come
    from `PricingService` (and employee final prices on quotes).
-6. **Admin mutations are audited** through the injected `AuditLogger`.
+6. **Admin mutations are audited, atomically** (MRV-4.4): a controller makes its change on the tracked entities and then commits with `AuditLogger.SaveAsync(AuditActions.X, entityName, entityId, details)` (or `TrySaveAsync`, which returns false on a unique/foreign-key rejection so the controller answers 409). That is ONE save of the change plus its audit entry, so a change can never be stored without its audit entry. Never call `SaveChangesAsync` directly in an admin mutation. Known exception: `AdminPricingTiersController.ClearDefaultAsync` flushes the un-flagging of the old default tier first (the unique "single default" index needs it), then the final save and audit are atomic.
 7. **Schema changes need an EF migration** in `Marvi.Infrastructure/Migrations`.
 8. After a change run `dotnet test Marvi.slnx` and (client) `npx tsc -p tsconfig.app.json --noEmit`
    or `npm run build` (needs Node >= 22.22.3).
@@ -432,7 +432,7 @@ sequenceDiagram
 
 `EmployeeOrdersController.Create` loads the client, requires Customer eligibility (`Approved`), prices each line with
 `BasketPricingService` using that client's tier, builds the `Order` through `OrderFactory.Place` (also used by `AcceptQuote`, so a total is always the sum of its lines) with `PlacedByEmployeeId`, and saves it. `AcceptQuote` refuses a quote that has a line without a final price (`QuoteNotFullyPricedException`, 409): a missing price is never a free order.
-Admin controllers save the change, then call `AuditLogger.LogAsync(action, entityName, entityId, details)`,
+Admin controllers commit through `AuditLogger.SaveAsync(action, entityName, entityId, details)` (one save of the change and its audit entry),
 which writes an `AuditLogEntry` with the actor taken from the JWT `sub` claim.
 
 ## 8. Frontend (`client/`)

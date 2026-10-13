@@ -48,8 +48,7 @@ public class AdminPricingTiersController : ControllerBase
             tier.IsDefault = true;
         }
 
-        await _dbContext.SaveChangesAsync();
-        await _auditLogger.LogAsync("Create", nameof(PricingTier), tier.Id, request);
+        await _auditLogger.SaveAsync(AuditActions.Create, nameof(PricingTier), tier.Id, request);
 
         return Created(string.Empty, ToDto(tier));
     }
@@ -80,8 +79,7 @@ public class AdminPricingTiersController : ControllerBase
         }
 
         tier.Name = request.Name.Trim();
-        await _dbContext.SaveChangesAsync();
-        await _auditLogger.LogAsync("Update", nameof(PricingTier), tier.Id, request);
+        await _auditLogger.SaveAsync(AuditActions.Update, nameof(PricingTier), tier.Id, request);
 
         return Ok(ToDto(tier));
     }

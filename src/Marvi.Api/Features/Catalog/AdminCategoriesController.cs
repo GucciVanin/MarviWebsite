@@ -68,12 +68,10 @@ public class AdminCategoriesController : ControllerBase
         };
 
         _dbContext.Categories.Add(category);
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Category), category.Id, request))
         {
             return Conflict("A category with this name already exists.");
         }
-
-        await _auditLogger.LogAsync("Create", nameof(Category), category.Id, request);
 
         return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, ToDto(category, 0));
     }
@@ -96,12 +94,10 @@ public class AdminCategoriesController : ControllerBase
         category.Name = request.Name.Trim();
         category.SortOrder = request.SortOrder;
         category.IsActive = request.IsActive;
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Category), id, request))
         {
             return Conflict("A category with this name already exists.");
         }
-
-        await _auditLogger.LogAsync("Update", nameof(Category), id, request);
 
         return Ok(ToDto(category, await CountProductsAsync(id)));
     }
@@ -127,12 +123,10 @@ public class AdminCategoriesController : ControllerBase
         }
 
         _dbContext.Categories.Remove(category);
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Category), id))
         {
             return Conflict("The category is still in use. Deactivate it instead.");
         }
-
-        await _auditLogger.LogAsync("Delete", nameof(Category), id);
 
         return NoContent();
     }
@@ -154,20 +148,6 @@ public class AdminCategoriesController : ControllerBase
         return duplicate ? Conflict("A category with this name already exists.") : null;
     }
 
-    // Concurrent requests can pass the pre-checks above and still hit the unique name index or the restrict
-    // foreign key; report exactly that as a conflict. Any other database failure is a real error and propagates.
-    private async Task<bool> TrySaveAsync()
-    {
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-            return true;
-        }
-        catch (DbUpdateException exception) when (exception.IsConstraintViolation())
-        {
-            return false;
-        }
-    }
 
     private Task<int> CountProductsAsync(Guid categoryId) =>
         _dbContext.Products.CountAsync(p => p.CategoryId == categoryId);

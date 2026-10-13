@@ -60,9 +60,7 @@ public class AdminCoverageAreasController : ControllerBase
         };
 
         _dbContext.CoverageAreas.Add(area);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Create", nameof(CoverageArea), area.Id, request);
+        await _auditLogger.SaveAsync(AuditActions.Create, nameof(CoverageArea), area.Id, request);
 
         return CreatedAtAction(nameof(GetCoverageArea), new { id = area.Id }, ToDto(area));
     }
@@ -86,9 +84,7 @@ public class AdminCoverageAreasController : ControllerBase
         area.Type = request.Type;
         area.RadiusMiles = request.RadiusMiles;
         area.PolygonGeoJson = PolygonFor(request);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Update", nameof(CoverageArea), id, request);
+        await _auditLogger.SaveAsync(AuditActions.Update, nameof(CoverageArea), id, request);
 
         return NoContent();
     }
@@ -103,9 +99,7 @@ public class AdminCoverageAreasController : ControllerBase
         }
 
         _dbContext.CoverageAreas.Remove(area);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Delete", nameof(CoverageArea), id);
+        await _auditLogger.SaveAsync(AuditActions.Delete, nameof(CoverageArea), id);
 
         return NoContent();
     }

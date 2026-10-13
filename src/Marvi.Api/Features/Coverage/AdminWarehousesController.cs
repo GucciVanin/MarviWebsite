@@ -60,9 +60,7 @@ public class AdminWarehousesController : ControllerBase
         };
 
         _dbContext.Warehouses.Add(warehouse);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Create", nameof(Warehouse), warehouse.Id, request);
+        await _auditLogger.SaveAsync(AuditActions.Create, nameof(Warehouse), warehouse.Id, request);
 
         return CreatedAtAction(nameof(GetWarehouse), new { id = warehouse.Id }, ToDto(warehouse));
     }
@@ -86,9 +84,7 @@ public class AdminWarehousesController : ControllerBase
         warehouse.Address = request.Address.Trim();
         warehouse.Latitude = request.Latitude;
         warehouse.Longitude = request.Longitude;
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Update", nameof(Warehouse), id, request);
+        await _auditLogger.SaveAsync(AuditActions.Update, nameof(Warehouse), id, request);
 
         return NoContent();
     }
@@ -110,17 +106,11 @@ public class AdminWarehousesController : ControllerBase
         }
 
         _dbContext.Warehouses.Remove(warehouse);
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-        }
-        catch (DbUpdateException exception) when (exception.IsConstraintViolation())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Warehouse), id))
         {
             // Stock or an order appeared between the check above and the delete.
             return Conflict("The warehouse still has inventory or orders.");
         }
-
-        await _auditLogger.LogAsync("Delete", nameof(Warehouse), id);
 
         return NoContent();
     }

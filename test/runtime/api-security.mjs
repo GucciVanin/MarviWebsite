@@ -251,6 +251,26 @@ ok('...and no order was created', (await call('GET', '/api/orders/mine', { token
 ok('...and the quote is still Priced', (await call('GET', '/api/quotes/mine', { token: clientA.token })).json.find((q) => q.id === freeQuote.id)?.status === 'Priced');
 
 // ---------------------------------------------------------------- security
+section('AUDIT: an admin change and its audit entry are stored together');
+const auditRows = () => Number(sql('select count(*) from audit_log_entries'));
+const auditCase = async (name, run, expectedRows) => {
+  const before = auditRows();
+  const response = await run();
+  ok(`${name}: ${expectedRows} audit row(s), status ${response.status}`, auditRows() - before === expectedRows, `rows +${auditRows() - before}, status ${response.status}`);
+  return response;
+};
+const catName = `Audit ${crypto.randomUUID().slice(0, 8)}`;
+const auditCat = (await auditCase('create category', () => call('POST', '/api/admin/categories', { token: admin, body: { name: catName, sortOrder: 1, isActive: true } }), 1)).json;
+await auditCase('update category', () => call('PUT', `/api/admin/categories/${auditCat.id}`, { token: admin, body: { name: `${catName} v2`, sortOrder: 2, isActive: true } }), 1);
+await auditCase('duplicate category name (409) leaves no audit row', () => call('POST', '/api/admin/categories', { token: admin, body: { name: `${catName} v2`, sortOrder: 1, isActive: true } }), 0);
+await auditCase('invalid category (400) leaves no audit row', () => call('POST', '/api/admin/categories', { token: admin, body: { name: ' ', sortOrder: 1, isActive: true } }), 0);
+await auditCase('delete category', () => call('DELETE', `/api/admin/categories/${auditCat.id}`, { token: admin }), 1);
+const auditWh = (await auditCase('create warehouse', () => call('POST', '/api/admin/warehouses', { token: admin, body: { name: `CD ${catName}`, address: 'Rua A, 1', latitude: -23.5, longitude: -46.6 } }), 1)).json;
+await auditCase('create coverage area', () => call('POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: auditWh.id, type: 'Radius', radiusMiles: 5 } }), 1);
+await auditCase('delete warehouse (and its areas)', () => call('DELETE', `/api/admin/warehouses/${auditWh.id}`, { token: admin }), 1);
+await auditCase('approve client', () => call('PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 100 } }), 1);
+ok('every audit row has an actor', Number(sql(`select count(*) from audit_log_entries where actor_user_id = '00000000-0000-0000-0000-000000000000'`)) === 0);
+
 section('SECURITY: authorization matrix (every endpoint x every role)');
 const ID = crypto.randomUUID();
 const tokens = { anon: undefined, client: clientA.token, employee: emp, admin };
@@ -384,8 +404,8 @@ await expectNot500('audit page=0', 'GET', '/api/admin/audit-log?page=0', { token
 await expectNot500('audit page=-5', 'GET', '/api/admin/audit-log?page=-5', { token: admin });
 await expectNot500('audit pageSize=-1', 'GET', '/api/admin/audit-log?pageSize=-1', { token: admin });
 await expectNot500('audit huge page', 'GET', '/api/admin/audit-log?page=2147483647&pageSize=2147483647', { token: admin });
-await expectNot500('approve unknown tier', 'PUT', `/api/admin/clients/${clientA.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } });
-await expectNot500('approve negative credit', 'PUT', `/api/admin/clients/${clientA.id}/approve`, { token: admin, body: { pricingTierId: standard.id, creditLimit: -100 } });
+await expectNot500('approve unknown tier', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } });
+await expectNot500('approve negative credit', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: standard.id, creditLimit: -100 } });
 await expectNot500('coverage area unknown warehouse', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: crypto.randomUUID(), type: 'Radius', radiusMiles: 5, polygonGeoJson: null } });
 await expectNot500('delete warehouse that has areas and stock', 'DELETE', `/api/admin/warehouses/${wh1.id}`, { token: admin });
 await expectNot500('delete product that is on quotes/orders', 'DELETE', `/api/admin/products/${prod.water.id}`, { token: admin });
@@ -407,8 +427,8 @@ await mustBe400('warehouse latitude 999', 'POST', '/api/admin/warehouses', { tok
 await mustBe400('radius area with negative radius', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: wh1.id, type: 'Radius', radiusMiles: -10, polygonGeoJson: null } });
 await mustBe400('radius area with no radius', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: wh1.id, type: 'Radius', radiusMiles: null, polygonGeoJson: null } });
 await mustBe400('coverage area for unknown warehouse', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: crypto.randomUUID(), type: 'Radius', radiusMiles: 5, polygonGeoJson: null } });
-await mustBe400('negative client credit limit', 'PUT', `/api/admin/clients/${clientA.id}/approve`, { token: admin, body: { pricingTierId: standard.id, creditLimit: -100 } });
-await mustBe400('approve with unknown tier', 'PUT', `/api/admin/clients/${clientA.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } });
+await mustBe400('negative client credit limit', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: standard.id, creditLimit: -100 } });
+await mustBe400('approve with unknown tier', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } });
 await mustBe400('product with blank SKU', 'POST', '/api/admin/products', { token: admin, body: { sku: '  ', name: 'x', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
 await mustBe400('product with blank name', 'POST', '/api/admin/products', { token: admin, body: { sku: 'OK-1', name: '', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
 await mustBe400('product with a duplicate SKU', 'POST', '/api/admin/products', { token: admin, body: { sku: 'BEER-001', name: 'Duplicate', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });

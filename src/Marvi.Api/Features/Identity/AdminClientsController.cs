@@ -44,9 +44,7 @@ public class AdminClientsController : ControllerBase
         clientAccount.Status = ClientAccountStatus.Approved;
         clientAccount.PricingTierId = request.PricingTierId;
         clientAccount.CreditLimit = request.CreditLimit;
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Approve", nameof(ClientAccount), id, new { request.PricingTierId, request.CreditLimit });
+        await _auditLogger.SaveAsync(AuditActions.Approve, nameof(ClientAccount), id, new { request.PricingTierId, request.CreditLimit });
 
         return NoContent();
     }
@@ -61,9 +59,7 @@ public class AdminClientsController : ControllerBase
         }
 
         clientAccount.Status = ClientAccountStatus.Suspended;
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Suspend", nameof(ClientAccount), id);
+        await _auditLogger.SaveAsync(AuditActions.Suspend, nameof(ClientAccount), id);
 
         return NoContent();
     }

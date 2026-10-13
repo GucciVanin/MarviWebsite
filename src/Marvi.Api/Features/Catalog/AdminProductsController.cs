@@ -71,12 +71,10 @@ public class AdminProductsController : ControllerBase
         };
 
         _dbContext.Products.Add(product);
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Product), product.Id, request))
         {
             return Conflict("The product conflicts with existing data (duplicate SKU, or its category was just removed).");
         }
-
-        await _auditLogger.LogAsync("Create", nameof(Product), product.Id, request);
 
         return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, ToDto(product));
     }
@@ -108,12 +106,10 @@ public class AdminProductsController : ControllerBase
         product.ImageUrl = request.ImageUrl;
         product.IsActive = request.IsActive;
         product.Attributes = request.Attributes;
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Product), id, request))
         {
             return Conflict("The product conflicts with existing data (duplicate SKU, or its category was just removed).");
         }
-
-        await _auditLogger.LogAsync("Update", nameof(Product), id, request);
 
         return NoContent();
     }
@@ -135,30 +131,14 @@ public class AdminProductsController : ControllerBase
         }
 
         _dbContext.Products.Remove(product);
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Product), id))
         {
             return Conflict("The product appears on quotes or orders and cannot be deleted. Deactivate it instead.");
         }
 
-        await _auditLogger.LogAsync("Delete", nameof(Product), id);
-
         return NoContent();
     }
 
-    // The category can be deleted between the existence check above and the save; the foreign key then rejects the
-    // write, which is a client error (unknown category), not a 500. Other database failures propagate.
-    private async Task<bool> TrySaveAsync()
-    {
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-            return true;
-        }
-        catch (DbUpdateException exception) when (exception.IsConstraintViolation())
-        {
-            return false;
-        }
-    }
 
     // SKU and name are required and bounded; the SKU is unique ignoring case (also enforced by an index, which turns a
     // race into a conflict through TrySaveAsync).
