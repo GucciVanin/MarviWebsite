@@ -1,5 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using Marvi.Api.Features.Identity.Contracts;
 using Marvi.Api.Features.Catalog;
 using Marvi.Domain.Identity;

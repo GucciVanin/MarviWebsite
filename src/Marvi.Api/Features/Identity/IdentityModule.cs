@@ -8,7 +8,7 @@ namespace Marvi.Api.Features.Identity;
 
 public static class IdentityModule
 {
-    public static readonly string[] Roles = ["Client", "Employee", "Admin"];
+    public static readonly string[] Roles = [Principal.Roles.Client, Principal.Roles.Employee, Principal.Roles.Admin];
 
     public static IServiceCollection AddIdentityFeature(this IServiceCollection services, IConfiguration configuration)
     {
@@ -74,6 +74,6 @@ public static class IdentityModule
                 "Could not seed the admin account: " + string.Join("; ", created.Errors.Select(e => e.Description)));
         }
 
-        await userManager.AddToRoleAsync(admin, "Admin");
+        await userManager.AddToRoleAsync(admin, Principal.Roles.Admin);
     }
 }
