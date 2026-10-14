@@ -149,3 +149,31 @@
     &.is-active { background: var(--color-navy-900); color: var(--color-text-inverse); }
   }
 }
+
+// Product cards (public catalog).
+.product-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  padding: 0;
+  list-style: none;
+}
+
+.product {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+
+  h3 { margin: 0; font-size: 1.05rem; }
+  p { margin: 0; }
+  &__price { font-size: 1.25rem; font-weight: 800; }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

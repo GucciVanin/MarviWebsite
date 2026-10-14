@@ -148,3 +148,19 @@
     flex-wrap: wrap;
   }
 }
+
+// The slogan from the design: only where there is room for it.
+.header__slogan {
+  display: none;
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  max-width: 11rem;
+  line-height: 1.4;
+}
+
+@media (min-width: 1280px) {
+  .header__slogan { display: block; }
+}

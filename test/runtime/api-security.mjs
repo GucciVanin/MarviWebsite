@@ -307,6 +307,18 @@ ok('a warehouse with stock cannot be deleted (409)', (await call('DELETE', `/api
 const policyDeal = await call('POST', '/api/admin/deals', { token: admin, body: { name: '  Padded deal  ', discountType: 'Percent', discountValue: 5, startDate: new Date(Date.now() - 864e5).toISOString(), endDate: new Date(Date.now() + 864e5).toISOString(), productIds: [], categoryIds: [], minQty: 1 } });
 ok('a deal name keeps its padding and has no length limit today (201)', policyDeal.status === 201 && policyDeal.json.name === '  Padded deal  ', String(policyDeal.status));
 
+section('PUBLIC STATS: the landing page numbers are anonymous, cacheable, counts only, and match the database');
+const stats = await call('GET', '/api/public/stats');
+ok('stats are public (200, no token)', stats.status === 200, String(stats.status));
+ok('stats expose exactly three counts and nothing else', JSON.stringify(Object.keys(stats.json).sort()) === '["categoryCount","coverageAreaCount","productCount"]', JSON.stringify(stats.json));
+ok('productCount equals the active products in the database', stats.json.productCount === Number(sql('select count(*) from products where is_active')), `${stats.json.productCount}`);
+ok('categoryCount equals the active categories', stats.json.categoryCount === Number(sql('select count(*) from categories where is_active')), `${stats.json.categoryCount}`);
+ok('coverageAreaCount counts radius areas only (polygon type is 1)', stats.json.coverageAreaCount === Number(sql('select count(*) from coverage_areas where type = 0')), `${stats.json.coverageAreaCount}`);
+ok('stats and categories are cacheable for a short time (Cache-Control public, max-age=60)',
+  /public/.test(stats.headers.get('cache-control') ?? '') && /max-age=60/.test(stats.headers.get('cache-control') ?? '')
+  && /max-age=60/.test((await call('GET', '/api/categories')).headers.get('cache-control') ?? ''));
+ok('stats contain no price or customer data', !/price|email|company|client/i.test(stats.text));
+
 section('STOCK: in stock = on hand minus reserved, summed over warehouses; list and detail agree');
 const stockProduct = (await call('POST', '/api/admin/products', { token: admin, body: { sku: `STK-${crypto.randomUUID().slice(0, 8)}`, name: 'Stock product', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).json;
 const inStockList = async () => (await call('GET', '/api/products')).json.find((p) => p.id === stockProduct.id)?.inStock;

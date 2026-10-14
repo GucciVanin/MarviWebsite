@@ -114,6 +114,7 @@ flowchart LR
         C4[AdminDealsController]
         C6[CategoriesController]
         C7[AdminCategoriesController]
+        C8[PublicStatsController]
         C5[PricingService]
     end
     subgraph Coverage
@@ -450,13 +451,13 @@ src/app/
   core/http/                loadable, action, describeApiError (loading and error state, see below)
   core/catalog/             CatalogService: the public product list (search, category) and categories, shared by every screen that picks products
   core/i18n/                pt-br.ts (all copy), identity-errors.ts
-  shared/ui/                app-header, app-footer, load-state, error-alert, product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
+  shared/ui/                app-header, app-footer, load-state, error-alert, count-up (a number that counts up once when first seen; shows the real number from the start and with reduced motion), product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
   shared/format/            brl (R$ 1.234,50) and ptDate (dd/mm/aaaa hh:mm) pipes
   shared/models/            types used by more than one feature (quote, order, catalog)
   features/
-    home/                   placeholder awaiting the owner's design
+    home/                   the public landing page (project.md section 10): hero, flow, live stats band, category tiles, closing banner; every data-driven area has static fallback copy  + api/ (public-stats)
     auth/login/             login page
-    storefront/             public catalog, deals, coverage checker  + api/ (products, deals, coverage)
+    storefront/             public catalog (search and category filter kept in the URL: ?category=<id>&q=<text>), deals, delivery check  + api/ (deals, coverage); products and categories come from core/catalog
     client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept, see orders  + api/ (quotes, orders)
     employee-portal/        price queued quotes, look a customer up by ID, place an order for an approved customer, stock  + api/ (employee)
     admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock)  + api/ (admin)
@@ -486,13 +487,21 @@ flowchart TD
 - **Design system (MRV-2.3a):** tokens, element defaults and primitive classes (`.container .page .btn .card .field .alert .eyebrow` and, for data screens (MRV-2.4a), `.table .toolbar .stack .muted .badge .btn--small`) live
   in `src/styles/_tokens.scss`, `_base.scss`, `_components.scss`, loaded by `src/styles.scss`. Colors are CSS custom properties; change them only in `_tokens.scss`.
   Shared components are in `shared/ui` (`app-header`, `app-footer`), composed by the shell in `app.html` (skip link, header, `<main id="content">`, footer).
-  The landing page and the React hero island (MRV-2.3c/d) are still planned (`project.md` §10).
+- **Hero ribbons island (MRV-2.3d):** `client/island` is a separate npm package (React 18.3.1, esbuild; React 19 exceeded the 60 KB gzipped budget).
+  `npm --prefix island run build` bundles `src/main.tsx` into `client/public/island/ribbons.js`, which defines the custom element `<marvi-ribbons>`
+  and fails the build if the gzipped size exceeds 60 KB. The output and `island/node_modules` are git-ignored and docker-ignored; `deploy/Dockerfile.client`
+  builds the island before the Angular build, so the script is served at `/island/ribbons.js`.
+  `home.html` contains `<marvi-ribbons>` with the static SVG ribbons as its content. `features/home/hero-ribbons.loader.ts` injects the script
+  (`type=module`) after the first render, when the browser is idle, and never rejects; it skips reduced-motion users. If the script is missing or fails, the static
+  SVG stays. The animation pauses when off-screen or when the tab is hidden. To remove the island: delete `client/island`, the loader, the element in `home.html`
+  and the two Dockerfile lines.
 - **Session state:** `AuthService.isAuthenticated()` is a plain function (not a `computed`, which would never notice expiry) meaning an unexpired token that carries a known role; a stale or role-less token in storage is dropped at startup. The role guards require it, and `guestGuard` keeps signed-in users off `/login` and `/register` (registering again would silently replace their session).
   The skip link focuses `<main>` in code (a bare `#content` href would resolve against `<base href="/">` and leave the page).
 - **Copy:** all user-facing text is in `core/i18n/pt-br.ts` (pt-BR only); templates read from `PT`, never hard-code strings. The API's English Identity errors are mapped to pt-BR in `core/i18n/identity-errors.ts`; unknown messages fall back to a generic one, so English never reaches the user.
 - **Zoneless:** there is no `zone.js`. State that changes inside an async callback (HTTP, timers) **must be a signal**; assigning a plain field
   there does not re-render. Plain fields are fine only for `ngModel` bindings that are never written from a callback; form fields that are reset after an HTTP call are signals (`[(ngModel)]` binds to a writable signal). The storefront and the three portals were converted to signals on 2026-10-02 (they
   had never rendered API data); keep new screens on signals.
+- **Landing page (MRV-2.3c):** sections are anchored (`#sobre` flow, `#por-que` stats band, `#rede` coverage stat, `#produtos`) and the header and footer link to them as `/#<id>`; the router has anchor scrolling enabled and the targets carry a scroll margin under the sticky header. The live numbers (`GET /api/public/stats`) and category tiles (`GET /api/categories`, up to six) are optional: while loading or when the API is down the same areas show static copy and no error is displayed on this public page. The hero ribbons are a static SVG; the animated version is the optional React island (MRV-2.3d). The `anyComponentStyle` budget in angular.json was raised to 8 kB warning / 12 kB error for the landing page styles.
 - **Loading and errors (MRV-4.1):** never call `.subscribe` on an API request from a screen (the one exception is login and register, which own their credential-specific messages and busy state). Use `loadable(() => service.get(), initial)` (`core/http/loadable.ts`) for data a section shows (signals `data`, `loading`, `loaded`, `error`, plus `load()` to retry) and `action()` (`core/http/action.ts`) for things the user triggers (`busy`, `error`, `run(request, onSuccess)`). Render them with `<app-load-state [state] [emptyText]>` (loading, failure with retry, empty message) and `<app-error-alert [error]>` (action failures) from `shared/ui`. `describeApiError` (`core/http/api-error.ts`) maps the HTTP status (0, 400, 403, 404, 409, 5xx) to a pt-BR message and keeps the server's own text as secondary `detail`; the API has no error codes, so do not parse server text. Login treats only 400/401 as wrong credentials; register keeps the Identity translation for 400. Quote and order statuses (`PT.statuses`), client statuses and deal discount types are shown in pt-BR; the audit log keeps the API's technical action and entity names (it is a technical record).
 - **Client tests:** vitest via `ng test`, specs beside the code; `core/auth/testing/fake-token.ts` builds a JWT for role-dependent tests. With Node < 22.22.3 run
   them in Docker (README).
@@ -551,6 +560,7 @@ flowchart LR
 - **Input rules:** deals (0-100% or non-negative fixed, start < end, min qty >= 1), warehouses (lat/long ranges), coverage areas (real warehouse, radius 0-20000 mi), approvals (existing tier, credit >= 0), products (SKU/name required and bounded) and emails (format) are validated and answered 400/409; nothing here should ever be a 500.
 - **Dates are read as UTC** (`UtcDateTimeConverter`): a date without a time zone used to reach Npgsql as `Unspecified` and fail with a 500.
 - **Bad text:** characters Postgres cannot store (NUL) become a 400 through `InvalidTextExceptionHandler`; `UseExceptionHandler` returns a generic 500 without internals for anything unexpected. The server header is removed.
+- **Public landing data is counts and categories only** (MRV-2.3b): `GET /api/public/stats` returns product, category and radius-coverage-area counts (anonymous, `Cache-Control: public,max-age=60`, no prices or customer data); `GET /api/categories` is cached the same way. Polygon areas are not counted: the delivery check cannot serve them yet.
 - **A product without a price has `price: null`** in the public catalog (the SPA shows "Sob consulta"); 0 would read as free. Only `NoPriceException` (a subtype of `InvalidOperationException`, thrown by `PricingService`) is turned into "no price" (a null `UnitPrice` on the `PricedBasketLine`), inside `BasketPricingService.PriceLine`; any other pricing failure must surface.
 - **More input rules:** enum fields must be defined values; a Polygon area needs a JSON object and a Radius area never keeps polygon data; registration trims and bounds company name (200), address (500) and employee code (50). Dates without a time zone mean UTC, and a date-only value means midnight UTC, so the UI should send full timestamps for deal ends.
 - **Audit paging** is validated (page/pageSize >= 1, pageSize capped at 200).

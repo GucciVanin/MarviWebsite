@@ -4,8 +4,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
+# The hero island (MRV-2.3d) is its own small package; it builds to public/island/ribbons.js before Angular copies public/ into the app.
+COPY island/package*.json island/
+RUN npm --prefix island ci
+
 COPY . .
-RUN npm run build
+RUN npm --prefix island run build && npm run build
 
 FROM nginx:alpine AS runtime
 COPY --from=build /app/dist/marvi-client/browser /usr/share/nginx/html

@@ -19,6 +19,7 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet]
+    [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any)]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> GetCategories()
     {
         var categories = await _dbContext.Categories

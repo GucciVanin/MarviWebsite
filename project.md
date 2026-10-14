@@ -49,7 +49,7 @@ people, catalog, pricing, warehouses and audit. See [goal.md](goal.md).
 | F12 | Admin: suspend client, adjust credit/pricing | Partial | Approve and suspend exist (suspended clients cannot quote or accept); update-credit missing (MRV-1.3) |
 | F13 | Admin audit log of mutations | Partial | Written by admin controllers via `AuditLogger`; read endpoint exists; no UI filtering/paging |
 | F14 | CSV product import (MVP requirement) | Not started | Schema defined (Q1 resolved) |
-| F15 | Home page with the owner's design | Designed, not built | Spec in section 10 (MRV-2.3a–e); `Home` is still an empty placeholder |
+| F15 | Home page with the owner's design | Built (2026-10-14) | Spec in section 10 (MRV-2.3a–e); landing page, public stats, catalog and hero island done; open: self-hosted fonts, scroll reveals, real photos, Lighthouse measurement |
 | F16 | Client profile management (addresses, company) | Not started | `ShippingAddresses` exists on the entity; no endpoints |
 
 ## 5. Non-functional requirements
@@ -116,10 +116,10 @@ Why first: the API is ahead of the UI, and the owner cannot exercise the product
 | MRV-2.4a.3 | ~~Admin catalog screens~~ **Done (2026-10-14, in the Portals PR)** — admin shell with sub-page navigation (`/admin`, `/admin/catalogo`), categories and products create/edit/delete with a two-step delete, attributes as `name: value` lines, every API refusal shown in pt-BR with the server reason; driven in the built-in browser (category + product created, delete of a category in use refused). Original criteria: | An admin can create, edit and delete categories (name, order, active; delete refused with the reason when in use) and products (SKU, name, description, category, active, free-form attributes; duplicate SKU, limits and delete protection shown in pt-BR). Needs new front-end services for categories (and the category list for the product form) |
 | MRV-2.4a.4 | ~~Admin pricing screens~~ **Done (2026-10-14, in the Portals PR)** — `/admin/precos`: tiers (create, rename, make default in one click; the only default cannot be unset) and per-product prices per tier and minimum quantity (add, edit, confirm-then-remove), refusals shown in pt-BR with the reason; driven in the built-in browser (a tier created, base and quantity-break prices saved and confirmed through a real quote: 2,50 for 1 unit, 2,20 for 12; default switched and restored). Original criteria: | An admin can manage pricing tiers (create, rename, make default; the only default cannot be unset) and, per product, the tier prices with quantity breaks (add, change, remove). Needs front-end services for pricing tiers and product pricing. Deals management is not in this slice (not in the original scope) |
 | MRV-2.4a.5 | ~~Admin warehouse, coverage and stock screens~~ **Done (2026-10-14, in the Portals PR)** — `/admin/operacao`: warehouses (name, address, coordinates validated), radius and polygon coverage areas (polygon stored and marked "ainda não usada" in the delivery check), stock per product and warehouse (create and adjust); deletes need a confirming click and refusals show the API reason in pt-BR; driven in the built-in browser (warehouse, 40-mile area and 30 units of stock created; deleting the warehouse with stock refused). Original criteria: | An admin can manage warehouses (name, address, coordinates) and their coverage areas (radius; polygon stored but marked "not supported yet"), and set stock per product and warehouse (on hand, reorder point). Delete refusals and conflicts shown in pt-BR. Needs a front-end service for the stock upsert |
-| MRV-2.3e | Public catalog browse | "Explore our supply" opens a catalog anyone can browse (search, filter by category from `GET /api/categories`); anonymous visitors see list prices as the API returns them; links to register for quotes |
-| MRV-2.3b | Public landing-page data | `GET /api/categories` (public, active only) and `GET /api/public/stats` (product count, category count, active coverage areas); anonymous, no prices; categories half is done (MRV-1.6) |
-| MRV-2.3c | Landing page (Home) | All sections of section 10.3 built from the mockup, wired to MRV-2.3b, responsive and accessible per 10.5 |
-| MRV-2.3d | Hero ribbon animation (React island) | Stretch, last in the sprint. Isolated React bundle renders the animated ribbons; lazy-loaded; static fallback for reduced-motion, no-JS and load failure; budget in 10.4 |
+| MRV-2.3e | ~~Public catalog browse~~ **Done (2026-10-14, in the Public site PR)** — `/storefront` as a card grid with list prices ("Sob consulta" when unpriced), deal and stock badges, search and category filter recorded in the URL so a link can point at a filtered catalog, register / customer-area call to action, delivery check and running deals; driven in the built-in browser as an anonymous visitor. Original criteria: | "Explore our supply" opens a catalog anyone can browse (search, filter by category from `GET /api/categories`); anonymous visitors see list prices as the API returns them; links to register for quotes |
+| MRV-2.3b | ~~Public landing-page data~~ **Done (2026-10-14, in the Public site PR)** — `GET /api/public/stats` (`PublicStatsController`): active products, active categories and radius coverage areas (polygon areas are stored but not served yet, so not counted); `GET /api/categories` and the stats carry `Cache-Control: public,max-age=60`; 206 API tests and 227 runtime checks pass. Original criteria: | `GET /api/categories` (public, active only) and `GET /api/public/stats` (product count, category count, active coverage areas); anonymous, no prices; categories half is done (MRV-1.6) |
+| MRV-2.3c | ~~Landing page (Home)~~ **Done (2026-10-14, in the Public site PR)** — all sections of 10.3 built from the mockup (hero with static ribbons and an image placeholder, flow, live stats band with count-up, six category tiles from the API linking to the filtered catalog, closing banner), header and footer links to the sections, pt-BR copy; verified in the browser at 1280 px and 390 px (no horizontal overflow, menu collapses), anchor navigation from another page, and with the API stopped (all five sections render with static copy, no error banners). Not measured: Lighthouse scores and real photos (owner supplies them, Q5/Q6). Original criteria: | All sections of section 10.3 built from the mockup, wired to MRV-2.3b, responsive and accessible per 10.5 |
+| MRV-2.3d | ~~Hero ribbon animation (React island)~~ **Done (2026-10-14, in the Public site PR)** — `client/island` builds one script, `<marvi-ribbons>` (React 18.3.1, 45.8 KB gzipped; React 19 was 68.5 KB, over the budget), loaded after first paint when the browser is idle; the static SVG is the element's own content, so no-JS, reduced motion and a failed load all keep it; the animation pauses off-screen and in hidden tabs; the build fails over 60 KB gzipped. Driven in the built-in browser: element defined, paths change over time. Original criteria: | Stretch, last in the sprint. Isolated React bundle renders the animated ribbons; lazy-loaded; static fallback for reduced-motion, no-JS and load failure; budget in 10.4 |
 
 **Sprint 3 — Close the MVP spec gaps and data in (Not started)**
 
@@ -183,7 +183,7 @@ permissions.
 | Catalog | CRUD `/api/admin/categories` | Admin | ✔ |
 | Catalog | `GET /api/categories` | Anonymous | ✔ |
 | Catalog | CSV product import | Admin | ○ |
-| Catalog | `GET /api/public/stats` (landing page; MRV-2.3b) | Anonymous | ○ |
+| Catalog | `GET /api/public/stats` (landing page numbers: active products, active categories, radius coverage areas; cached 60 s) | Anonymous | ✔ |
 | Platform | `GET /health` | Anonymous | ✔ |
 | Inventory | `PUT /api/admin/inventory` (upsert on-hand and reorder point) | Admin | ✔ |
 | Coverage | CRUD `/api/admin/warehouses`, `/api/admin/coverage-areas` | Admin | ✔ |
@@ -217,7 +217,7 @@ permissions.
 | Code reviews (2026-10-02, three passes) found 18 issues in the new front end and category code; all fixed except two accepted limitations (see architecture.md §11: dangling-deal race; enum attributes kept in Domain) | Skip link left the page; form resets did not render; any DB error mapped to 409; deals accepted unknown categories; legacy-category names could collide; compose password could break the connection string; expired/role-less tokens counted as signed in; wrong claim comment | Fixed with regression tests (41 API + 34 client tests; 29 backend and 29 browser runtime checks); enum-attribute decision kept and enforced by `EveryPublicDomainEnum_IsSerializedByName` |
 | Mockup photos show third-party brands (Corona, Coca-Cola, Red Bull, Monster, Schweppes) | Trademark/licensing exposure if shipped | Owner states permission exists (Q5); keep the permission documentation on file, and use placeholders until it is confirmed in writing |
 | React island adds a second framework and build | Bundle size, build complexity, two toolchains to keep patched | Keep it to one isolated component with a size budget (10.4); revisit if it grows |
-| Landing page depends on categories (MRV-1.6) and the stats endpoint (MRV-2.3b) | Page cannot show live data until both exist | MRV-1.6 is done, so only the stats endpoint (MRV-2.3b) remains; page shows skeletons/static fallback if the API fails |
+| Landing page depends on categories (MRV-1.6) and the stats endpoint (MRV-2.3b) | Page cannot show live data until both exist | Both are done (MRV-1.6, MRV-2.3b); the page shows static copy in place of the numbers and tiles while loading or if the API fails |
 
 ## 10. Front-end design — landing page and design system
 
@@ -232,7 +232,7 @@ Source: the owner's mockup (`docs/design/landing-mockup.png`). Decisions below w
 | Styling | Plain SCSS with CSS custom-property tokens; standalone Angular components in `shared/ui`. No Tailwind, no Angular Material |
 | Dynamic art | Angular stays the app framework. **One** React island renders the animated hero ribbons (MRV-2.3d); everything else (scroll reveals, count-up stats, flow-arrow animation) is CSS or Angular. No other React |
 | Navigation | One landing page; nav items scroll to sections. Header also carries Entrar / Cadastrar buttons (not in the mockup) |
-| Calls to action | "Explore our supply" opens the public catalog (anonymous browse, no prices). "See how we help businesses grow" goes to register |
+| Calls to action | "Explore our supply" opens the public catalog (anonymous browse with list prices, "Sob consulta" when unpriced; MRV-2.3e). "See how we help businesses grow" goes to register |
 | Data | Category tiles and the stats come from the API (MRV-2.3b); the two non-measurable claims stay static copy |
 | Imagery | Image slots in the mockup layout, filled with the owner's photos (owner holds permission for the brands shown, Q5); neutral placeholders until the files arrive |
 | Logo | Owner supplies SVG/PNG later (Q6); a styled text wordmark is used until then |
@@ -249,7 +249,7 @@ Source: the owner's mockup (`docs/design/landing-mockup.png`). Decisions below w
 | `--color-blue-600` | Ribbon, "Demand" node | `#1F3FA8` |
 | `--color-paper` | Light sections | `#F6F7FA` |
 | `--color-text` / `--color-text-inverse` | Body on light / on dark | `#10162F` / `#FFFFFF` |
-| Typography | Headings: heavy geometric sans (900/800). Body: regular sans. Eyebrows: small caps, wide letter-spacing (`0.25em`), gold. Load self-hosted, `font-display: swap` | |
+| Typography | Headings: heavy geometric sans (900/800). Body: regular sans. Eyebrows: small caps, wide letter-spacing (`0.25em`), gold. Load self-hosted, `font-display: swap` (**not done yet**: the app uses the system font stack until the owner picks a font; scroll-reveal animations are also not built) | |
 | Radius / spacing | Pill buttons (`999px`), card radius `16px`, 8 px spacing scale, section padding `clamp(3rem, 8vw, 6rem)` | |
 | Motion | `--motion-fast 150ms`, `--motion-base 300ms`, `--motion-slow 800ms`; all disabled under `prefers-reduced-motion` | |
 
@@ -265,7 +265,7 @@ Source: the owner's mockup (`docs/design/landing-mockup.png`). Decisions below w
 
 ### 10.4 Technical constraints
 
-- **React island:** its own small package built to a single lazy-loaded script (custom element or mount function); target ≤ 60 KB gzipped including React; loaded only on the landing page, after first paint; failure or reduced-motion shows a static SVG of the ribbons. Isolated so it can be deleted without touching Angular code. Document the build step in `architecture.md` when MRV-2.3d starts.
+- **React island:** its own small package built to a single lazy-loaded script (custom element or mount function); target ≤ 60 KB gzipped including React; loaded only on the landing page, after first paint; failure or reduced-motion shows a static SVG of the ribbons. Isolated so it can be deleted without touching Angular code. Built in `client/island`; build step documented in `architecture.md`.
 - **Performance:** Largest Contentful Paint ≤ 2.5 s on a mid-range phone over 4G; hero image sized and `fetchpriority="high"`; below-the-fold images lazy-loaded; no layout shift from fonts or images (set dimensions).
 - **API:** the two new endpoints are anonymous, cacheable (short `Cache-Control`), return no prices or customer data, and have integration tests (anonymous access works, inactive items excluded).
 
