@@ -13,6 +13,7 @@ describe('AdminShell', () => {
     expect(links).toEqual([
       ['Visão geral', '/admin'],
       ['Catálogo', '/admin/catalogo'],
+      ['Preços', '/admin/precos'],
     ]);
   });
 });

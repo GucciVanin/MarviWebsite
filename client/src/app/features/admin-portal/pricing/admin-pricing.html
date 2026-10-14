@@ -1,0 +1,145 @@
+<div class="stack">
+  <section class="card" data-testid="tiers-section" aria-labelledby="tiers-title">
+    <h2 id="tiers-title">{{ t.tiersTitle }}</h2>
+    <p class="muted">{{ t.defaultHint }}</p>
+    <app-load-state [state]="tiers" [emptyText]="t.noTiers" />
+    <app-error-alert [error]="tierListAction.error()" />
+    @if (tiers.data().length) {
+      <table class="table" data-testid="tiers">
+        <thead>
+          <tr>
+            <th>{{ t.tierName }}</th>
+            <th></th>
+            <th>{{ t.actions }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (tier of tiers.data(); track tier.id) {
+            <tr>
+              <td>{{ tier.name }}</td>
+              <td>@if (tier.isDefault) { <span class="badge badge--ok">{{ t.defaultBadge }}</span> }</td>
+              <td>
+                <button type="button" class="btn btn--outline btn--small" (click)="editTier(tier)">{{ t.edit }}</button>
+                @if (!tier.isDefault) {
+                  <button type="button" class="btn btn--outline btn--small" [disabled]="tierListAction.busy()" (click)="makeDefault(tier)">{{ t.makeDefault }}</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    <form data-testid="tier-form" (ngSubmit)="saveTier()">
+      <h3>{{ editingTierId() ? t.editTier : t.newTier }}</h3>
+      <div class="toolbar">
+        <div class="field">
+          <label for="tierName">{{ t.tierName }}</label>
+          <input id="tierName" name="tierName" type="text" [(ngModel)]="tierName" />
+        </div>
+        <div class="field">
+          <label for="tierDefault">
+            <input id="tierDefault" name="tierDefault" type="checkbox" [(ngModel)]="tierDefault" [disabled]="editingTierIsDefault()" />
+            {{ t.tierDefaultLabel }}
+          </label>
+        </div>
+      </div>
+      <button type="submit" class="btn btn--primary" [disabled]="tierAction.busy()">{{ t.saveTier }}</button>
+      @if (editingTierId()) {
+        <button type="button" class="btn btn--outline" (click)="resetTierForm()">{{ t.cancel }}</button>
+      }
+      @if (tierProblem(); as problem) {
+        <p class="alert alert--error" role="alert">{{ problem }}</p>
+      }
+      <app-error-alert [error]="tierAction.error()" />
+      @if (tierSaved()) {
+        <p class="alert alert--success" role="status">{{ t.tierSaved }}</p>
+      }
+    </form>
+  </section>
+
+  <section class="card" data-testid="prices-section" aria-labelledby="prices-title">
+    <h2 id="prices-title">{{ t.pricesTitle }}</h2>
+    <p class="muted">{{ t.pricesHint }}</p>
+    <div class="field">
+      <label for="priceProduct">{{ t.product }}</label>
+      <select id="priceProduct" name="priceProduct" [(ngModel)]="selectedProductId" (ngModelChange)="onProductChosen()">
+        <option value="">{{ t.chooseProduct }}</option>
+        @for (product of products.data(); track product.id) {
+          <option [value]="product.id">{{ product.name }} ({{ product.sku }})</option>
+        }
+      </select>
+    </div>
+
+    @if (!selectedProductId()) {
+      <p class="muted">{{ t.chooseProductHint }}</p>
+    } @else {
+      <app-load-state [state]="prices" [emptyText]="t.noPrices" />
+      <app-error-alert [error]="priceDeleteAction.error()" />
+      @if (prices.data().length) {
+        <table class="table" data-testid="prices">
+          <thead>
+            <tr>
+              <th>{{ t.tier }}</th>
+              <th class="num">{{ t.minQty }}</th>
+              <th class="num">{{ t.unitPrice }}</th>
+              <th>{{ t.actions }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (price of prices.data(); track priceKey(price)) {
+              <tr>
+                <td>{{ price.pricingTierName }}</td>
+                <td class="num">{{ price.minQty }}</td>
+                <td class="num">{{ price.unitPrice | brl }}</td>
+                <td>
+                  @if (confirmingPrice() === priceKey(price)) {
+                    <button type="button" class="btn btn--primary btn--small" (click)="removePrice(price)">{{ t.confirmRemove }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="confirmingPrice.set(null)">{{ t.cancel }}</button>
+                  } @else {
+                    <button type="button" class="btn btn--outline btn--small" (click)="editPrice(price)">{{ t.edit }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="askRemovePrice(price)">{{ t.remove }}</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      <form data-testid="price-form" (ngSubmit)="savePrice()">
+        <h3>{{ editingPrice() ? t.editPrice : t.newPrice }}</h3>
+        <div class="toolbar">
+          <div class="field">
+            <label for="priceTier">{{ t.tier }}</label>
+            <select id="priceTier" name="priceTier" [(ngModel)]="priceTier" [disabled]="editingPrice()">
+              <option value="">{{ t.chooseTier }}</option>
+              @for (tier of tiers.data(); track tier.id) {
+                <option [value]="tier.id">{{ tier.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="priceMinQty">{{ t.minQty }}</label>
+            <input id="priceMinQty" name="priceMinQty" type="number" min="1" step="1" [(ngModel)]="priceMinQty" [disabled]="editingPrice()" />
+          </div>
+          <div class="field">
+            <label for="priceUnit">{{ t.unitPrice }}</label>
+            <input id="priceUnit" name="priceUnit" type="number" min="0" step="0.01" [(ngModel)]="priceUnit" />
+          </div>
+        </div>
+        <button type="submit" class="btn btn--primary" [disabled]="priceAction.busy()">{{ t.savePrice }}</button>
+        @if (editingPrice()) {
+          <button type="button" class="btn btn--outline" (click)="resetPriceForm()">{{ t.cancel }}</button>
+        }
+        @if (priceProblem(); as problem) {
+          <p class="alert alert--error" role="alert">{{ problem }}</p>
+        }
+        <app-error-alert [error]="priceAction.error()" />
+        @if (priceSaved()) {
+          <p class="alert alert--success" role="status">{{ t.priceSaved }}</p>
+        }
+      </form>
+    }
+  </section>
+</div>

@@ -3,6 +3,7 @@
   <nav class="tabs" [attr.aria-label]="t.label">
     <a routerLink="/admin" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">{{ t.overview }}</a>
     <a routerLink="/admin/catalogo" routerLinkActive="is-active">{{ t.catalog }}</a>
+    <a routerLink="/admin/precos" routerLinkActive="is-active">{{ t.prices }}</a>
   </nav>
   <router-outlet />
 </div>

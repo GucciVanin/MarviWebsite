@@ -50,6 +50,30 @@ export interface UpsertCategoryRequest {
   isActive: boolean;
 }
 
+export interface PricingTier {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
+export interface UpsertPricingTierRequest {
+  name: string;
+  isDefault: boolean;
+}
+
+export interface ProductPrice {
+  pricingTierId: string;
+  pricingTierName: string;
+  unitPrice: number;
+  minQty: number;
+}
+
+export interface UpsertProductPriceRequest {
+  pricingTierId: string;
+  unitPrice: number;
+  minQty: number;
+}
+
 export type DiscountType = 'Percent' | 'Fixed';
 
 export interface DealAdmin {
@@ -147,6 +171,30 @@ export class AdminService {
 
   deleteCategory(id: string): Observable<void> {
     return this.http.delete<void>(`/api/admin/categories/${id}`);
+  }
+
+  getPricingTiers(): Observable<PricingTier[]> {
+    return this.http.get<PricingTier[]>('/api/admin/pricing-tiers');
+  }
+
+  createPricingTier(request: UpsertPricingTierRequest): Observable<PricingTier> {
+    return this.http.post<PricingTier>('/api/admin/pricing-tiers', request);
+  }
+
+  updatePricingTier(id: string, request: UpsertPricingTierRequest): Observable<PricingTier> {
+    return this.http.put<PricingTier>(`/api/admin/pricing-tiers/${id}`, request);
+  }
+
+  getProductPrices(productId: string): Observable<ProductPrice[]> {
+    return this.http.get<ProductPrice[]>(`/api/admin/products/${productId}/pricing`);
+  }
+
+  upsertProductPrice(productId: string, request: UpsertProductPriceRequest): Observable<ProductPrice> {
+    return this.http.put<ProductPrice>(`/api/admin/products/${productId}/pricing`, request);
+  }
+
+  deleteProductPrice(productId: string, pricingTierId: string, minQty: number): Observable<void> {
+    return this.http.delete<void>(`/api/admin/products/${productId}/pricing/${pricingTierId}/${minQty}`);
   }
 
   getProducts(): Observable<ProductAdmin[]> {

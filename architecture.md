@@ -459,7 +459,7 @@ src/app/
     storefront/             public catalog, deals, coverage checker  + api/ (products, deals, coverage)
     client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept, see orders  + api/ (quotes, orders)
     employee-portal/        price queued quotes, look a customer up by ID, place an order for an approved customer, stock  + api/ (employee)
-    admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products)  + api/ (admin)
+    admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks)  + api/ (admin)
 ```
 
 ```mermaid
