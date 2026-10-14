@@ -8,8 +8,16 @@ import { Home } from './home';
 const category = (n: number) => ({ id: `c${n}`, name: `Categoria ${n}`, productCount: n });
 
 describe('Home (landing page)', () => {
-  beforeEach(() => localStorage.clear());
-  afterEach(() => localStorage.clear());
+  // Idle work (loading the animated ribbons) is inert by default so a timer from one test cannot leak into another;
+  // the "hero ribbons" tests below opt in.
+  beforeEach(() => {
+    localStorage.clear();
+    vi.stubGlobal('requestIdleCallback', () => 0);
+  });
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
 
   function render() {
     TestBed.configureTestingModule({
@@ -146,6 +154,58 @@ describe('Home (landing page)', () => {
     expect(root.querySelector('a[href="/register"]')).toBeNull();
     expect(root.querySelector('a[href="/storefront"]')).not.toBeNull();
     expect(root.querySelector('[data-testid="banner"] a')).not.toBeNull();
+  });
+
+  // ---- the animated ribbons (MRV-2.3d): an optional island on top of static content
+
+  describe('hero ribbons', () => {
+    const islandScripts = () => Array.from(document.head.querySelectorAll<HTMLScriptElement>('script[data-island="hero-ribbons"]'));
+
+    afterEach(() => {
+      islandScripts().forEach((script) => script.remove());
+      vi.unstubAllGlobals();
+    });
+
+    it('always ships the static ribbons as the content of the animated element', async () => {
+      const { root, withApi } = render();
+      await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+
+      expect(root.querySelectorAll('.hero marvi-ribbons svg path').length).toBe(3);
+    });
+
+    it('asks for the animated version only after the first paint, when the browser is idle', async () => {
+      const queued: (() => void)[] = [];
+      vi.stubGlobal('requestIdleCallback', (work: () => void) => queued.push(work));
+      const { withApi } = render();
+      await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+      expect(islandScripts().length).toBe(0);
+
+      queued.forEach((work) => work());
+
+      expect(islandScripts().length).toBe(1);
+      expect(islandScripts()[0].getAttribute('src')).toBe('/island/ribbons.js');
+    });
+
+    it('stays complete, with the static ribbons and no error, when the island fails to load', async () => {
+      vi.stubGlobal('requestIdleCallback', (work: () => void) => work());
+      const { root, withApi } = render();
+      await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+
+      islandScripts()[0].dispatchEvent(new Event('error'));
+
+      expect(islandScripts().length).toBe(0);
+      expect(root.querySelectorAll('.hero marvi-ribbons svg path').length).toBe(3);
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('does not load the animation for a user who asks for reduced motion', async () => {
+      vi.stubGlobal('matchMedia', () => ({ matches: true }));
+      vi.stubGlobal('requestIdleCallback', (work: () => void) => work());
+      const { withApi } = render();
+      await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+
+      expect(islandScripts().length).toBe(0);
+    });
   });
 
   // ---- accessibility basics

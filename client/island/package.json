@@ -1,0 +1,21 @@
+{
+  "name": "marvi-hero-island",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The animated hero ribbons (MRV-2.3d): one React island, built to a single script the Angular landing page loads lazily. Delete this folder and the loader in features/home to remove it.",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.tsx --bundle --minify --format=esm --target=es2020 --define:process.env.NODE_ENV=\\\"production\\\" --outfile=../public/island/ribbons.js && node check-size.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "esbuild": "^0.25.0",
+    "typescript": "~5.9.0"
+  }
+}

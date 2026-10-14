@@ -6,3 +6,7 @@ client/node_modules/
 client/dist/
 client/.angular/
 .env
+
+# The hero island (MRV-2.3d): its dependencies and its generated bundle
+client/island/node_modules/
+client/public/island/

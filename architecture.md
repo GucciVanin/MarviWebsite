@@ -487,7 +487,14 @@ flowchart TD
 - **Design system (MRV-2.3a):** tokens, element defaults and primitive classes (`.container .page .btn .card .field .alert .eyebrow` and, for data screens (MRV-2.4a), `.table .toolbar .stack .muted .badge .btn--small`) live
   in `src/styles/_tokens.scss`, `_base.scss`, `_components.scss`, loaded by `src/styles.scss`. Colors are CSS custom properties; change them only in `_tokens.scss`.
   Shared components are in `shared/ui` (`app-header`, `app-footer`), composed by the shell in `app.html` (skip link, header, `<main id="content">`, footer).
-  The landing page and the React hero island (MRV-2.3c/d) are still planned (`project.md` §10).
+- **Hero ribbons island (MRV-2.3d):** `client/island` is a separate npm package (React 18.3.1, esbuild; React 19 exceeded the 60 KB gzipped budget).
+  `npm --prefix island run build` bundles `src/main.tsx` into `client/public/island/ribbons.js`, which defines the custom element `<marvi-ribbons>`
+  and fails the build if the gzipped size exceeds 60 KB. The output and `island/node_modules` are git-ignored and docker-ignored; `deploy/Dockerfile.client`
+  builds the island before the Angular build, so the script is served at `/island/ribbons.js`.
+  `home.html` contains `<marvi-ribbons>` with the static SVG ribbons as its content. `features/home/hero-ribbons.loader.ts` injects the script
+  (`type=module`) after the first render, when the browser is idle, and never rejects; it skips reduced-motion users. If the script is missing or fails, the static
+  SVG stays. The animation pauses when off-screen or when the tab is hidden. To remove the island: delete `client/island`, the loader, the element in `home.html`
+  and the two Dockerfile lines.
 - **Session state:** `AuthService.isAuthenticated()` is a plain function (not a `computed`, which would never notice expiry) meaning an unexpired token that carries a known role; a stale or role-less token in storage is dropped at startup. The role guards require it, and `guestGuard` keeps signed-in users off `/login` and `/register` (registering again would silently replace their session).
   The skip link focuses `<main>` in code (a bare `#content` href would resolve against `<base href="/">` and leave the page).
 - **Copy:** all user-facing text is in `core/i18n/pt-br.ts` (pt-BR only); templates read from `PT`, never hard-code strings. The API's English Identity errors are mapped to pt-BR in `core/i18n/identity-errors.ts`; unknown messages fall back to a generic one, so English never reaches the user.

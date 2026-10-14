@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject } from '@angular/core';
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, afterNextRender, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { CatalogService } from '../../core/catalog/catalog.service';
@@ -7,6 +7,7 @@ import { PT } from '../../core/i18n/pt-br';
 import type { Category } from '../../shared/models/catalog.model';
 import { CountUp } from '../../shared/ui/count-up/count-up';
 import { PublicStats, PublicStatsService } from './api/public-stats.service';
+import { loadHeroRibbons, whenIdle } from './hero-ribbons.loader';
 
 interface Tile {
   name: string;
@@ -25,6 +26,7 @@ const MAX_TILES = 6;
 @Component({
   selector: 'app-home',
   imports: [RouterLink, CountUp],
+  schemas: [CUSTOM_ELEMENTS_SCHEMA], // <marvi-ribbons> is defined by the lazily loaded React island
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
@@ -51,6 +53,11 @@ export class Home implements OnInit {
       ? categories.slice(0, MAX_TILES).map((c) => ({ name: c.name, categoryId: c.id, productCount: c.productCount }))
       : this.t.fallbackCategories.map((name) => ({ name, categoryId: null, productCount: null }));
   });
+
+  constructor() {
+    // After the first paint and when the browser is idle, load the animated ribbons; the static ones are already there.
+    afterNextRender(() => whenIdle(() => void loadHeroRibbons()));
+  }
 
   ngOnInit(): void {
     this.statsData.load();
