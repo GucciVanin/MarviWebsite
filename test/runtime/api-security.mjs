@@ -307,6 +307,19 @@ ok('a warehouse with stock cannot be deleted (409)', (await call('DELETE', `/api
 const policyDeal = await call('POST', '/api/admin/deals', { token: admin, body: { name: '  Padded deal  ', discountType: 'Percent', discountValue: 5, startDate: new Date(Date.now() - 864e5).toISOString(), endDate: new Date(Date.now() + 864e5).toISOString(), productIds: [], categoryIds: [], minQty: 1 } });
 ok('a deal name keeps its padding and has no length limit today (201)', policyDeal.status === 201 && policyDeal.json.name === '  Padded deal  ', String(policyDeal.status));
 
+section('STOCK: in stock = on hand minus reserved, summed over warehouses; list and detail agree');
+const stockProduct = (await call('POST', '/api/admin/products', { token: admin, body: { sku: `STK-${crypto.randomUUID().slice(0, 8)}`, name: 'Stock product', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).json;
+const inStockList = async () => (await call('GET', '/api/products')).json.find((p) => p.id === stockProduct.id)?.inStock;
+const inStockDetail = async () => (await call('GET', `/api/products/${stockProduct.id}`)).json?.inStock;
+ok('a product with no stock record is not in stock (list and detail)', (await inStockList()) === false && (await inStockDetail()) === false);
+await call('PUT', '/api/admin/inventory', { token: admin, body: { productId: stockProduct.id, warehouseId: wh1.id, qtyOnHand: 10, reorderPoint: 1 } });
+await call('PUT', '/api/admin/inventory', { token: admin, body: { productId: stockProduct.id, warehouseId: wh2.id, qtyOnHand: 5, reorderPoint: 1 } });
+ok('stock in two warehouses: in stock (list and detail)', (await inStockList()) === true && (await inStockDetail()) === true);
+sql(`update inventory_records set qty_reserved=10 where product_id='${stockProduct.id}' and warehouse_id='${wh1.id}'`);
+ok('one warehouse fully reserved but the other has 5 free: still in stock', (await inStockList()) === true && (await inStockDetail()) === true);
+sql(`update inventory_records set qty_reserved=5 where product_id='${stockProduct.id}' and warehouse_id='${wh2.id}'`);
+ok('everything reserved: not in stock (list and detail)', (await inStockList()) === false && (await inStockDetail()) === false);
+
 section('DEFAULT TIER: exactly one default; anonymous visitors price from it; it can be switched but never unset');
 const colaPrice = async () => (await call('GET', '/api/products')).json.find((p) => p.id === prod.cola.id)?.price;
 const defaults = () => sql('select count(*) from pricing_tiers where is_default');
