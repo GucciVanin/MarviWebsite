@@ -1,4 +1,5 @@
 using Marvi.Api.Features.Catalog;
+using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Orders.Contracts;
 using Marvi.Domain.Catalog;
 using Marvi.Domain.Identity;
@@ -30,8 +31,7 @@ public class EmployeeOrdersController : ControllerBase
     public async Task<ActionResult<OrderDto>> CreateOrder(CreateEmployeeOrderRequest request)
     {
         // Admins may place orders without an employee account; the order then records no placing employee.
-        var employeeId = Guid.TryParse(User.FindFirst("employee_id")?.Value, out var parsedId) ? parsedId : (Guid?)null;
-        if (employeeId is null && !User.IsInRole("Admin"))
+        if (!User.CanActAsStaff(out var employeeId))
         {
             return Forbid();
         }

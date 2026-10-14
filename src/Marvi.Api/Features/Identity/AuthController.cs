@@ -95,30 +95,18 @@ public class AuthController : ControllerBase
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? string.Empty;
 
-        var claims = new List<Claim>
+        Guid? clientAccountId = null;
+        Guid? employeeAccountId = null;
+        if (string.Equals(role, Principal.Roles.Client, StringComparison.OrdinalIgnoreCase))
         {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(ClaimTypes.Role, role)
-        };
-
-        if (string.Equals(role, "Client", StringComparison.OrdinalIgnoreCase))
-        {
-            var clientAccount = await _dbContext.ClientAccounts.FirstOrDefaultAsync(c => c.UserId == user.Id);
-            if (clientAccount is not null)
-            {
-                claims.Add(new Claim("client_id", clientAccount.Id.ToString()));
-            }
+            clientAccountId = (await _dbContext.ClientAccounts.FirstOrDefaultAsync(c => c.UserId == user.Id))?.Id;
         }
-        else if (string.Equals(role, "Employee", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(role, Principal.Roles.Employee, StringComparison.OrdinalIgnoreCase))
         {
-            var employeeAccount = await _dbContext.EmployeeAccounts.FirstOrDefaultAsync(e => e.UserId == user.Id);
-            if (employeeAccount is not null)
-            {
-                claims.Add(new Claim("employee_id", employeeAccount.Id.ToString()));
-            }
+            employeeAccountId = (await _dbContext.EmployeeAccounts.FirstOrDefaultAsync(e => e.UserId == user.Id))?.Id;
         }
 
-        var (token, expiresAt) = _tokenService.CreateToken(claims);
+        var (token, expiresAt) = _tokenService.CreateToken(Principal.IssueClaims(user.Id, role, clientAccountId, employeeAccountId));
 
         return Ok(new AuthResponse(token, expiresAt));
     }

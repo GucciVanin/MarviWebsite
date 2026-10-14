@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
+using Marvi.Api.Features.Identity;
 using Marvi.Domain.Auditing;
 using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Http;
@@ -73,13 +74,7 @@ public class AuditLogger
         Details = SerializeDetails(details)
     };
 
-    // JWT "sub" is remapped to ClaimTypes.NameIdentifier by the default inbound claim map, so check both.
-    private Guid GetActorUserId()
-    {
-        var user = _httpContextAccessor.HttpContext?.User;
-        var claim = user?.FindFirst(JwtRegisteredClaimNames.Sub) ?? user?.FindFirst(ClaimTypes.NameIdentifier);
-        return claim is not null && Guid.TryParse(claim.Value, out var id) ? id : Guid.Empty;
-    }
+    private Guid GetActorUserId() => _httpContextAccessor.HttpContext?.User.UserId() ?? Guid.Empty;
 
     private static Dictionary<string, string> SerializeDetails(object? details)
     {

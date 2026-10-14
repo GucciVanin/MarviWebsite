@@ -355,7 +355,7 @@ sequenceDiagram
 ```
 
 - Roles: `Client`, `Employee`, `Admin`. Only `POST /api/admin/employees` creates an Employee user.
-- Claims: `sub` (user id), role, and `client_id` or `employee_id`.
+- Claims: `sub` (user id), role (issued under the long URI `http://schemas.microsoft.com/ws/2008/06/identity/claims/role`, which the SPA reads), and `client_id` or `employee_id`. **`Identity/Principal.cs` (MRV-4.7) is the only place they are named, issued (`IssueClaims`) and read** (`User.ClientId()`, `User.EmployeeId()`, `User.UserId()`, `User.CanActAsStaff(out employeeId)`). Never call `User.FindFirst("client_id")` or parse claims in a controller. A Client token whose account record is missing carries no `client_id`, so every client endpoint answers 403.
 - The role claim key is the long URI `http://schemas.microsoft.com/ws/2008/06/identity/claims/role`
   (`ClaimTypes.Role` on .NET 10; older frameworks used `xmlsoap.org/2005/...`), not `"role"`. The SPA's `AuthService` decodes it; any new JWT consumer must too.
   The SPA once used the old URI, so `role()` was always null and every portal bounced the user home; `auth.service.spec.ts` now pins a payload copied from a real login.

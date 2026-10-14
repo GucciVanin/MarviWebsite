@@ -271,6 +271,23 @@ await auditCase('delete warehouse (and its areas)', () => call('DELETE', `/api/a
 await auditCase('approve client', () => call('PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 100 } }), 1);
 ok('every audit row has an actor', Number(sql(`select count(*) from audit_log_entries where actor_user_id = '00000000-0000-0000-0000-000000000000'`)) === 0);
 
+section('IDENTITY: each role\'s token carries its own account id and the endpoints honour it');
+const claimsOf = (token) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+const ROLE_CLAIM = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
+const clientPayload = claimsOf(clientA.token), empPayload = claimsOf(emp), adminPayload = claimsOf(admin);
+ok('client token: role Client, client_id is the account id, no employee_id', clientPayload[ROLE_CLAIM] === 'Client' && clientPayload.client_id === clientA.id && !('employee_id' in clientPayload), JSON.stringify(clientPayload));
+ok('employee token: role Employee, has employee_id, no client_id', empPayload[ROLE_CLAIM] === 'Employee' && !!empPayload.employee_id && !('client_id' in empPayload));
+ok('admin token: role Admin, neither employee_id nor client_id', adminPayload[ROLE_CLAIM] === 'Admin' && !('employee_id' in adminPayload) && !('client_id' in adminPayload));
+const idQuote = (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).json;
+const pricedByEmp = await call('PUT', `/api/employee/quotes/${idQuote.id}/price`, { token: emp, body: { lineItems: [{ lineItemId: idQuote.lineItems[0].id, finalUnitPrice: 5 }] } });
+ok('a quote priced by an employee records that employee', pricedByEmp.json?.pricedByEmployeeId === empPayload.employee_id, JSON.stringify(pricedByEmp.json?.pricedByEmployeeId));
+const idQuote2 = (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).json;
+const pricedByAdmin = await call('PUT', `/api/employee/quotes/${idQuote2.id}/price`, { token: admin, body: { lineItems: [{ lineItemId: idQuote2.lineItems[0].id, finalUnitPrice: 5 }] } });
+ok('a quote priced by an admin records no employee', pricedByAdmin.status === 200 && pricedByAdmin.json?.pricedByEmployeeId === null, String(pricedByAdmin.status));
+ok('the audit trail records the admin\'s login user as the actor', Number(sql(`select count(*) from audit_log_entries where actor_user_id='${adminPayload.sub}'`)) > 0);
+ok('a client cannot reach employee endpoints and an employee cannot reach client endpoints (403)',
+  (await call('GET', '/api/employee/quotes/queue', { token: clientA.token })).status === 403 && (await call('GET', '/api/quotes/mine', { token: emp })).status === 403);
+
 section('INPUT POLICY: trimming, limits, duplicates ignoring case, delete protection (on real Postgres)');
 const policySku = `Pol-${crypto.randomUUID().slice(0, 8)}`;
 const policyProduct = await call('POST', '/api/admin/products', { token: admin, body: { sku: `  ${policySku}  `, name: '  Policy product  ', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });

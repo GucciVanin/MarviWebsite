@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Orders.Contracts;
 using Marvi.Domain.Catalog;
 using Marvi.Domain.Orders;
@@ -23,8 +24,8 @@ public class OrdersController : ControllerBase
     [HttpGet("mine")]
     public async Task<ActionResult<IEnumerable<OrderDto>>> GetMine()
     {
-        var claim = User.FindFirst("client_id")?.Value;
-        if (!Guid.TryParse(claim, out var clientId))
+        var clientId = User.ClientId();
+        if (clientId is null)
         {
             return Forbid();
         }
