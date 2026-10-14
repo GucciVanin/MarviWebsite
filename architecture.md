@@ -450,7 +450,7 @@ src/app/
   core/http/                loadable, action, describeApiError (loading and error state, see below)
   core/catalog/             CatalogService: the public product list (search, category) and categories, shared by every screen that picks products
   core/i18n/                pt-br.ts (all copy), identity-errors.ts
-  shared/ui/                app-header, app-footer, load-state, error-alert
+  shared/ui/                app-header, app-footer, load-state, error-alert, product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
   shared/format/            brl (R$ 1.234,50) and ptDate (dd/mm/aaaa hh:mm) pipes
   shared/models/            types used by more than one feature (quote, order, catalog)
   features/
@@ -458,7 +458,7 @@ src/app/
     auth/login/             login page
     storefront/             public catalog, deals, coverage checker  + api/ (products, deals, coverage)
     client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept, see orders  + api/ (quotes, orders)
-    employee-portal/        quote queue, order taking, lookups      + api/ (employee)
+    employee-portal/        price queued quotes, look a customer up by ID, place an order for an approved customer, stock  + api/ (employee)
     admin-portal/           people, catalog, coverage, audit        + api/ (admin)
 ```
 
