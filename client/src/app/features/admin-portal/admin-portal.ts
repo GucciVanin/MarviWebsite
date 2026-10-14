@@ -4,6 +4,7 @@ import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
+import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import {
   AdminService,
@@ -13,7 +14,7 @@ import {
 
 @Component({
   selector: 'app-admin-portal',
-  imports: [FormsModule, ErrorAlert, LoadState],
+  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe],
   templateUrl: './admin-portal.html',
 })
 export class AdminPortal implements OnInit {
