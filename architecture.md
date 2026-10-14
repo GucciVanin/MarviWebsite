@@ -67,7 +67,7 @@ src/
   Marvi.Domain/<Feature>/     entities, enums, pure business services
   Marvi.Infrastructure/
     Data/                     AppDbContext, ApplicationUser
-    Geocoding/                IGeocodingProvider + Azure/Google implementations
+    Geocoding/                IGeocodingProvider (returns a GeocodeOutcome: Found, NotFound or Unavailable) + HttpGeocodingProvider base + Azure/Google adapters
     DependencyInjection/      AddInfrastructure(...)
     Migrations/               EF Core migrations
   Marvi.Shared/               empty placeholder (candidate for removal)
@@ -166,6 +166,7 @@ use `AuditLogger`; all features share `AppDbContext`.
 `AddInfrastructure` registers `AppDbContext` (Npgsql, snake_case naming), ASP.NET Core Identity
 (`ApplicationUser`, `IdentityRole<Guid>`), a singleton `HttpClient`, and the `IGeocodingProvider`
 chosen by `Geocoding:Provider` (`Google`, otherwise Azure Maps).
+Geocoding returns a `GeocodeOutcome` (MRV-4.8): `Found`, `NotFound` (the provider does not know the address) or `Unavailable` (no or refused key, quota, outage, unreadable answer, logged as a warning, never with the key). The coverage check still answers visitors "not covered" for both non-found outcomes; a distinct message is an owner decision. Adapters share `HttpGeocodingProvider` and only supply the key setting, the URL and the answer parsing; they are tested with a stubbed `HttpMessageHandler` (no keys, no network). Google can answer HTTP 200 with a `status` such as `REQUEST_DENIED`, which is the provider failing, not an unknown address.
 
 ### 4.4 Business services (domain)
 
@@ -535,7 +536,7 @@ flowchart LR
 - **`Marvi.Api` shows `Microsoft.EntityFrameworkCore.Design` but gets EF Core APIs
   transitively** from `Marvi.Infrastructure`; do not remove that reference chain.
 - **Polygon coverage is unimplemented** and throws; only `Radius` works.
-- **Geocoding providers are untested against live keys.**
+- **Geocoding providers are untested against live keys** (their parsing and failure handling are tested with stubbed responses).
 - **Orders do not touch inventory:** no reservation, decrement or stock check yet (Release 2); `Order.WarehouseId` and
   quote-to-order delivery address are not populated by the quote flow.
 - **`Quote.Draft`/`Expired` and `Order.Backordered/Fulfilled/Cancelled`** exist as enum values with

@@ -1,70 +1,42 @@
-using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Marvi.Infrastructure.Geocoding;
 
-public class AzureMapsGeocodingProvider : IGeocodingProvider
+public class AzureMapsGeocodingProvider : HttpGeocodingProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
-    private readonly ILogger<AzureMapsGeocodingProvider> _logger;
-
     public AzureMapsGeocodingProvider(HttpClient httpClient, IConfiguration configuration, ILogger<AzureMapsGeocodingProvider> logger)
+        : base(httpClient, configuration, logger)
     {
-        _httpClient = httpClient;
-        _configuration = configuration;
-        _logger = logger;
     }
 
-    public async Task<GeocodeResult?> GeocodeAsync(string address)
+    protected override string ProviderName => "Azure Maps";
+
+    protected override string ApiKeySetting => "Geocoding:AzureMaps:ApiKey";
+
+    protected override Uri BuildRequestUri(string apiKey, string address) =>
+        new($"https://atlas.microsoft.com/search/address/json?api-version=1.0&subscription-key={Uri.EscapeDataString(apiKey)}&query={Uri.EscapeDataString(address)}");
+
+    // Azure signals every failure (bad key, quota) with an HTTP error status, so a 200 with no result is a genuine "not found".
+    protected override GeocodeOutcome ReadOutcome(JsonDocument body)
     {
-        var apiKey = _configuration["Geocoding:AzureMaps:ApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey))
+        if (!body.RootElement.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
         {
-            _logger.LogWarning("Geocoding:AzureMaps:ApiKey is not configured.");
-            return null;
+            return GeocodeOutcome.Unavailable;
         }
 
-        try
+        foreach (var result in results.EnumerateArray())
         {
-            var requestUri = $"https://atlas.microsoft.com/search/address/json?api-version=1.0&subscription-key={Uri.EscapeDataString(apiKey)}&query={Uri.EscapeDataString(address)}";
-            using var response = await _httpClient.GetAsync(requestUri);
-            if (!response.IsSuccessStatusCode)
+            if (result.TryGetProperty("position", out var position)
+                && position.TryGetProperty("lat", out var lat) && position.TryGetProperty("lon", out var lon))
             {
-                _logger.LogWarning("Azure Maps geocoding request failed with status {StatusCode}.", response.StatusCode);
-                return null;
+                return GeocodeOutcome.Found(lat.GetDouble(), lon.GetDouble());
             }
 
-            var result = await response.Content.ReadFromJsonAsync<AzureMapsSearchResponse>();
-            var position = result?.Results?.FirstOrDefault()?.Position;
-            if (position is null)
-            {
-                return null;
-            }
-
-            return new GeocodeResult(position.Lat, position.Lon);
+            break; // the first result is the best match; without a position there is nothing to use
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Azure Maps geocoding request threw an exception.");
-            return null;
-        }
-    }
 
-    private sealed class AzureMapsSearchResponse
-    {
-        public List<AzureMapsResult>? Results { get; set; }
-    }
-
-    private sealed class AzureMapsResult
-    {
-        public AzureMapsPosition? Position { get; set; }
-    }
-
-    private sealed class AzureMapsPosition
-    {
-        public double Lat { get; set; }
-        public double Lon { get; set; }
+        return GeocodeOutcome.NotFound;
     }
 }

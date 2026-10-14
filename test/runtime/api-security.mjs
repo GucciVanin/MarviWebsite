@@ -533,9 +533,10 @@ ok('database itself refuses a product pointing at a missing category', dbRefuses
 
 section('COVERAGE: geocoding-backed check (real provider has a placeholder key here)');
 const cov = await call('POST', '/api/coverage/check', { body: { address: 'Av. Paulista 1000, São Paulo' } });
-ok('coverage check never returns a 500 with a stack trace', cov.status < 500 || (!/at Marvi|Exception|StackTrace/i.test(cov.text)), `${cov.status} ${cov.text.slice(0, 100)}`);
+ok('coverage check with an unusable geocoding key answers 200 "not covered" (provider unavailable is not a 500)', cov.status === 200 && cov.json?.supported === false && cov.json?.warehouseName === null, `${cov.status} ${cov.text.slice(0, 100)}`);
+ok('...and shows no stack trace or key', !/at Marvi|Exception|StackTrace|subscription-key|key=/i.test(cov.text));
 note(`coverage check status with placeholder geocoding key: ${cov.status} ${cov.text.slice(0, 80)} (real geocoding is MRV-3.4; logic is covered by integration tests with a fake provider)`);
-ok('coverage check with blank address is a 4xx', (await call('POST', '/api/coverage/check', { body: { address: '' } })).status >= 400 || true);
+ok('coverage check with a blank address is not a 500', (await call('POST', '/api/coverage/check', { body: { address: '' } })).status < 500);
 
 section('CORS and headers');
 const pre = await fetch(API + '/api/products', { method: 'OPTIONS', headers: { Origin: 'http://evil.example', 'Access-Control-Request-Method': 'GET' } });
