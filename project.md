@@ -49,7 +49,7 @@ people, catalog, pricing, warehouses and audit. See [goal.md](goal.md).
 | F12 | Admin: suspend client, adjust credit/pricing | Partial | Approve and suspend exist (suspended clients cannot quote or accept); update-credit missing (MRV-1.3) |
 | F13 | Admin audit log of mutations | Partial | Written by admin controllers via `AuditLogger`; read endpoint exists; no UI filtering/paging |
 | F14 | CSV product import (MVP requirement) | Not started | Schema defined (Q1 resolved) |
-| F15 | Home page with the owner's design | Designed, not built | Spec in section 10 (MRV-2.3a–e); `Home` is still an empty placeholder |
+| F15 | Home page with the owner's design | Built (2026-10-14) | Spec in section 10 (MRV-2.3a–e); landing page, public stats, catalog and hero island done; open: self-hosted fonts, scroll reveals, real photos, Lighthouse measurement |
 | F16 | Client profile management (addresses, company) | Not started | `ShippingAddresses` exists on the entity; no endpoints |
 
 ## 5. Non-functional requirements
@@ -217,7 +217,7 @@ permissions.
 | Code reviews (2026-10-02, three passes) found 18 issues in the new front end and category code; all fixed except two accepted limitations (see architecture.md §11: dangling-deal race; enum attributes kept in Domain) | Skip link left the page; form resets did not render; any DB error mapped to 409; deals accepted unknown categories; legacy-category names could collide; compose password could break the connection string; expired/role-less tokens counted as signed in; wrong claim comment | Fixed with regression tests (41 API + 34 client tests; 29 backend and 29 browser runtime checks); enum-attribute decision kept and enforced by `EveryPublicDomainEnum_IsSerializedByName` |
 | Mockup photos show third-party brands (Corona, Coca-Cola, Red Bull, Monster, Schweppes) | Trademark/licensing exposure if shipped | Owner states permission exists (Q5); keep the permission documentation on file, and use placeholders until it is confirmed in writing |
 | React island adds a second framework and build | Bundle size, build complexity, two toolchains to keep patched | Keep it to one isolated component with a size budget (10.4); revisit if it grows |
-| Landing page depends on categories (MRV-1.6) and the stats endpoint (MRV-2.3b) | Page cannot show live data until both exist | MRV-1.6 is done, so only the stats endpoint (MRV-2.3b) remains; page shows skeletons/static fallback if the API fails |
+| Landing page depends on categories (MRV-1.6) and the stats endpoint (MRV-2.3b) | Page cannot show live data until both exist | Both are done (MRV-1.6, MRV-2.3b); the page shows static copy in place of the numbers and tiles while loading or if the API fails |
 
 ## 10. Front-end design — landing page and design system
 
@@ -232,7 +232,7 @@ Source: the owner's mockup (`docs/design/landing-mockup.png`). Decisions below w
 | Styling | Plain SCSS with CSS custom-property tokens; standalone Angular components in `shared/ui`. No Tailwind, no Angular Material |
 | Dynamic art | Angular stays the app framework. **One** React island renders the animated hero ribbons (MRV-2.3d); everything else (scroll reveals, count-up stats, flow-arrow animation) is CSS or Angular. No other React |
 | Navigation | One landing page; nav items scroll to sections. Header also carries Entrar / Cadastrar buttons (not in the mockup) |
-| Calls to action | "Explore our supply" opens the public catalog (anonymous browse, no prices). "See how we help businesses grow" goes to register |
+| Calls to action | "Explore our supply" opens the public catalog (anonymous browse with list prices, "Sob consulta" when unpriced; MRV-2.3e). "See how we help businesses grow" goes to register |
 | Data | Category tiles and the stats come from the API (MRV-2.3b); the two non-measurable claims stay static copy |
 | Imagery | Image slots in the mockup layout, filled with the owner's photos (owner holds permission for the brands shown, Q5); neutral placeholders until the files arrive |
 | Logo | Owner supplies SVG/PNG later (Q6); a styled text wordmark is used until then |
@@ -249,7 +249,7 @@ Source: the owner's mockup (`docs/design/landing-mockup.png`). Decisions below w
 | `--color-blue-600` | Ribbon, "Demand" node | `#1F3FA8` |
 | `--color-paper` | Light sections | `#F6F7FA` |
 | `--color-text` / `--color-text-inverse` | Body on light / on dark | `#10162F` / `#FFFFFF` |
-| Typography | Headings: heavy geometric sans (900/800). Body: regular sans. Eyebrows: small caps, wide letter-spacing (`0.25em`), gold. Load self-hosted, `font-display: swap` | |
+| Typography | Headings: heavy geometric sans (900/800). Body: regular sans. Eyebrows: small caps, wide letter-spacing (`0.25em`), gold. Load self-hosted, `font-display: swap` (**not done yet**: the app uses the system font stack until the owner picks a font; scroll-reveal animations are also not built) | |
 | Radius / spacing | Pill buttons (`999px`), card radius `16px`, 8 px spacing scale, section padding `clamp(3rem, 8vw, 6rem)` | |
 | Motion | `--motion-fast 150ms`, `--motion-base 300ms`, `--motion-slow 800ms`; all disabled under `prefers-reduced-motion` | |
 

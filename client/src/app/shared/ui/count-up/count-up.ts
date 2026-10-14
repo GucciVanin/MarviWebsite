@@ -18,6 +18,7 @@ export class CountUp {
   private readonly shown = signal(0);
   private visible = false;
   private animatedFrom: number | null = null;
+  private frame: number | null = null;
   protected readonly display = computed(() => (this.value() === null ? '—' : formatter.format(Math.round(this.shown()))));
 
   constructor() {
@@ -64,6 +65,9 @@ export class CountUp {
   }
 
   private animate(target: number): void {
+    if (this.frame !== null) {
+      cancelAnimationFrame(this.frame); // a new value replaces an animation still running
+    }
     const from = this.animatedFrom ?? 0;
     this.animatedFrom = target;
     let start: number | null = null;
@@ -72,10 +76,8 @@ export class CountUp {
       const progress = Math.min((time - start) / DURATION_MS, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       this.shown.set(from + (target - from) * eased);
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      }
+      this.frame = progress < 1 ? requestAnimationFrame(step) : null;
     };
-    requestAnimationFrame(step);
+    this.frame = requestAnimationFrame(step);
   }
 }

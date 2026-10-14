@@ -5,7 +5,7 @@
   "description": "The animated hero ribbons (MRV-2.3d): one React island, built to a single script the Angular landing page loads lazily. Delete this folder and the loader in features/home to remove it.",
   "type": "module",
   "scripts": {
-    "build": "esbuild src/main.tsx --bundle --minify --format=esm --target=es2020 --define:process.env.NODE_ENV=\\\"production\\\" --outfile=../public/island/ribbons.js && node check-size.mjs",
+    "build": "tsc --noEmit && esbuild src/main.tsx --bundle --minify --format=esm --target=es2020 --define:process.env.NODE_ENV=\\\"production\\\" --outfile=../public/island/ribbons.js && node check-size.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

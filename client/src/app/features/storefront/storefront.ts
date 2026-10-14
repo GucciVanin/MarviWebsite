@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
@@ -14,6 +15,9 @@ import { LoadState } from '../../shared/ui/load-state/load-state';
 import { Deal, DealsService } from './api/deals.service';
 import { CoverageCheckResult, CoverageService } from './api/coverage.service';
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validCategory = (value: string | null): string => (value && GUID.test(value) ? value : '');
+
 @Component({
   selector: 'app-storefront',
   imports: [FormsModule, RouterLink, ErrorAlert, LoadState, BrlPipe, PtDatePipe],
@@ -28,11 +32,13 @@ export class Storefront implements OnInit {
   private readonly auth = inject(AuthService);
 
   // The filters live in the URL (?category=<id>&q=<text>) so a link can point at a filtered catalog.
-  private readonly query = inject(ActivatedRoute).snapshot.queryParamMap;
+  private readonly route = inject(ActivatedRoute);
+  private readonly query = this.route.snapshot.queryParamMap;
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
   protected readonly searchText = signal(this.query.get('q') ?? '');
-  protected readonly categoryId = signal(this.query.get('category') ?? '');
+  // A category that is not an id (a mistyped or stale link) is ignored rather than sent to the API.
+  protected readonly categoryId = signal(validCategory(this.query.get('category')));
   private readonly appliedSearch = signal(this.searchText());
   private readonly appliedCategory = signal(this.categoryId());
 
@@ -54,6 +60,23 @@ export class Storefront implements OnInit {
     return role === 'Client' ? this.t.clientCta : (PT.nav.areas[role] ?? '');
   });
 
+  constructor() {
+    // The router reuses this component when only the query string changes (a header link back to the catalog clears it),
+    // so follow the URL instead of reading it once.
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const category = validCategory(params.get('category'));
+      const search = (params.get('q') ?? '').trim();
+      if (category === this.appliedCategory() && search === this.appliedSearch()) {
+        return;
+      }
+      this.categoryId.set(category);
+      this.searchText.set(search);
+      this.appliedCategory.set(category);
+      this.appliedSearch.set(search);
+      this.products.load();
+    });
+  }
+
   ngOnInit(): void {
     this.products.load();
     this.categories.load();
@@ -61,14 +84,16 @@ export class Storefront implements OnInit {
   }
 
   applyFilters(): void {
-    this.appliedSearch.set(this.searchText());
+    const search = this.searchText().trim();
+    this.searchText.set(search);
+    this.appliedSearch.set(search);
     this.appliedCategory.set(this.categoryId());
     const queryParams: Record<string, string> = {};
     if (this.categoryId()) {
       queryParams['category'] = this.categoryId();
     }
-    if (this.searchText().trim()) {
-      queryParams['q'] = this.searchText().trim();
+    if (search) {
+      queryParams['q'] = search;
     }
     this.router.navigate([], { queryParams, replaceUrl: true });
     this.products.load();

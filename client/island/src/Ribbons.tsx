@@ -1,6 +1,7 @@
 import { Component, useEffect, useRef, type ReactNode } from 'react';
 
-// Same geometry as the static SVG the Angular page ships as its fallback (viewBox 0 0 400 200).
+// Same viewBox and colors as the static SVG the Angular page ships as its fallback (0 0 400 200); the curves approximate
+// its Bézier outlines with line segments, so there is a slight change of shape when the island takes over.
 const WIDTH = 400;
 const HEIGHT = 200;
 const STEP = 16;

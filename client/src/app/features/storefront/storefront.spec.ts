@@ -1,9 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { BehaviorSubject } from 'rxjs';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { fakeToken } from '../../core/auth/testing/fake-token';
 import { Storefront } from './storefront';
+
+const CAT = '11111111-1111-1111-1111-111111111111';
 
 const product = (id: string, name: string, price: number | null, extra: object = {}) => ({
   id, sku: `SKU-${id}`, name, imageUrl: null, attributes: {}, price, dealName: null, inStock: true, ...extra,
@@ -14,13 +17,17 @@ describe('Storefront (public catalog)', () => {
   afterEach(() => localStorage.clear());
 
   function setup(query: Record<string, string> = {}) {
+    const queryParamMap$ = new BehaviorSubject(convertToParamMap(query));
     TestBed.configureTestingModule({
       imports: [Storefront],
       providers: [
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: queryParamMap$.value }, queryParamMap: queryParamMap$.asObservable() },
+        },
       ],
     });
     const router = TestBed.inject(Router);
@@ -41,7 +48,8 @@ describe('Storefront (public catalog)', () => {
       http.expectOne('/api/deals').flush(data.deals ?? []);
       await settle();
     };
-    return { fixture, http, root, settle, loadWith, navigate };
+    const navigateTo = (params: Record<string, string>) => queryParamMap$.next(convertToParamMap(params));
+    return { fixture, http, root, settle, loadWith, navigate, navigateTo };
   }
   const text = (root: HTMLElement) => (root.textContent ?? '').replace(/\s+/g, ' ');
 
@@ -100,36 +108,67 @@ describe('Storefront (public catalog)', () => {
 
   it('offers the active categories as a filter', async () => {
     const { root, loadWith } = setup();
-    await loadWith({ categories: [{ id: 'c1', name: 'Refrigerantes', productCount: 3 }, { id: 'c2', name: 'Águas', productCount: 1 }] });
+    await loadWith({ categories: [{ id: CAT, name: 'Refrigerantes', productCount: 3 }, { id: 'c2', name: 'Águas', productCount: 1 }] });
 
     const options = Array.from(root.querySelectorAll('select option')).map((o) => o.textContent?.trim());
     expect(options).toEqual(['Todas as categorias', 'Refrigerantes', 'Águas']);
   });
 
   it('applies the search and category from the URL on arrival (a landing-page tile link)', async () => {
-    const { http, root, settle } = setup({ category: 'c1', q: 'cola' });
+    const { http, root, settle } = setup({ category: CAT, q: 'cola' });
 
     const request = http.expectOne((r) => r.url === '/api/products');
-    expect(request.request.params.get('category')).toBe('c1');
+    expect(request.request.params.get('category')).toBe(CAT);
     expect(request.request.params.get('search')).toBe('cola');
     request.flush([product('1', 'Cola 2L', 12.5)]);
-    http.expectOne('/api/categories').flush([{ id: 'c1', name: 'Refrigerantes', productCount: 3 }]);
+    http.expectOne('/api/categories').flush([{ id: CAT, name: 'Refrigerantes', productCount: 3 }]);
     http.expectOne('/api/deals').flush([]);
     await settle();
 
     expect(root.querySelector<HTMLInputElement>('input[type="search"]')!.value).toBe('cola');
-    expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe('c1');
+    expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe(CAT);
+  });
+
+  it('ignores a category in the URL that is not an id, instead of sending it to the API', async () => {
+    const { http, root, settle } = setup({ category: 'abc' });
+
+    const request = http.expectOne((r) => r.url === '/api/products');
+    expect(request.request.params.has('category')).toBe(false);
+    request.flush([]);
+    http.expectOne('/api/categories').flush([]);
+    http.expectOne('/api/deals').flush([]);
+    await settle();
+
+    expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe('');
+  });
+
+  it('follows the URL when only the query string changes (a link back to the unfiltered catalog)', async () => {
+    const { http, root, settle, navigateTo } = setup({ category: CAT, q: 'cola' });
+    http.expectOne((r) => r.url === '/api/products').flush([]);
+    http.expectOne('/api/categories').flush([{ id: CAT, name: 'Refrigerantes', productCount: 3 }]);
+    http.expectOne('/api/deals').flush([]);
+    await settle();
+
+    navigateTo({});
+    const request = http.expectOne((r) => r.url === '/api/products');
+    expect(request.request.params.has('category')).toBe(false);
+    expect(request.request.params.has('search')).toBe(false);
+    request.flush([product('1', 'Cola 2L', 12.5)]);
+    await settle();
+
+    expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe('');
+    expect(root.querySelector<HTMLInputElement>('input[type="search"]')!.value).toBe('');
   });
 
   it('searches and filters, reloading the list and recording the filters in the URL', async () => {
     const { fixture, http, root, settle, loadWith, navigate } = setup();
-    await loadWith({ categories: [{ id: 'c1', name: 'Refrigerantes', productCount: 3 }] });
+    await loadWith({ categories: [{ id: CAT, name: 'Refrigerantes', productCount: 3 }] });
 
     const search = root.querySelector<HTMLInputElement>('input[type="search"]')!;
     search.value = 'água';
     search.dispatchEvent(new Event('input'));
     const select = root.querySelector<HTMLSelectElement>('select')!;
-    select.value = 'c1';
+    select.value = CAT;
     select.dispatchEvent(new Event('change'));
     await settle();
     root.querySelector<HTMLFormElement>('form[data-testid="filters"]')!.dispatchEvent(new Event('submit'));
@@ -137,9 +176,9 @@ describe('Storefront (public catalog)', () => {
 
     const request = http.expectOne((r) => r.url === '/api/products');
     expect(request.request.params.get('search')).toBe('água');
-    expect(request.request.params.get('category')).toBe('c1');
+    expect(request.request.params.get('category')).toBe(CAT);
     request.flush([]);
-    expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { category: 'c1', q: 'água' }, replaceUrl: true }));
+    expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { category: CAT, q: 'água' }, replaceUrl: true }));
   });
 
   // ---- calling visitors to register
