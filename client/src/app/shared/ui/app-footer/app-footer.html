@@ -9,6 +9,9 @@
       <ul>
         <li><a routerLink="/">{{ t.nav.home }}</a></li>
         <li><a routerLink="/storefront">{{ t.nav.products }}</a></li>
+        <li><a routerLink="/" fragment="rede">{{ t.nav.network }}</a></li>
+        <li><a routerLink="/" fragment="sobre">{{ t.nav.about }}</a></li>
+        <li><a routerLink="/" fragment="por-que">{{ t.nav.why }}</a></li>
       </ul>
     </nav>
     @if (!isAuthenticated()) {

@@ -451,11 +451,11 @@ src/app/
   core/http/                loadable, action, describeApiError (loading and error state, see below)
   core/catalog/             CatalogService: the public product list (search, category) and categories, shared by every screen that picks products
   core/i18n/                pt-br.ts (all copy), identity-errors.ts
-  shared/ui/                app-header, app-footer, load-state, error-alert, product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
+  shared/ui/                app-header, app-footer, load-state, error-alert, count-up (a number that counts up once when first seen; shows the real number from the start and with reduced motion), product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
   shared/format/            brl (R$ 1.234,50) and ptDate (dd/mm/aaaa hh:mm) pipes
   shared/models/            types used by more than one feature (quote, order, catalog)
   features/
-    home/                   placeholder awaiting the owner's design
+    home/                   the public landing page (project.md section 10): hero, flow, live stats band, category tiles, closing banner; every data-driven area has static fallback copy  + api/ (public-stats)
     auth/login/             login page
     storefront/             public catalog (search and category filter kept in the URL: ?category=<id>&q=<text>), deals, delivery check  + api/ (deals, coverage); products and categories come from core/catalog
     client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept, see orders  + api/ (quotes, orders)

@@ -18,6 +18,18 @@ describe('AppHeader', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
+  it('links to the catalog and to each section of the landing page', () => {
+    const links = Array.from(render().querySelectorAll('.header__links a')).map((a) => [a.textContent?.trim(), a.getAttribute('href')]);
+
+    expect(links).toEqual([
+      ['Início', '/'],
+      ['Produtos', '/storefront'],
+      ['Nossa Rede', '/#rede'],
+      ['Sobre', '/#sobre'],
+      ['Por que a Marvi', '/#por-que'],
+    ]);
+  });
+
   it('offers login and registration when signed out', () => {
     const text = render().textContent ?? '';
     expect(text).toContain('Entrar');
