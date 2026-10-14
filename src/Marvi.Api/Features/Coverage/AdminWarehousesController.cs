@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Coverage.Contracts;
 using Marvi.Domain.Coverage;
@@ -13,6 +14,10 @@ namespace Marvi.Api.Features.Coverage;
 [Authorize(Roles = "Admin")]
 public class AdminWarehousesController : ControllerBase
 {
+    private const string InUseMessage = "The warehouse still has inventory or orders. Clear its stock first; warehouses with order history cannot be deleted.";
+    // Stock or an order appeared between the guard and the delete.
+    private const string DeleteRaceMessage = "The warehouse still has inventory or orders.";
+
     private readonly AppDbContext _dbContext;
     private readonly AuditLogger _auditLogger;
 
@@ -47,22 +52,23 @@ public class AdminWarehousesController : ControllerBase
         var error = Validate(request);
         if (error is not null)
         {
-            return BadRequest(error);
+            return error.ToResult(this);
         }
 
         var warehouse = new Warehouse
         {
             Id = Guid.NewGuid(),
-            Name = request.Name.Trim(),
-            Address = request.Address.Trim(),
+            Name = AdminInput.Clean(request.Name),
+            Address = AdminInput.Clean(request.Address),
             Latitude = request.Latitude,
             Longitude = request.Longitude
         };
 
         _dbContext.Warehouses.Add(warehouse);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Create", nameof(Warehouse), warehouse.Id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Warehouse), warehouse.Id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return CreatedAtAction(nameof(GetWarehouse), new { id = warehouse.Id }, ToDto(warehouse));
     }
@@ -79,16 +85,17 @@ public class AdminWarehousesController : ControllerBase
         var error = Validate(request);
         if (error is not null)
         {
-            return BadRequest(error);
+            return error.ToResult(this);
         }
 
-        warehouse.Name = request.Name.Trim();
-        warehouse.Address = request.Address.Trim();
+        warehouse.Name = AdminInput.Clean(request.Name);
+        warehouse.Address = AdminInput.Clean(request.Address);
         warehouse.Latitude = request.Latitude;
         warehouse.Longitude = request.Longitude;
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Update", nameof(Warehouse), id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Warehouse), id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return NoContent();
     }
@@ -104,42 +111,39 @@ public class AdminWarehousesController : ControllerBase
 
         // Stock and order history point at the warehouse; deleting it would erase them (inventory) or be refused by
         // the database (orders). Coverage areas belong to the warehouse and go with it.
-        if (await _dbContext.InventoryRecords.AnyAsync(i => i.WarehouseId == id) || await _dbContext.Orders.AnyAsync(o => o.WarehouseId == id))
+        var blocked = await DeleteGuards.BlockingMessageAsync(new DeleteGuard(
+            async () => await _dbContext.InventoryRecords.AnyAsync(i => i.WarehouseId == id) || await _dbContext.Orders.AnyAsync(o => o.WarehouseId == id),
+            InUseMessage));
+        if (blocked is not null)
         {
-            return Conflict("The warehouse still has inventory or orders. Clear its stock first; warehouses with order history cannot be deleted.");
+            return Conflict(blocked);
         }
 
         _dbContext.Warehouses.Remove(warehouse);
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-        }
-        catch (DbUpdateException exception) when (exception.IsConstraintViolation())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Warehouse), id))
         {
             // Stock or an order appeared between the check above and the delete.
-            return Conflict("The warehouse still has inventory or orders.");
+            return Conflict(DeleteRaceMessage);
         }
-
-        await _auditLogger.LogAsync("Delete", nameof(Warehouse), id);
 
         return NoContent();
     }
 
-    private static string? Validate(UpsertWarehouseRequest request)
+    private static InputProblem? Validate(UpsertWarehouseRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Address))
+        if (AdminInput.IsBlank(request.Name) || AdminInput.IsBlank(request.Address))
         {
-            return "Name and address are required.";
+            return InputProblem.BadRequest("Name and address are required.");
         }
 
         if (!double.IsFinite(request.Latitude) || request.Latitude is < -90 or > 90)
         {
-            return "Latitude must be between -90 and 90.";
+            return InputProblem.BadRequest("Latitude must be between -90 and 90.");
         }
 
         if (!double.IsFinite(request.Longitude) || request.Longitude is < -180 or > 180)
         {
-            return "Longitude must be between -180 and 180.";
+            return InputProblem.BadRequest("Longitude must be between -180 and 180.");
         }
 
         return null;

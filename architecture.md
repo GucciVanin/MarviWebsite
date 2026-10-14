@@ -21,9 +21,10 @@ Contents: 1 Rules for agents · 2 System context · 3 Repository map · 4 Backen
    `[AllowAnonymous]`) and enforces ownership (`client_id` claim) in code. Angular guards are UX.
 5. **Never accept a price from the client.** The SPA sends product ids and quantities; prices come
    from `PricingService` (and employee final prices on quotes).
-6. **Admin mutations are audited** through the injected `AuditLogger`.
-7. **Schema changes need an EF migration** in `Marvi.Infrastructure/Migrations`.
-8. After a change run `dotnet test Marvi.slnx` and (client) `npx tsc -p tsconfig.app.json --noEmit`
+6. **Admin mutations are audited, atomically** (MRV-4.4): a controller makes its change on the tracked entities and then commits with `AuditLogger.TrySaveAsync(AuditActions.X, entityName, entityId, details)` and answers `Conflict(AuditLogger.ConflictMessage)` (or a specific 409 message) when it returns false (MRV-4.5: a unique-index or foreign-key rejection, i.e. a race that passed the pre-checks, is a 409, never a 500; other database failures still propagate). That is ONE save of the change plus its audit entry, so a change can never be stored without its audit entry. `SaveAsync` is private so nothing can skip this; never call `SaveChangesAsync` directly in an admin mutation. Known exception: `AdminPricingTiersController.ClearDefaultAsync` flushes the un-flagging of the old default tier first (the unique "single default" index needs it), then the final save and audit are atomic.
+7. **Admin input rules live in `AdminInput` / `DeleteGuards` / `InputProblem`** (`Api/Features/Admin`, MRV-4.6): `Clean` (trim), `IsBlank`, `ExceedsLength`, `EqualsIgnoreCase` (a database-side "same name ignoring case" filter) `DeleteGuard`s ("still referenced, cannot delete" with its message, declared next to the controller together with its race fallback message) and `InputProblem` (the one result every admin validator returns: 400 or 409 plus a message; the controller turns it into the response with `ToResult(this)`). Employee creation keeps its array-of-messages 400 body because that response shape is part of its contract. Controllers keep their own limits and messages but must not re-implement trimming, case-insensitive comparison or the delete pre-check. Today deals do not trim or limit names, and deal, pricing-tier and warehouse names have no length limit; adding limits there is an owner decision, not a refactor.
+8. **Schema changes need an EF migration** in `Marvi.Infrastructure/Migrations`.
+9. After a change run `dotnet test Marvi.slnx` and (client) `npx tsc -p tsconfig.app.json --noEmit`
    or `npm run build` (needs Node >= 22.22.3).
 
 ## 2. System context
@@ -432,7 +433,7 @@ sequenceDiagram
 
 `EmployeeOrdersController.Create` loads the client, requires Customer eligibility (`Approved`), prices each line with
 `BasketPricingService` using that client's tier, builds the `Order` through `OrderFactory.Place` (also used by `AcceptQuote`, so a total is always the sum of its lines) with `PlacedByEmployeeId`, and saves it. `AcceptQuote` refuses a quote that has a line without a final price (`QuoteNotFullyPricedException`, 409): a missing price is never a free order.
-Admin controllers save the change, then call `AuditLogger.LogAsync(action, entityName, entityId, details)`,
+Admin controllers commit through `AuditLogger.TrySaveAsync(action, entityName, entityId, details)` (one save of the change and its audit entry; false on a constraint rejection, answered with 409),
 which writes an `AuditLogEntry` with the actor taken from the JWT `sub` claim.
 
 ## 8. Frontend (`client/`)

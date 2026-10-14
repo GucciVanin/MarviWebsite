@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Identity.Contracts;
 using Marvi.Domain.Identity;
@@ -35,8 +36,8 @@ public class AdminEmployeesController : ControllerBase
             return BadRequest(new[] { "Invalid email address." });
         }
 
-        var employeeCode = request.EmployeeCode?.Trim();
-        if (string.IsNullOrWhiteSpace(employeeCode) || employeeCode.Length > MaxEmployeeCodeLength)
+        var employeeCode = AdminInput.Clean(request.EmployeeCode);
+        if (AdminInput.IsBlank(employeeCode) || AdminInput.ExceedsLength(employeeCode, MaxEmployeeCodeLength))
         {
             return BadRequest(new[] { $"Employee code is required and limited to {MaxEmployeeCodeLength} characters." });
         }
@@ -65,9 +66,10 @@ public class AdminEmployeesController : ControllerBase
         };
 
         _dbContext.EmployeeAccounts.Add(employeeAccount);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Create", nameof(EmployeeAccount), employeeAccount.Id, new { request.Email, request.EmployeeCode, request.Department });
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(EmployeeAccount), employeeAccount.Id, new { request.Email, request.EmployeeCode, request.Department }))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return Created(string.Empty, new { employeeAccount.Id });
     }

@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Catalog.Contracts;
 using Marvi.Domain.Catalog;
@@ -15,6 +16,7 @@ public class AdminProductsController : ControllerBase
 {
     private const int MaxSkuLength = 64;
     private const int MaxNameLength = 200;
+    private const string InUseMessage = "The product appears on quotes or orders and cannot be deleted. Deactivate it instead.";
 
     private readonly AppDbContext _dbContext;
     private readonly AuditLogger _auditLogger;
@@ -50,7 +52,7 @@ public class AdminProductsController : ControllerBase
         var invalid = await ValidateAsync(request, existingId: null);
         if (invalid is not null)
         {
-            return invalid;
+            return invalid.ToResult(this);
         }
 
         if (!await CategoryExistsAsync(request.CategoryId))
@@ -61,8 +63,8 @@ public class AdminProductsController : ControllerBase
         var product = new Product
         {
             Id = Guid.NewGuid(),
-            Sku = request.Sku.Trim(),
-            Name = request.Name.Trim(),
+            Sku = AdminInput.Clean(request.Sku),
+            Name = AdminInput.Clean(request.Name),
             Description = request.Description,
             CategoryId = request.CategoryId,
             ImageUrl = request.ImageUrl,
@@ -71,12 +73,10 @@ public class AdminProductsController : ControllerBase
         };
 
         _dbContext.Products.Add(product);
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Product), product.Id, request))
         {
             return Conflict("The product conflicts with existing data (duplicate SKU, or its category was just removed).");
         }
-
-        await _auditLogger.LogAsync("Create", nameof(Product), product.Id, request);
 
         return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, ToDto(product));
     }
@@ -93,7 +93,7 @@ public class AdminProductsController : ControllerBase
         var invalid = await ValidateAsync(request, existingId: id);
         if (invalid is not null)
         {
-            return invalid;
+            return invalid.ToResult(this);
         }
 
         if (!await CategoryExistsAsync(request.CategoryId))
@@ -101,19 +101,17 @@ public class AdminProductsController : ControllerBase
             return BadRequest("Unknown category.");
         }
 
-        product.Sku = request.Sku.Trim();
-        product.Name = request.Name.Trim();
+        product.Sku = AdminInput.Clean(request.Sku);
+        product.Name = AdminInput.Clean(request.Name);
         product.Description = request.Description;
         product.CategoryId = request.CategoryId;
         product.ImageUrl = request.ImageUrl;
         product.IsActive = request.IsActive;
         product.Attributes = request.Attributes;
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Product), id, request))
         {
             return Conflict("The product conflicts with existing data (duplicate SKU, or its category was just removed).");
         }
-
-        await _auditLogger.LogAsync("Update", nameof(Product), id, request);
 
         return NoContent();
     }
@@ -129,57 +127,43 @@ public class AdminProductsController : ControllerBase
 
         // Quote and order lines keep a product's name, price and quantity as history. Deleting the product would
         // delete those lines and corrupt the totals, so a product with history can only be deactivated.
-        if (await _dbContext.OrderLineItems.AnyAsync(l => l.ProductId == id) || await _dbContext.QuoteLineItems.AnyAsync(l => l.ProductId == id))
+        var blocked = await DeleteGuards.BlockingMessageAsync(new DeleteGuard(
+            async () => await _dbContext.OrderLineItems.AnyAsync(l => l.ProductId == id) || await _dbContext.QuoteLineItems.AnyAsync(l => l.ProductId == id),
+            InUseMessage));
+        if (blocked is not null)
         {
-            return Conflict("The product appears on quotes or orders and cannot be deleted. Deactivate it instead.");
+            return Conflict(blocked);
         }
 
         _dbContext.Products.Remove(product);
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Product), id))
         {
-            return Conflict("The product appears on quotes or orders and cannot be deleted. Deactivate it instead.");
+            return Conflict(InUseMessage);
         }
-
-        await _auditLogger.LogAsync("Delete", nameof(Product), id);
 
         return NoContent();
     }
 
-    // The category can be deleted between the existence check above and the save; the foreign key then rejects the
-    // write, which is a client error (unknown category), not a 500. Other database failures propagate.
-    private async Task<bool> TrySaveAsync()
-    {
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-            return true;
-        }
-        catch (DbUpdateException exception) when (exception.IsConstraintViolation())
-        {
-            return false;
-        }
-    }
 
     // SKU and name are required and bounded; the SKU is unique ignoring case (also enforced by an index, which turns a
     // race into a conflict through TrySaveAsync).
-    private async Task<ActionResult?> ValidateAsync(UpsertProductRequest request, Guid? existingId)
+    private async Task<InputProblem?> ValidateAsync(UpsertProductRequest request, Guid? existingId)
     {
-        var sku = request.Sku?.Trim();
-        var name = request.Name?.Trim();
-        if (string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(name))
+        var sku = AdminInput.Clean(request.Sku);
+        var name = AdminInput.Clean(request.Name);
+        if (AdminInput.IsBlank(sku) || AdminInput.IsBlank(name))
         {
-            return BadRequest("SKU and name are required.");
+            return InputProblem.BadRequest("SKU and name are required.");
         }
 
-        if (sku.Length > MaxSkuLength || name.Length > MaxNameLength)
+        if (AdminInput.ExceedsLength(sku, MaxSkuLength) || AdminInput.ExceedsLength(name, MaxNameLength))
         {
-            return BadRequest($"SKU is limited to {MaxSkuLength} characters and name to {MaxNameLength}.");
+            return InputProblem.BadRequest($"SKU is limited to {MaxSkuLength} characters and name to {MaxNameLength}.");
         }
 
-        var skuLower = sku.ToLower();
-        if (await _dbContext.Products.AnyAsync(p => p.Id != existingId && p.Sku.ToLower() == skuLower))
+        if (await _dbContext.Products.Where(p => p.Id != existingId).AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, sku)))
         {
-            return Conflict("A product with this SKU already exists.");
+            return InputProblem.Conflict("A product with this SKU already exists.");
         }
 
         return null;

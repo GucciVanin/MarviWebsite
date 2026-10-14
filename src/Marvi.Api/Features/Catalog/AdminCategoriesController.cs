@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Catalog.Contracts;
 using Marvi.Domain.Catalog;
@@ -15,6 +16,10 @@ public class AdminCategoriesController : ControllerBase
 {
     // Also keeps a name under the btree index row limit (~2.7 KB) that backs ix_categories_name_lower.
     private const int MaxNameLength = 200;
+    private const string HasProductsMessage = "The category still has products. Move them or deactivate the category instead.";
+    private const string TargetedByDealMessage = "A deal still targets this category. Update the deal or deactivate the category instead.";
+    // Something started using the category between the guards above and the delete.
+    private const string DeleteRaceMessage = "The category is still in use. Deactivate it instead.";
 
     private readonly AppDbContext _dbContext;
     private readonly AuditLogger _auditLogger;
@@ -56,24 +61,22 @@ public class AdminCategoriesController : ControllerBase
         var error = await ValidateAsync(request, existingId: null);
         if (error is not null)
         {
-            return error;
+            return error.ToResult(this);
         }
 
         var category = new Category
         {
             Id = Guid.NewGuid(),
-            Name = request.Name.Trim(),
+            Name = AdminInput.Clean(request.Name),
             SortOrder = request.SortOrder,
             IsActive = request.IsActive
         };
 
         _dbContext.Categories.Add(category);
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Category), category.Id, request))
         {
             return Conflict("A category with this name already exists.");
         }
-
-        await _auditLogger.LogAsync("Create", nameof(Category), category.Id, request);
 
         return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, ToDto(category, 0));
     }
@@ -90,18 +93,16 @@ public class AdminCategoriesController : ControllerBase
         var error = await ValidateAsync(request, existingId: id);
         if (error is not null)
         {
-            return error;
+            return error.ToResult(this);
         }
 
-        category.Name = request.Name.Trim();
+        category.Name = AdminInput.Clean(request.Name);
         category.SortOrder = request.SortOrder;
         category.IsActive = request.IsActive;
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Category), id, request))
         {
             return Conflict("A category with this name already exists.");
         }
-
-        await _auditLogger.LogAsync("Update", nameof(Category), id, request);
 
         return Ok(ToDto(category, await CountProductsAsync(id)));
     }
@@ -116,58 +117,40 @@ public class AdminCategoriesController : ControllerBase
             return NotFound();
         }
 
-        if (await _dbContext.Products.AnyAsync(p => p.CategoryId == id))
+        var blocked = await DeleteGuards.BlockingMessageAsync(
+            new DeleteGuard(() => _dbContext.Products.AnyAsync(p => p.CategoryId == id), HasProductsMessage),
+            new DeleteGuard(() => _dbContext.Deals.AnyAsync(d => d.CategoryIds.Contains(id)), TargetedByDealMessage));
+        if (blocked is not null)
         {
-            return Conflict("The category still has products. Move them or deactivate the category instead.");
-        }
-
-        if (await _dbContext.Deals.AnyAsync(d => d.CategoryIds.Contains(id)))
-        {
-            return Conflict("A deal still targets this category. Update the deal or deactivate the category instead.");
+            return Conflict(blocked);
         }
 
         _dbContext.Categories.Remove(category);
-        if (!await TrySaveAsync())
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(Category), id))
         {
-            return Conflict("The category is still in use. Deactivate it instead.");
+            return Conflict(DeleteRaceMessage);
         }
-
-        await _auditLogger.LogAsync("Delete", nameof(Category), id);
 
         return NoContent();
     }
 
-    private async Task<ActionResult?> ValidateAsync(UpsertCategoryRequest request, Guid? existingId)
+    private async Task<InputProblem?> ValidateAsync(UpsertCategoryRequest request, Guid? existingId)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (AdminInput.IsBlank(request.Name))
         {
-            return BadRequest("Name is required.");
+            return InputProblem.BadRequest("Name is required.");
         }
 
-        var name = request.Name.Trim();
-        if (name.Length > MaxNameLength)
+        var name = AdminInput.Clean(request.Name);
+        if (AdminInput.ExceedsLength(name, MaxNameLength))
         {
-            return BadRequest($"Name must be at most {MaxNameLength} characters.");
+            return InputProblem.BadRequest($"Name must be at most {MaxNameLength} characters.");
         }
 
-        var duplicate = await _dbContext.Categories.AnyAsync(c => c.Id != existingId && c.Name.ToLower() == name.ToLower());
-        return duplicate ? Conflict("A category with this name already exists.") : null;
+        var duplicate = await _dbContext.Categories.Where(c => c.Id != existingId).AnyAsync(AdminInput.EqualsIgnoreCase<Category>(c => c.Name, name));
+        return duplicate ? InputProblem.Conflict("A category with this name already exists.") : null;
     }
 
-    // Concurrent requests can pass the pre-checks above and still hit the unique name index or the restrict
-    // foreign key; report exactly that as a conflict. Any other database failure is a real error and propagates.
-    private async Task<bool> TrySaveAsync()
-    {
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-            return true;
-        }
-        catch (DbUpdateException exception) when (exception.IsConstraintViolation())
-        {
-            return false;
-        }
-    }
 
     private Task<int> CountProductsAsync(Guid categoryId) =>
         _dbContext.Products.CountAsync(p => p.CategoryId == categoryId);

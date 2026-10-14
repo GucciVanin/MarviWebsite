@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Coverage.Contracts;
 using Marvi.Domain.Coverage;
@@ -47,7 +48,7 @@ public class AdminCoverageAreasController : ControllerBase
         var error = await ValidateAsync(request);
         if (error is not null)
         {
-            return BadRequest(error);
+            return error.ToResult(this);
         }
 
         var area = new CoverageArea
@@ -60,9 +61,10 @@ public class AdminCoverageAreasController : ControllerBase
         };
 
         _dbContext.CoverageAreas.Add(area);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Create", nameof(CoverageArea), area.Id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(CoverageArea), area.Id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return CreatedAtAction(nameof(GetCoverageArea), new { id = area.Id }, ToDto(area));
     }
@@ -79,16 +81,17 @@ public class AdminCoverageAreasController : ControllerBase
         var error = await ValidateAsync(request);
         if (error is not null)
         {
-            return BadRequest(error);
+            return error.ToResult(this);
         }
 
         area.WarehouseId = request.WarehouseId;
         area.Type = request.Type;
         area.RadiusMiles = request.RadiusMiles;
         area.PolygonGeoJson = PolygonFor(request);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Update", nameof(CoverageArea), id, request);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(CoverageArea), id, request))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return NoContent();
     }
@@ -103,34 +106,35 @@ public class AdminCoverageAreasController : ControllerBase
         }
 
         _dbContext.CoverageAreas.Remove(area);
-        await _dbContext.SaveChangesAsync();
-
-        await _auditLogger.LogAsync("Delete", nameof(CoverageArea), id);
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Delete, nameof(CoverageArea), id))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
 
         return NoContent();
     }
 
-    private async Task<string?> ValidateAsync(UpsertCoverageAreaRequest request)
+    private async Task<InputProblem?> ValidateAsync(UpsertCoverageAreaRequest request)
     {
         if (!await _dbContext.Warehouses.AnyAsync(w => w.Id == request.WarehouseId))
         {
-            return "Unknown warehouse.";
+            return InputProblem.BadRequest("Unknown warehouse.");
         }
 
         if (!Enum.IsDefined(request.Type))
         {
-            return "Unknown coverage area type.";
+            return InputProblem.BadRequest("Unknown coverage area type.");
         }
 
         // 20,000 miles is already more than half the planet's circumference; anything larger is a typo.
         if (request.Type == CoverageAreaType.Radius && (request.RadiusMiles is not > 0 or > 20000 || !double.IsFinite(request.RadiusMiles.Value)))
         {
-            return "A radius area needs a radius greater than 0 and at most 20000 miles.";
+            return InputProblem.BadRequest("A radius area needs a radius greater than 0 and at most 20000 miles.");
         }
 
         if (request.Type == CoverageAreaType.Polygon && !IsJsonObject(request.PolygonGeoJson))
         {
-            return "A polygon area needs its GeoJSON (a valid JSON object).";
+            return InputProblem.BadRequest("A polygon area needs its GeoJSON (a valid JSON object).");
         }
 
         return null;
