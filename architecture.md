@@ -114,6 +114,7 @@ flowchart LR
         C4[AdminDealsController]
         C6[CategoriesController]
         C7[AdminCategoriesController]
+        C8[PublicStatsController]
         C5[PricingService]
     end
     subgraph Coverage
@@ -551,6 +552,7 @@ flowchart LR
 - **Input rules:** deals (0-100% or non-negative fixed, start < end, min qty >= 1), warehouses (lat/long ranges), coverage areas (real warehouse, radius 0-20000 mi), approvals (existing tier, credit >= 0), products (SKU/name required and bounded) and emails (format) are validated and answered 400/409; nothing here should ever be a 500.
 - **Dates are read as UTC** (`UtcDateTimeConverter`): a date without a time zone used to reach Npgsql as `Unspecified` and fail with a 500.
 - **Bad text:** characters Postgres cannot store (NUL) become a 400 through `InvalidTextExceptionHandler`; `UseExceptionHandler` returns a generic 500 without internals for anything unexpected. The server header is removed.
+- **Public landing data is counts and categories only** (MRV-2.3b): `GET /api/public/stats` returns product, category and radius-coverage-area counts (anonymous, `Cache-Control: public,max-age=60`, no prices or customer data); `GET /api/categories` is cached the same way. Polygon areas are not counted: the delivery check cannot serve them yet.
 - **A product without a price has `price: null`** in the public catalog (the SPA shows "Sob consulta"); 0 would read as free. Only `NoPriceException` (a subtype of `InvalidOperationException`, thrown by `PricingService`) is turned into "no price" (a null `UnitPrice` on the `PricedBasketLine`), inside `BasketPricingService.PriceLine`; any other pricing failure must surface.
 - **More input rules:** enum fields must be defined values; a Polygon area needs a JSON object and a Radius area never keeps polygon data; registration trims and bounds company name (200), address (500) and employee code (50). Dates without a time zone mean UTC, and a date-only value means midnight UTC, so the UI should send full timestamps for deal ends.
 - **Audit paging** is validated (page/pageSize >= 1, pageSize capped at 200).
