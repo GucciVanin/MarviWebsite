@@ -161,7 +161,7 @@ use `AuditLogger`; all features share `AppDbContext`.
 4. Pipeline: HTTPS redirection → CORS → authentication → authorization → controllers.
 5. Outside the `Testing` environment on startup: apply migrations, `IdentityModule.SeedRolesAsync` (creates `Client`,
    `Employee`, `Admin`), `IdentityModule.SeedAdminAsync` (first admin from config), and
-   `DefaultPricingTier.GetOrCreateAsync` (ensures one default tier, "Standard"). Tests run the same seeding via `MarviApiFactory`.
+   `DefaultPricingTier.GetOrCreateAsync` (ensures one default tier, "Standard"). `DefaultPricingTier` (Api/Features/Catalog, MRV-4.9) is the single owner of the default-tier rule: find (alphabetical fallback for legacy data), get-or-create and promote, `ShouldBeDefaultAsync` (the first tier ever is the default) and `MakeDefaultAsync` (un-flag and flush the old default, then flag the new one); startup, registration, the catalog and the pricing-tier admin controller all use it. Tests run the same seeding via `MarviApiFactory`.
 
 `AddInfrastructure` registers `AppDbContext` (Npgsql, snake_case naming), ASP.NET Core Identity
 (`ApplicationUser`, `IdentityRole<Guid>`), a singleton `HttpClient`, and the `IGeocodingProvider`
@@ -174,7 +174,7 @@ Geocoding returns a `GeocodeOutcome` (MRV-4.8): `Found`, `NotFound` (the provide
 |---|---|
 | `BasketPricingService` (MRV-4.3) | The one way to price a Basket (CONTEXT.md): `Validate(lines)` (non-empty, quantity >= 1), `Price(lines, PricingData)` and `PriceLine(...)`. Returns each line in request order as `PricedBasketLine` (`Product` null = unknown product, `UnitPrice` null = no price for the tier; never 0). Quotes, employee orders and the public catalog all price through it; `PricingDataLoader` (Api) loads the data. Deals are filtered with the single definition `Deal.ActiveAt(now)` |
 | `PricingService.ResolvePrice(product, tier, pricingRows, activeDeals, qty)` | Tier unit price by quantity break (rows unique per product + tier + `MinQty`), then best active deal → `PricingResult`; throws `InvalidOperationException` when the tier has no price for the product |
-| `CoverageService.CheckCoverage(lat, lng, areas)` | Radius check by haversine distance; `Polygon` throws `NotSupportedException` |
+| `CoverageService.CheckCoverage(lat, lng, warehouses)` (MRV-4.9) | Callers pass warehouses with their areas and do not filter: the service evaluates Radius areas by haversine distance and skips Polygon areas (not supported until Release 2: they never cover and never break the check). The older `CheckCoverage(lat, lng, (warehouse, area) pairs)` still throws `NotSupportedException` for a Polygon pair |
 | `QuoteWorkflowService` | `CreateQuote`, `PriceQuote` (Submitted → Priced; every line needs a non-negative final price; employee id nullable for admins), `AcceptQuote` (Priced → Accepted, returns the new `Order` built by `OrderFactory`; a line without a final price throws `QuoteNotFullyPricedException` -> 409); other invalid transitions throw `InvalidOperationException` |
 | `OrderFactory.Place(customer, lines, ...)` (MRV-4.3) | The one place an `Order` is built from priced lines (ids, line items, `TotalAmount` = sum of unit price x qty); used by `AcceptQuote` and employee orders |
 

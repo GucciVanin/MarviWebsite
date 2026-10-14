@@ -41,13 +41,7 @@ public class CoverageController : ControllerBase
             .Include(w => w.CoverageAreas)
             .ToListAsync();
 
-        // Phase 1 only supports Radius areas — Polygon areas are filtered out (Phase 2 TODO, see CoverageService).
-        var areas = warehouses
-            .SelectMany(w => w.CoverageAreas
-                .Where(a => a.Type == CoverageAreaType.Radius)
-                .Select(a => (Warehouse: w, Area: a)));
-
-        var result = _coverageService.CheckCoverage(geocodeResult.Lat, geocodeResult.Lng, areas);
+        var result = _coverageService.CheckCoverage(geocodeResult.Lat, geocodeResult.Lng, warehouses);
 
         return Ok(new CoverageCheckResultDto(result.Supported, result.Warehouse?.Name));
     }

@@ -307,6 +307,21 @@ ok('a warehouse with stock cannot be deleted (409)', (await call('DELETE', `/api
 const policyDeal = await call('POST', '/api/admin/deals', { token: admin, body: { name: '  Padded deal  ', discountType: 'Percent', discountValue: 5, startDate: new Date(Date.now() - 864e5).toISOString(), endDate: new Date(Date.now() + 864e5).toISOString(), productIds: [], categoryIds: [], minQty: 1 } });
 ok('a deal name keeps its padding and has no length limit today (201)', policyDeal.status === 201 && policyDeal.json.name === '  Padded deal  ', String(policyDeal.status));
 
+section('DEFAULT TIER: exactly one default; anonymous visitors price from it; it can be switched but never unset');
+const colaPrice = async () => (await call('GET', '/api/products')).json.find((p) => p.id === prod.cola.id)?.price;
+const defaults = () => sql('select count(*) from pricing_tiers where is_default');
+ok('anonymous visitors see the default (Standard) tier price for cola (5)', near(await colaPrice(), 5));
+ok('exactly one default tier', defaults() === '1');
+ok('making Wholesale the default is accepted', [200, 204].includes((await call('PUT', `/api/admin/pricing-tiers/${wholesale.id}`, { token: admin, body: { name: 'Wholesale', isDefault: true } })).status));
+ok('...anonymous visitors now see the Wholesale price for cola (4)', near(await colaPrice(), 4));
+ok('...and still exactly one default tier', defaults() === '1');
+const unsetDefault = await call('PUT', `/api/admin/pricing-tiers/${wholesale.id}`, { token: admin, body: { name: 'Wholesale', isDefault: false } });
+ok('the only default tier cannot be unset (400)', unsetDefault.status === 400, String(unsetDefault.status));
+ok('making Standard the default again is accepted', [200, 204].includes((await call('PUT', `/api/admin/pricing-tiers/${standard.id}`, { token: admin, body: { name: standard.name, isDefault: true } })).status));
+ok('...anonymous visitors see the Standard price again (5), one default', near(await colaPrice(), 5) && defaults() === '1');
+const polygonArea = await call('POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: wh1.id, type: 'Polygon', polygonGeoJson: '{"type":"Polygon","coordinates":[]}' } });
+ok('a polygon coverage area can be stored and does not break the coverage check (no 500)', polygonArea.status === 201 && (await call('POST', '/api/coverage/check', { body: { address: 'Av. Paulista 1000, São Paulo' } })).status < 500, String(polygonArea.status));
+
 section('RACES: concurrent admin writes never end in a 500 (the database decides, the API answers 409)');
 const burst = (n, fn) => Promise.all(Array.from({ length: n }, (_, i) => fn(i)));
 const noServerErrors = (name, results) => ok(`${name}: no 500s (statuses ${[...new Set(results.map((r) => r.status))].sort().join(',')})`, results.every((r) => r.status < 500));
