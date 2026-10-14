@@ -36,6 +36,44 @@ export interface UpsertProductRequest {
   attributes: Record<string, string>;
 }
 
+export interface CategoryAdmin {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  productCount: number;
+}
+
+export interface UpsertCategoryRequest {
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface PricingTier {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
+export interface UpsertPricingTierRequest {
+  name: string;
+  isDefault: boolean;
+}
+
+export interface ProductPrice {
+  pricingTierId: string;
+  pricingTierName: string;
+  unitPrice: number;
+  minQty: number;
+}
+
+export interface UpsertProductPriceRequest {
+  pricingTierId: string;
+  unitPrice: number;
+  minQty: number;
+}
+
 export type DiscountType = 'Percent' | 'Fixed';
 
 export interface DealAdmin {
@@ -93,6 +131,23 @@ export interface UpsertCoverageAreaRequest {
   polygonGeoJson: string | null;
 }
 
+export interface StockRecord {
+  id: string;
+  productId: string;
+  productName: string;
+  warehouseId: string;
+  qtyOnHand: number;
+  qtyReserved: number;
+  reorderPoint: number;
+}
+
+export interface UpsertStockRequest {
+  productId: string;
+  warehouseId: string;
+  qtyOnHand: number;
+  reorderPoint: number;
+}
+
 export interface AuditLogEntry {
   id: string;
   actorUserId: string;
@@ -117,6 +172,46 @@ export class AdminService {
 
   suspendClient(id: string): Observable<void> {
     return this.http.put<void>(`/api/admin/clients/${id}/suspend`, {});
+  }
+
+  getCategories(): Observable<CategoryAdmin[]> {
+    return this.http.get<CategoryAdmin[]>('/api/admin/categories');
+  }
+
+  createCategory(request: UpsertCategoryRequest): Observable<CategoryAdmin> {
+    return this.http.post<CategoryAdmin>('/api/admin/categories', request);
+  }
+
+  updateCategory(id: string, request: UpsertCategoryRequest): Observable<CategoryAdmin> {
+    return this.http.put<CategoryAdmin>(`/api/admin/categories/${id}`, request);
+  }
+
+  deleteCategory(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/admin/categories/${id}`);
+  }
+
+  getPricingTiers(): Observable<PricingTier[]> {
+    return this.http.get<PricingTier[]>('/api/admin/pricing-tiers');
+  }
+
+  createPricingTier(request: UpsertPricingTierRequest): Observable<PricingTier> {
+    return this.http.post<PricingTier>('/api/admin/pricing-tiers', request);
+  }
+
+  updatePricingTier(id: string, request: UpsertPricingTierRequest): Observable<PricingTier> {
+    return this.http.put<PricingTier>(`/api/admin/pricing-tiers/${id}`, request);
+  }
+
+  getProductPrices(productId: string): Observable<ProductPrice[]> {
+    return this.http.get<ProductPrice[]>(`/api/admin/products/${productId}/pricing`);
+  }
+
+  upsertProductPrice(productId: string, request: UpsertProductPriceRequest): Observable<ProductPrice> {
+    return this.http.put<ProductPrice>(`/api/admin/products/${productId}/pricing`, request);
+  }
+
+  deleteProductPrice(productId: string, pricingTierId: string, minQty: number): Observable<void> {
+    return this.http.delete<void>(`/api/admin/products/${productId}/pricing/${pricingTierId}/${minQty}`);
   }
 
   getProducts(): Observable<ProductAdmin[]> {
@@ -197,6 +292,15 @@ export class AdminService {
 
   deleteCoverageArea(id: string): Observable<void> {
     return this.http.delete<void>(`/api/admin/coverage-areas/${id}`);
+  }
+
+  // Admins may read the stock list through the employee endpoint (it allows Employee and Admin).
+  getStock(): Observable<StockRecord[]> {
+    return this.http.get<StockRecord[]>('/api/employee/inventory');
+  }
+
+  upsertStock(request: UpsertStockRequest): Observable<StockRecord> {
+    return this.http.put<StockRecord>('/api/admin/inventory', request);
   }
 
   getAuditLog(page = 1, pageSize = 50): Observable<AuditLogEntry[]> {

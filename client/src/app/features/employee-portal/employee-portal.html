@@ -1,71 +1,187 @@
-<h2>{{ t.title }}</h2>
+<div class="container page stack">
+  <h1>{{ t.title }}</h1>
 
-<section>
-  <h3>{{ t.queueTitle }}</h3>
-  <app-load-state [state]="quoteQueue" [emptyText]="t.noQueue" />
-  @if (quoteQueue.data().length) {
-    <table>
-      <thead>
-        <tr>
-          <th>{{ t.client }}</th>
-          <th>{{ t.status }}</th>
-          <th>{{ t.created }}</th>
-          <th>{{ t.lineItems }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (quote of quoteQueue.data(); track quote.id) {
-          <tr>
-            <td>{{ quote.clientAccountId }}</td>
-            <td>{{ quote.status }}</td>
-            <td>{{ quote.createdAt }}</td>
-            <td>{{ quote.lineItems.length }}</td>
-          </tr>
+  <section class="card" aria-labelledby="queue-title">
+    <h2 id="queue-title">{{ t.queueTitle }}</h2>
+    <app-load-state [state]="quoteQueue" [emptyText]="t.noQueue" />
+    @if (pricesSent()) {
+      <p class="alert alert--success" role="status">{{ t.pricesSent }}</p>
+    }
+    @for (quote of quoteQueue.data(); track quote.id) {
+      <article class="card" data-testid="queue-quote">
+        <header class="toolbar">
+          <strong>{{ t.customer }}: {{ quote.clientAccountId }}</strong>
+          <span class="muted">{{ t.sentOn }} {{ quote.createdAt | ptDate }}</span>
+          <button type="button" class="btn btn--outline btn--small" (click)="useCustomer(quote.clientAccountId)">{{ t.useCustomer }}</button>
+        </header>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t.product }}</th>
+              <th class="num">{{ t.quantity }}</th>
+              <th class="num">{{ t.suggestedPrice }}</th>
+              <th>{{ t.finalPrice }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of quote.lineItems; track item.id) {
+              <tr>
+                <td>{{ item.productName }}</td>
+                <td class="num">{{ item.qty }}</td>
+                <td class="num">{{ item.suggestedUnitPrice === null ? t.notSuggested : (item.suggestedUnitPrice | brl) }}</td>
+                <td>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    [attr.aria-label]="t.finalPrice + ': ' + item.productName"
+                    [ngModel]="priceValue(item.id, item.suggestedUnitPrice)"
+                    (ngModelChange)="setPrice(item.id, $event)"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <button type="button" class="btn btn--primary" [disabled]="priceAction.busy()" (click)="sendPrices(quote)">{{ t.sendPrices }}</button>
+        @if (pricedQuoteId() === quote.id) {
+          @if (priceProblem(); as problem) {
+            <p class="alert alert--error" role="alert">{{ problem }}</p>
+          }
+          <app-error-alert [error]="priceAction.error()" />
         }
-      </tbody>
-    </table>
-  }
-</section>
+      </article>
+    }
+  </section>
 
-<section>
-  <h3>{{ t.inventoryTitle }}</h3>
-  <app-load-state [state]="inventory" [emptyText]="t.noInventory" />
-  @if (inventory.data().length) {
-    <table>
-      <thead>
-        <tr>
-          <th>{{ t.product }}</th>
-          <th>{{ t.warehouse }}</th>
-          <th>{{ t.onHand }}</th>
-          <th>{{ t.reserved }}</th>
-          <th>{{ t.reorderPoint }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (record of inventory.data(); track record.id) {
+  <section class="card" aria-labelledby="customer-title">
+    <h2 id="customer-title">{{ t.customerTitle }}</h2>
+    <form class="toolbar" (ngSubmit)="lookupClient()">
+      <div class="field">
+        <label for="clientId">{{ t.clientId }}</label>
+        <input id="clientId" name="clientId" type="text" [(ngModel)]="clientId" autocomplete="off" />
+      </div>
+      <button type="submit" class="btn btn--outline btn--small" [disabled]="lookupAction.busy()">{{ t.lookup }}</button>
+    </form>
+    <app-error-alert [error]="lookupAction.error()" />
+
+    @if (clientProfile(); as profile) {
+      <article class="card" data-testid="customer">
+        <p><strong>{{ profile.companyName }}</strong></p>
+        <p>
+          {{ t.status }}:
+          <span class="badge" [class.badge--ok]="profile.status === 'Approved'" [class.badge--bad]="profile.status !== 'Approved'">
+            {{ t.clientStatus[profile.status] ?? profile.status }}
+          </span>
+        </p>
+        <p>{{ t.pricingTier }}: {{ profile.pricingTierName ?? '—' }}</p>
+        <p>{{ t.creditLimit }}: {{ profile.creditLimit | brl }}</p>
+      </article>
+
+      @if (profile.status !== 'Approved') {
+        <p class="alert alert--error" role="alert">{{ t.notEligible }}</p>
+      } @else {
+        <div data-testid="order-form" class="stack">
+          <h3>{{ t.newOrderTitle }}</h3>
+          <app-product-picker (picked)="addOrderLine($event)" />
+
+          <h4>{{ t.orderItems }}</h4>
+          @if (orderLines().length === 0) {
+            <p class="muted">{{ t.orderItemsEmpty }}</p>
+          } @else {
+            <table class="table" data-testid="order-basket">
+              <thead>
+                <tr>
+                  <th>{{ t.product }}</th>
+                  <th>{{ t.quantity }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of orderLines(); track line.productId) {
+                  <tr>
+                    <td>{{ line.name }}</td>
+                    <td>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        [attr.aria-label]="t.quantity + ': ' + line.name"
+                        [ngModel]="line.qty"
+                        (ngModelChange)="setOrderQuantity(line.productId, $event)"
+                      />
+                    </td>
+                    <td><button type="button" class="btn btn--outline btn--small" (click)="removeOrderLine(line.productId)">{{ t.remove }}</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+
+          <div class="field">
+            <label for="deliveryAddress">{{ t.deliveryAddress }}</label>
+            <input id="deliveryAddress" name="deliveryAddress" type="text" [(ngModel)]="deliveryAddress" />
+          </div>
+          <button type="button" class="btn btn--primary" [disabled]="!canPlaceOrder()" (click)="placeOrder()">{{ t.placeOrder }}</button>
+          <app-error-alert [error]="orderAction.error()" />
+        </div>
+      }
+
+      @if (placedOrder(); as order) {
+        <article class="card" data-testid="placed-order">
+          <p class="alert alert--success" role="status">{{ t.orderPlaced }}</p>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t.product }}</th>
+                <th class="num">{{ t.quantity }}</th>
+                <th class="num">{{ t.unitPrice }}</th>
+                <th class="num">{{ t.subtotal }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of order.lineItems; track item.id) {
+                <tr>
+                  <td>{{ item.productName }}</td>
+                  <td class="num">{{ item.qty }}</td>
+                  <td class="num">{{ item.unitPrice | brl }}</td>
+                  <td class="num">{{ item.unitPrice * item.qty | brl }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <p><strong>{{ t.total }}: {{ order.totalAmount | brl }}</strong></p>
+        </article>
+      }
+    }
+  </section>
+
+  <section class="card" aria-labelledby="inventory-title">
+    <h2 id="inventory-title">{{ t.inventoryTitle }}</h2>
+    <app-load-state [state]="inventory" [emptyText]="t.noInventory" />
+    @if (inventory.data().length) {
+      <table class="table">
+        <thead>
           <tr>
-            <td>{{ record.productName }}</td>
-            <td>{{ record.warehouseId }}</td>
-            <td>{{ record.qtyOnHand }}</td>
-            <td>{{ record.qtyReserved }}</td>
-            <td>{{ record.reorderPoint }}</td>
+            <th>{{ t.product }}</th>
+            <th>{{ t.warehouse }}</th>
+            <th class="num">{{ t.onHand }}</th>
+            <th class="num">{{ t.reserved }}</th>
+            <th class="num">{{ t.reorderPoint }}</th>
           </tr>
-        }
-      </tbody>
-    </table>
-  }
-</section>
-
-<section>
-  <h3>{{ t.lookupTitle }}</h3>
-  <input type="text" [(ngModel)]="lookupClientId" [placeholder]="t.clientId" />
-  <button type="button" [disabled]="lookupAction.busy()" (click)="lookupClient()">{{ t.lookup }}</button>
-  <app-error-alert [error]="lookupAction.error()" />
-  @if (clientProfile(); as profile) {
-    <div>
-      <p>{{ profile.companyName }} — {{ profile.status }}</p>
-      <p>{{ t.creditLimit }}: {{ profile.creditLimit }}</p>
-      <p>{{ t.pricingTier }}: {{ profile.pricingTierName }}</p>
-    </div>
-  }
-</section>
+        </thead>
+        <tbody>
+          @for (record of inventory.data(); track record.id) {
+            <tr>
+              <td>{{ record.productName }}</td>
+              <td>{{ record.warehouseId }}</td>
+              <td class="num">{{ record.qtyOnHand }}</td>
+              <td class="num">{{ record.qtyReserved }}</td>
+              <td class="num">{{ record.reorderPoint }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>
+</div>

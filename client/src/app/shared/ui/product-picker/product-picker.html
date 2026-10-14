@@ -1,0 +1,50 @@
+<form class="toolbar" data-testid="filters" (ngSubmit)="applyFilters()">
+  <div class="field">
+    <label for="search">{{ t.search }}</label>
+    <input id="search" name="search" type="search" [(ngModel)]="searchText" [placeholder]="t.searchPlaceholder" />
+  </div>
+  <div class="field">
+    <label for="category">{{ t.category }}</label>
+    <select id="category" name="category" [(ngModel)]="categoryId">
+      <option value="">{{ t.allCategories }}</option>
+      @for (category of categories.data(); track category.id) {
+        <option [value]="category.id">{{ category.name }}</option>
+      }
+    </select>
+  </div>
+  <button type="submit" class="btn btn--outline btn--small">{{ t.applyFilters }}</button>
+</form>
+
+<app-load-state [state]="catalog" [emptyText]="t.noProductsFound" />
+@if (catalog.data().length) {
+  <table class="table" data-testid="catalog">
+    <thead>
+      <tr>
+        <th>{{ t.product }}</th>
+        <th class="num">{{ t.price }}</th>
+        <th>{{ t.stock }}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (product of catalog.data(); track product.id) {
+        <tr>
+          <td>{{ product.name }} <span class="muted">({{ product.sku }})</span></td>
+          <td class="num">
+            @if (product.price !== null) {
+              {{ product.price | brl }}
+            } @else {
+              {{ t.priceOnRequest }}
+            }
+          </td>
+          <td>
+            <span class="badge" [class.badge--ok]="product.inStock" [class.badge--warn]="!product.inStock">
+              {{ product.inStock ? t.inStock : t.outOfStock }}
+            </span>
+          </td>
+          <td><button type="button" class="btn btn--outline btn--small" (click)="picked.emit(product)">{{ t.add }}</button></td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}

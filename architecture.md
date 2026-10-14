@@ -448,16 +448,18 @@ src/app/
   app.ts · app.html (<router-outlet />) · app.config.ts · app.routes.ts
   core/auth/                AuthService, jwt.interceptor.ts, role.guard.ts
   core/http/                loadable, action, describeApiError (loading and error state, see below)
+  core/catalog/             CatalogService: the public product list (search, category) and categories, shared by every screen that picks products
   core/i18n/                pt-br.ts (all copy), identity-errors.ts
-  shared/ui/                app-header, app-footer, load-state, error-alert
-  shared/models/            types used by more than one feature (quote.model.ts, order.model.ts)
+  shared/ui/                app-header, app-footer, load-state, error-alert, product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
+  shared/format/            brl (R$ 1.234,50) and ptDate (dd/mm/aaaa hh:mm) pipes
+  shared/models/            types used by more than one feature (quote, order, catalog)
   features/
     home/                   placeholder awaiting the owner's design
     auth/login/             login page
     storefront/             public catalog, deals, coverage checker  + api/ (products, deals, coverage)
-    client-portal/          quotes and orders for clients           + api/ (quotes, orders)
-    employee-portal/        quote queue, order taking, lookups      + api/ (employee)
-    admin-portal/           people, catalog, coverage, audit        + api/ (admin)
+    client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept, see orders  + api/ (quotes, orders)
+    employee-portal/        price queued quotes, look a customer up by ID, place an order for an approved customer, stock  + api/ (employee)
+    admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock)  + api/ (admin)
 ```
 
 ```mermaid
@@ -481,7 +483,7 @@ flowchart TD
 - Build with `npm run build`. Do not pass a ternary between `{key: v}` and `{}` as `HttpClient`
   `params` (wrong overload); build a `Record<string, string>` and assign conditionally (see
   `products.service.ts`).
-- **Design system (MRV-2.3a):** tokens, element defaults and primitive classes (`.container .page .btn .card .field .alert .eyebrow`) live
+- **Design system (MRV-2.3a):** tokens, element defaults and primitive classes (`.container .page .btn .card .field .alert .eyebrow` and, for data screens (MRV-2.4a), `.table .toolbar .stack .muted .badge .btn--small`) live
   in `src/styles/_tokens.scss`, `_base.scss`, `_components.scss`, loaded by `src/styles.scss`. Colors are CSS custom properties; change them only in `_tokens.scss`.
   Shared components are in `shared/ui` (`app-header`, `app-footer`), composed by the shell in `app.html` (skip link, header, `<main id="content">`, footer).
   The landing page and the React hero island (MRV-2.3c/d) are still planned (`project.md` §10).
@@ -491,7 +493,7 @@ flowchart TD
 - **Zoneless:** there is no `zone.js`. State that changes inside an async callback (HTTP, timers) **must be a signal**; assigning a plain field
   there does not re-render. Plain fields are fine only for `ngModel` bindings that are never written from a callback; form fields that are reset after an HTTP call are signals (`[(ngModel)]` binds to a writable signal). The storefront and the three portals were converted to signals on 2026-10-02 (they
   had never rendered API data); keep new screens on signals.
-- **Loading and errors (MRV-4.1):** never call `.subscribe` on an API request from a screen (the one exception is login and register, which own their credential-specific messages and busy state). Use `loadable(() => service.get(), initial)` (`core/http/loadable.ts`) for data a section shows (signals `data`, `loading`, `loaded`, `error`, plus `load()` to retry) and `action()` (`core/http/action.ts`) for things the user triggers (`busy`, `error`, `run(request, onSuccess)`). Render them with `<app-load-state [state] [emptyText]>` (loading, failure with retry, empty message) and `<app-error-alert [error]>` (action failures) from `shared/ui`. `describeApiError` (`core/http/api-error.ts`) maps the HTTP status (0, 400, 403, 404, 409, 5xx) to a pt-BR message and keeps the server's own text as secondary `detail`; the API has no error codes, so do not parse server text. Login treats only 400/401 as wrong credentials; register keeps the Identity translation for 400. Known gap, deferred to MRV-2.4a: enum values such as quote and order status, and deal discount type, are still shown as the API's English names; map them to pt-BR when those screens are rebuilt.
+- **Loading and errors (MRV-4.1):** never call `.subscribe` on an API request from a screen (the one exception is login and register, which own their credential-specific messages and busy state). Use `loadable(() => service.get(), initial)` (`core/http/loadable.ts`) for data a section shows (signals `data`, `loading`, `loaded`, `error`, plus `load()` to retry) and `action()` (`core/http/action.ts`) for things the user triggers (`busy`, `error`, `run(request, onSuccess)`). Render them with `<app-load-state [state] [emptyText]>` (loading, failure with retry, empty message) and `<app-error-alert [error]>` (action failures) from `shared/ui`. `describeApiError` (`core/http/api-error.ts`) maps the HTTP status (0, 400, 403, 404, 409, 5xx) to a pt-BR message and keeps the server's own text as secondary `detail`; the API has no error codes, so do not parse server text. Login treats only 400/401 as wrong credentials; register keeps the Identity translation for 400. Quote and order statuses (`PT.statuses`), client statuses and deal discount types are shown in pt-BR; the audit log keeps the API's technical action and entity names (it is a technical record).
 - **Client tests:** vitest via `ng test`, specs beside the code; `core/auth/testing/fake-token.ts` builds a JWT for role-dependent tests. With Node < 22.22.3 run
   them in Docker (README).
 

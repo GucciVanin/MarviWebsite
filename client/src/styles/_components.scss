@@ -82,3 +82,70 @@
   &--error { border-color: var(--color-red-500); background: #fde8ea; color: #7a111b; }
   &--success { border-color: var(--color-success); background: #e4f4ea; color: #0f4a2b; }
 }
+
+// Data screens (portals): tables, toolbars and small status badges.
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+
+  th,
+  td {
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border, #dde1ea);
+    vertical-align: middle;
+  }
+
+  th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: end;
+  margin-bottom: var(--space-2);
+
+  .field { margin-bottom: 0; }
+}
+
+.stack > * + * { margin-top: var(--space-3); }
+
+.muted { color: var(--color-text-muted, #5a6275); }
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #eaeefb;
+  color: var(--color-navy-900);
+
+  &--ok { background: #e4f4ea; color: #0f4a2b; }
+  &--warn { background: #fff3d6; color: #6b4a00; }
+  &--bad { background: #fde8ea; color: #7a111b; }
+}
+
+.btn--small { padding: 0.3rem 0.9rem; font-size: 0.9rem; }
+
+// Sub-page navigation inside a portal (e.g. the admin area).
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+
+  a {
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius-pill);
+    border: 2px solid var(--color-navy-900);
+    color: var(--color-navy-900);
+    font-weight: 700;
+    text-decoration: none;
+
+    &:hover,
+    &.is-active { background: var(--color-navy-900); color: var(--color-text-inverse); }
+  }
+}

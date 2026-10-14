@@ -4,19 +4,17 @@ import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
+import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import {
   AdminService,
-  ProductAdmin,
   DealAdmin,
-  Warehouse,
-  CoverageArea,
   AuditLogEntry,
 } from './api/admin.service';
 
 @Component({
   selector: 'app-admin-portal',
-  imports: [FormsModule, ErrorAlert, LoadState],
+  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe],
   templateUrl: './admin-portal.html',
 })
 export class AdminPortal implements OnInit {
@@ -24,10 +22,7 @@ export class AdminPortal implements OnInit {
   private readonly adminService = inject(AdminService);
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
-  protected readonly products = loadable(() => this.adminService.getProducts(), [] as ProductAdmin[]);
   protected readonly deals = loadable(() => this.adminService.getDeals(), [] as DealAdmin[]);
-  protected readonly warehouses = loadable(() => this.adminService.getWarehouses(), [] as Warehouse[]);
-  protected readonly coverageAreas = loadable(() => this.adminService.getCoverageAreas(), [] as CoverageArea[]);
   protected readonly auditLog = loadable(() => this.adminService.getAuditLog(), [] as AuditLogEntry[]);
   protected readonly createEmployeeAction = action();
 
@@ -37,10 +32,7 @@ export class AdminPortal implements OnInit {
   protected readonly newEmployeeCode = signal('');
 
   ngOnInit(): void {
-    this.products.load();
     this.deals.load();
-    this.warehouses.load();
-    this.coverageAreas.load();
     this.auditLog.load();
   }
 

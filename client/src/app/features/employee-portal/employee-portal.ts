@@ -3,14 +3,25 @@ import { FormsModule } from '@angular/forms';
 import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
+import { BrlPipe } from '../../shared/format/brl.pipe';
+import { PtDatePipe } from '../../shared/format/pt-date.pipe';
+import type { ProductListItem } from '../../shared/models/catalog.model';
+import type { Order } from '../../shared/models/order.model';
+import type { Quote } from '../../shared/models/quote.model';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
-import type { Quote } from '../../shared/models/quote.model';
-import { EmployeeService, ClientProfile, InventoryRecord } from './api/employee.service';
+import { ProductPicker } from '../../shared/ui/product-picker/product-picker';
+import { ClientProfile, EmployeeService, InventoryRecord } from './api/employee.service';
+
+interface OrderLine {
+  productId: string;
+  name: string;
+  qty: number;
+}
 
 @Component({
   selector: 'app-employee-portal',
-  imports: [FormsModule, ErrorAlert, LoadState],
+  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe],
   templateUrl: './employee-portal.html',
 })
 export class EmployeePortal implements OnInit {
@@ -20,21 +31,119 @@ export class EmployeePortal implements OnInit {
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
   protected readonly quoteQueue = loadable(() => this.employeeService.getQuoteQueue(), [] as Quote[]);
   protected readonly inventory = loadable(() => this.employeeService.getInventory(), [] as InventoryRecord[]);
-  protected readonly lookupAction = action();
+
+  // Pricing: what the employee typed per quote line (until then, the system's suggestion is shown).
+  protected readonly typedPrices = signal<Record<string, string | number | null>>({});
+  protected readonly pricedQuoteId = signal<string | null>(null);
+  protected readonly priceProblem = signal<string | null>(null);
+  protected readonly priceAction = action();
+  protected readonly pricesSent = signal(false);
+
+  // Customer and new order.
+  protected readonly clientId = signal('');
   protected readonly clientProfile = signal<ClientProfile | null>(null);
-  lookupClientId = '';
+  protected readonly lookupAction = action();
+  protected readonly deliveryAddress = signal('');
+  protected readonly orderLines = signal<OrderLine[]>([]);
+  protected readonly orderAction = action();
+  protected readonly placedOrder = signal<Order | null>(null);
 
   ngOnInit(): void {
     this.quoteQueue.load();
     this.inventory.load();
   }
 
-  lookupClient(): void {
-    if (!this.lookupClientId) {
+  // ---- pricing quotes
+
+  priceValue(lineId: string, suggested: number | null): string | number | null {
+    const typed = this.typedPrices()[lineId];
+    return typed === undefined ? suggested : typed;
+  }
+
+  setPrice(lineId: string, value: string | number | null): void {
+    this.typedPrices.update((prices) => ({ ...prices, [lineId]: value }));
+  }
+
+  sendPrices(quote: Quote): void {
+    this.pricedQuoteId.set(quote.id);
+    this.pricesSent.set(false);
+    this.priceProblem.set(null);
+
+    const prices = quote.lineItems.map((item) => ({
+      lineItemId: item.id,
+      finalUnitPrice: Number(this.priceValue(item.id, item.suggestedUnitPrice)),
+    }));
+    const complete = quote.lineItems.every((item) => {
+      const value = this.priceValue(item.id, item.suggestedUnitPrice);
+      return value !== null && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
+    });
+    if (!complete) {
+      this.priceProblem.set(this.t.priceAllRequired);
       return;
     }
-    this.lookupAction.run(this.employeeService.getClient(this.lookupClientId), (profile) =>
-      this.clientProfile.set(profile),
+
+    this.priceAction.run(this.employeeService.priceQuote(quote.id, { lineItems: prices }), () => {
+      this.pricesSent.set(true);
+      this.quoteQueue.load();
+    });
+  }
+
+  // ---- customer and order
+
+  useCustomer(id: string): void {
+    this.clientId.set(id);
+    this.lookupClient();
+  }
+
+  lookupClient(): void {
+    const id = this.clientId().trim();
+    if (!id) {
+      return;
+    }
+    this.placedOrder.set(null);
+    this.clientProfile.set(null);
+    this.orderLines.set([]);
+    this.lookupAction.run(this.employeeService.getClient(id), (profile) => this.clientProfile.set(profile));
+  }
+
+  addOrderLine(product: ProductListItem): void {
+    this.placedOrder.set(null);
+    this.orderLines.update((lines) =>
+      lines.some((l) => l.productId === product.id)
+        ? lines.map((l) => (l.productId === product.id ? { ...l, qty: l.qty + 1 } : l))
+        : [...lines, { productId: product.id, name: product.name, qty: 1 }],
+    );
+  }
+
+  setOrderQuantity(productId: string, value: number | string | null): void {
+    const qty = Math.floor(Number(value));
+    this.orderLines.update((lines) => lines.map((l) => (l.productId === productId ? { ...l, qty: qty >= 1 ? qty : 1 } : l)));
+  }
+
+  removeOrderLine(productId: string): void {
+    this.orderLines.update((lines) => lines.filter((l) => l.productId !== productId));
+  }
+
+  canPlaceOrder(): boolean {
+    return this.orderLines().length > 0 && this.deliveryAddress().trim().length > 0 && !this.orderAction.busy();
+  }
+
+  placeOrder(): void {
+    const profile = this.clientProfile();
+    if (!profile || !this.canPlaceOrder()) {
+      return;
+    }
+    this.orderAction.run(
+      this.employeeService.createOrder({
+        clientId: profile.id,
+        deliveryAddress: this.deliveryAddress().trim(),
+        lineItems: this.orderLines().map((l) => ({ productId: l.productId, qty: l.qty })),
+      }),
+      (order) => {
+        this.placedOrder.set(order);
+        this.orderLines.set([]);
+        this.deliveryAddress.set('');
+      },
     );
   }
 }
