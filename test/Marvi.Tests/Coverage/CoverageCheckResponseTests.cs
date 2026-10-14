@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using Marvi.Api.Features.Coverage.Contracts;
+using Marvi.Domain.Coverage;
+using Marvi.Infrastructure.Data;
 using Marvi.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -34,19 +36,19 @@ public class CoverageCheckResponseTests : IClassFixture<MarviApiFactory>
 
     // ---- which coverage areas count: radius areas are evaluated, polygon areas are not supported yet and never cover
 
-    private async Task<string> WarehouseWithAsync(double lat, double lng, params (Marvi.Domain.Coverage.CoverageAreaType Type, double? Radius)[] areas)
+    private async Task<string> WarehouseWithAsync(double lat, double lng, params (CoverageAreaType Type, double? Radius)[] areas)
     {
         var name = $"WH {Guid.NewGuid():N}";
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<Marvi.Infrastructure.Data.AppDbContext>();
-        var warehouse = new Marvi.Domain.Coverage.Warehouse { Id = Guid.NewGuid(), Name = name, Address = "x", Latitude = lat, Longitude = lng };
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var warehouse = new Warehouse { Id = Guid.NewGuid(), Name = name, Address = "x", Latitude = lat, Longitude = lng };
         db.Warehouses.Add(warehouse);
         foreach (var (type, radius) in areas)
         {
-            db.CoverageAreas.Add(new Marvi.Domain.Coverage.CoverageArea
+            db.CoverageAreas.Add(new CoverageArea
             {
                 Id = Guid.NewGuid(), WarehouseId = warehouse.Id, Type = type, RadiusMiles = radius,
-                PolygonGeoJson = type == Marvi.Domain.Coverage.CoverageAreaType.Polygon ? "{\"type\":\"Polygon\",\"coordinates\":[]}" : null
+                PolygonGeoJson = type == CoverageAreaType.Polygon ? "{\"type\":\"Polygon\",\"coordinates\":[]}" : null
             });
         }
 
@@ -60,7 +62,7 @@ public class CoverageCheckResponseTests : IClassFixture<MarviApiFactory>
     [Fact]
     public async Task AWarehouseWithOnlyAPolygonArea_NeverCovers_AndDoesNotBreakTheCheck()
     {
-        await WarehouseWithAsync(31, 31, (Marvi.Domain.Coverage.CoverageAreaType.Polygon, null));
+        await WarehouseWithAsync(31, 31, (CoverageAreaType.Polygon, null));
 
         var result = await CheckAsync(31, 31);
 
@@ -70,7 +72,7 @@ public class CoverageCheckResponseTests : IClassFixture<MarviApiFactory>
     [Fact]
     public async Task APolygonAreaBesideARadiusArea_DoesNotStopTheRadiusAreaCovering()
     {
-        var name = await WarehouseWithAsync(32, 32, (Marvi.Domain.Coverage.CoverageAreaType.Polygon, null), (Marvi.Domain.Coverage.CoverageAreaType.Radius, 10));
+        var name = await WarehouseWithAsync(32, 32, (CoverageAreaType.Polygon, null), (CoverageAreaType.Radius, 10));
 
         var result = await CheckAsync(32.01, 32);
 

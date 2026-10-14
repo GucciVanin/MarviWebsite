@@ -68,14 +68,10 @@ public class AdminPricingTiersController : ControllerBase
             return BadRequest("Name is required.");
         }
 
-        if (tier.IsDefault && !request.IsDefault)
+        var defaultProblem = await DefaultPricingTier.ApplyRequestedDefaultAsync(_dbContext, tier, request.IsDefault);
+        if (defaultProblem is not null)
         {
-            return BadRequest(DefaultPricingTier.CannotUnsetMessage);
-        }
-
-        if (request.IsDefault && !tier.IsDefault)
-        {
-            await DefaultPricingTier.MakeDefaultAsync(_dbContext, tier);
+            return BadRequest(defaultProblem);
         }
 
         tier.Name = AdminInput.Clean(request.Name);

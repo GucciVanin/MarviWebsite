@@ -68,5 +68,7 @@ public abstract class HttpGeocodingProvider : IGeocodingProvider
         }
     }
 
-    private static string Redact(string text, string secret) => text.Replace(secret, "***");
+    // The key appears in a URL percent-encoded, so redact both forms.
+    private static string Redact(string text, string secret) =>
+        text.Replace(secret, "***").Replace(Uri.EscapeDataString(secret), "***");
 }

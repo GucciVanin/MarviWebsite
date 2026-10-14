@@ -6,7 +6,7 @@ public class CoverageService
 
     /// <summary>
     /// Is the point inside any warehouse's coverage? The service decides which areas it can evaluate: Radius areas count;
-    /// Polygon areas are not supported yet (Phase 2) and are skipped, so they never cover and never break the check.
+    /// Polygon areas are not supported yet (Release 2) and are skipped, so they never cover and never break the check.
     /// Callers pass warehouses with their areas and do not filter by area type.
     /// </summary>
     public CoverageCheckResult CheckCoverage(double lat, double lng, IEnumerable<Warehouse> warehouses) =>
@@ -28,7 +28,7 @@ public class CoverageService
                     }
                     break;
                 case CoverageAreaType.Polygon:
-                    // TODO: implement point-in-polygon against area.PolygonGeoJson in Phase 2.
+                    // TODO: implement point-in-polygon against area.PolygonGeoJson in Release 2.
                     throw new NotSupportedException("Polygon coverage is Phase 2");
                 default:
                     break;

@@ -12,7 +12,7 @@ namespace Marvi.Tests.Coverage;
 /// </summary>
 public class GeocodingProviderTests
 {
-    private const string Key = "SECRET-KEY-123";
+    private const string Key = "SECRET/KEY+123=";
 
     public enum Provider { Azure, Google }
 
@@ -129,6 +129,19 @@ public class GeocodingProviderTests
         Assert.Equal(GeocodeStatus.Unavailable, (await geocoder.GeocodeAsync("anywhere")).Status);
     }
 
+    // A well-formed answer that has no results list at all is not "address unknown": the provider did not answer the question.
+    [Theory]
+    [InlineData(Provider.Azure, """{"summary":{"numResults":0}}""")]
+    [InlineData(Provider.Azure, """{"results":"oops"}""")]
+    [InlineData(Provider.Google, """{"status":"OK"}""")]
+    [InlineData(Provider.Google, """{"status":"OK","results":{}}""")]
+    public async Task AnAnswerWithoutAResultsList_IsUnavailable(Provider provider, string body)
+    {
+        var (geocoder, _, _) = Build(provider, _ => Json(body));
+
+        Assert.Equal(GeocodeStatus.Unavailable, (await geocoder.GeocodeAsync("anywhere")).Status);
+    }
+
     [Theory]
     [InlineData(Provider.Azure, null)]
     [InlineData(Provider.Azure, "  ")]
@@ -166,7 +179,7 @@ public class GeocodingProviderTests
 
         var uri = Assert.Single(handler.Requests).AbsoluteUri;
         Assert.Contains(Uri.EscapeDataString("Rua A, 10 & Cia"), uri);
-        Assert.Contains(Key, uri);
+        Assert.Contains(Uri.EscapeDataString(Key), uri);
     }
 
     [Theory]
@@ -177,7 +190,7 @@ public class GeocodingProviderTests
         var failures = new List<Func<HttpRequestMessage, HttpResponseMessage>>
         {
             _ => Json("{}", HttpStatusCode.Forbidden),
-            _ => throw new HttpRequestException($"failed calling https://example.test/?key={Key}"),
+            _ => throw new HttpRequestException($"failed calling https://example.test/?key={Uri.EscapeDataString(Key)} (raw {Key})"),
             _ => Json("not json")
         };
 
@@ -186,7 +199,7 @@ public class GeocodingProviderTests
             var (geocoder, _, logs) = Build(provider, failure);
             await geocoder.GeocodeAsync("anywhere");
             Assert.NotEmpty(logs);
-            Assert.DoesNotContain(logs, line => line.Contains(Key));
+            Assert.DoesNotContain(logs, line => line.Contains(Key) || line.Contains(Uri.EscapeDataString(Key)));
         }
     }
 }
