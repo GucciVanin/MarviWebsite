@@ -3,43 +3,95 @@ import { FormsModule } from '@angular/forms';
 import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
+import { CatalogService } from '../../core/catalog/catalog.service';
+import { BrlPipe } from '../../shared/format/brl.pipe';
+import { PtDatePipe } from '../../shared/format/pt-date.pipe';
+import type { Category, ProductListItem } from '../../shared/models/catalog.model';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import { QuotesService, Quote } from './api/quotes.service';
 import { OrdersService, Order } from './api/orders.service';
 
+interface BasketLine {
+  productId: string;
+  name: string;
+  qty: number;
+}
+
 @Component({
   selector: 'app-client-portal',
-  imports: [FormsModule, ErrorAlert, LoadState],
+  imports: [FormsModule, ErrorAlert, LoadState, BrlPipe, PtDatePipe],
   templateUrl: './client-portal.html',
 })
 export class ClientPortal implements OnInit {
   protected readonly t = PT.clientPortal;
+  protected readonly statuses = PT.statuses;
+  private readonly catalogService = inject(CatalogService);
   private readonly quotesService = inject(QuotesService);
   private readonly ordersService = inject(OrdersService);
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
+  // The filters are applied together when the customer submits them, not on every keystroke.
+  protected readonly searchText = signal('');
+  protected readonly categoryId = signal('');
+  private readonly appliedSearch = signal('');
+  private readonly appliedCategory = signal('');
+
+  protected readonly catalog = loadable(
+    () => this.catalogService.getProducts(this.appliedCategory() || undefined, this.appliedSearch() || undefined),
+    [] as ProductListItem[],
+  );
+  protected readonly categories = loadable(() => this.catalogService.getCategories(), [] as Category[]);
   protected readonly quotes = loadable(() => this.quotesService.getMine(), [] as Quote[]);
   protected readonly orders = loadable(() => this.ordersService.getMine(), [] as Order[]);
+
+  protected readonly basket = signal<BasketLine[]>([]);
+  protected readonly requestSent = signal(false);
   protected readonly requestAction = action();
   protected readonly acceptAction = action();
-  protected readonly newProductId = signal('');
-  protected readonly newQty = signal(1);
 
   ngOnInit(): void {
+    this.catalog.load();
+    this.categories.load();
     this.quotes.load();
     this.orders.load();
   }
 
+  applyFilters(): void {
+    this.appliedSearch.set(this.searchText());
+    this.appliedCategory.set(this.categoryId());
+    this.catalog.load();
+  }
+
+  addToBasket(product: ProductListItem): void {
+    this.requestSent.set(false);
+    this.basket.update((lines) =>
+      lines.some((l) => l.productId === product.id)
+        ? lines.map((l) => (l.productId === product.id ? { ...l, qty: l.qty + 1 } : l))
+        : [...lines, { productId: product.id, name: product.name, qty: 1 }],
+    );
+  }
+
+  setQuantity(productId: string, value: number | string | null): void {
+    const qty = Math.floor(Number(value));
+    this.basket.update((lines) => lines.map((l) => (l.productId === productId ? { ...l, qty: qty >= 1 ? qty : 1 } : l)));
+  }
+
+  removeFromBasket(productId: string): void {
+    this.basket.update((lines) => lines.filter((l) => l.productId !== productId));
+  }
+
   requestQuote(): void {
-    if (!this.newProductId()) {
+    const lines = this.basket();
+    if (lines.length === 0) {
       return;
     }
+    this.requestSent.set(false);
     this.requestAction.run(
-      this.quotesService.createQuote({ lineItems: [{ productId: this.newProductId(), qty: this.newQty() }] }),
+      this.quotesService.createQuote({ lineItems: lines.map((l) => ({ productId: l.productId, qty: l.qty })) }),
       () => {
-        this.newProductId.set('');
-        this.newQty.set(1);
+        this.basket.set([]);
+        this.requestSent.set(true);
         this.quotes.load();
       },
     );

@@ -448,14 +448,16 @@ src/app/
   app.ts · app.html (<router-outlet />) · app.config.ts · app.routes.ts
   core/auth/                AuthService, jwt.interceptor.ts, role.guard.ts
   core/http/                loadable, action, describeApiError (loading and error state, see below)
+  core/catalog/             CatalogService: the public product list (search, category) and categories, shared by every screen that picks products
   core/i18n/                pt-br.ts (all copy), identity-errors.ts
   shared/ui/                app-header, app-footer, load-state, error-alert
-  shared/models/            types used by more than one feature (quote.model.ts, order.model.ts)
+  shared/format/            brl (R$ 1.234,50) and ptDate (dd/mm/aaaa hh:mm) pipes
+  shared/models/            types used by more than one feature (quote, order, catalog)
   features/
     home/                   placeholder awaiting the owner's design
     auth/login/             login page
     storefront/             public catalog, deals, coverage checker  + api/ (products, deals, coverage)
-    client-portal/          quotes and orders for clients           + api/ (quotes, orders)
+    client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept, see orders  + api/ (quotes, orders)
     employee-portal/        quote queue, order taking, lookups      + api/ (employee)
     admin-portal/           people, catalog, coverage, audit        + api/ (admin)
 ```
@@ -481,7 +483,7 @@ flowchart TD
 - Build with `npm run build`. Do not pass a ternary between `{key: v}` and `{}` as `HttpClient`
   `params` (wrong overload); build a `Record<string, string>` and assign conditionally (see
   `products.service.ts`).
-- **Design system (MRV-2.3a):** tokens, element defaults and primitive classes (`.container .page .btn .card .field .alert .eyebrow`) live
+- **Design system (MRV-2.3a):** tokens, element defaults and primitive classes (`.container .page .btn .card .field .alert .eyebrow` and, for data screens (MRV-2.4a), `.table .toolbar .stack .muted .badge .btn--small`) live
   in `src/styles/_tokens.scss`, `_base.scss`, `_components.scss`, loaded by `src/styles.scss`. Colors are CSS custom properties; change them only in `_tokens.scss`.
   Shared components are in `shared/ui` (`app-header`, `app-footer`), composed by the shell in `app.html` (skip link, header, `<main id="content">`, footer).
   The landing page and the React hero island (MRV-2.3c/d) are still planned (`project.md` §10).
