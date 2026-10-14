@@ -36,4 +36,45 @@ public static class DefaultPricingTier
 
         return tier;
     }
+
+    public const string CannotUnsetMessage = "A default tier is required. Make another tier the default instead.";
+
+    /// <summary>The first tier ever created is always the default, whatever the request says.</summary>
+    public static async Task<bool> ShouldBeDefaultAsync(AppDbContext dbContext, bool requested) =>
+        requested || !await dbContext.PricingTiers.AnyAsync(t => t.IsDefault);
+
+    /// <summary>
+    /// Makes <paramref name="tier"/> the one default: the current default is un-flagged and flushed first so the unique
+    /// "single default" index is never violated, then the tier is flagged (saved with the caller's own save).
+    /// </summary>
+    /// <summary>
+    /// Applies what an update asks of the default flag: the one default cannot be unset (returns the message to answer with),
+    /// and asking a non-default tier to be the default switches the default to it. Returns null when the request is fine.
+    /// </summary>
+    public static async Task<string?> ApplyRequestedDefaultAsync(AppDbContext dbContext, PricingTier tier, bool requested)
+    {
+        if (tier.IsDefault && !requested)
+        {
+            return CannotUnsetMessage;
+        }
+
+        if (requested && !tier.IsDefault)
+        {
+            await MakeDefaultAsync(dbContext, tier);
+        }
+
+        return null;
+    }
+
+    public static async Task MakeDefaultAsync(AppDbContext dbContext, PricingTier tier)
+    {
+        var current = await dbContext.PricingTiers.Where(t => t.IsDefault).ToListAsync();
+        foreach (var existing in current)
+        {
+            existing.IsDefault = false;
+        }
+
+        await dbContext.SaveChangesAsync();
+        tier.IsDefault = true;
+    }
 }

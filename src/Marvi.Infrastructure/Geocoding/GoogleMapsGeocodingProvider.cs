@@ -1,75 +1,50 @@
-using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Marvi.Infrastructure.Geocoding;
 
-public class GoogleMapsGeocodingProvider : IGeocodingProvider
+public class GoogleMapsGeocodingProvider : HttpGeocodingProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
-    private readonly ILogger<GoogleMapsGeocodingProvider> _logger;
-
     public GoogleMapsGeocodingProvider(HttpClient httpClient, IConfiguration configuration, ILogger<GoogleMapsGeocodingProvider> logger)
+        : base(httpClient, configuration, logger)
     {
-        _httpClient = httpClient;
-        _configuration = configuration;
-        _logger = logger;
     }
 
-    public async Task<GeocodeResult?> GeocodeAsync(string address)
+    protected override string ProviderName => "Google Maps";
+
+    protected override string ApiKeySetting => "Geocoding:Google:ApiKey";
+
+    protected override Uri BuildRequestUri(string apiKey, string address) =>
+        new($"https://maps.googleapis.com/maps/api/geocode/json?address={Uri.EscapeDataString(address)}&key={Uri.EscapeDataString(apiKey)}");
+
+    // Google answers a refused key or an exhausted quota with HTTP 200 and a status field, so the status decides:
+    // only ZERO_RESULTS means the address is unknown; any other non-OK status is the provider failing.
+    protected override GeocodeOutcome ReadOutcome(JsonDocument body)
     {
-        var apiKey = _configuration["Geocoding:Google:ApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey))
+        var root = body.RootElement;
+        var status = root.TryGetProperty("status", out var statusElement) ? statusElement.GetString() : null;
+        if (status is not null && status != "OK" && status != "ZERO_RESULTS")
         {
-            _logger.LogWarning("Geocoding:Google:ApiKey is not configured.");
-            return null;
+            return GeocodeOutcome.Unavailable;
         }
 
-        try
+        if (!root.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
         {
-            var requestUri = $"https://maps.googleapis.com/maps/api/geocode/json?address={Uri.EscapeDataString(address)}&key={Uri.EscapeDataString(apiKey)}";
-            using var response = await _httpClient.GetAsync(requestUri);
-            if (!response.IsSuccessStatusCode)
+            return GeocodeOutcome.Unavailable;
+        }
+
+        foreach (var result in results.EnumerateArray())
+        {
+            if (result.TryGetProperty("geometry", out var geometry) && geometry.TryGetProperty("location", out var location)
+                && location.TryGetProperty("lat", out var lat) && location.TryGetProperty("lng", out var lng))
             {
-                _logger.LogWarning("Google Maps geocoding request failed with status {StatusCode}.", response.StatusCode);
-                return null;
+                return GeocodeOutcome.Found(lat.GetDouble(), lng.GetDouble());
             }
 
-            var result = await response.Content.ReadFromJsonAsync<GoogleGeocodeResponse>();
-            var location = result?.Results?.FirstOrDefault()?.Geometry?.Location;
-            if (location is null)
-            {
-                return null;
-            }
-
-            return new GeocodeResult(location.Lat, location.Lng);
+            break;
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Google Maps geocoding request threw an exception.");
-            return null;
-        }
-    }
 
-    private sealed class GoogleGeocodeResponse
-    {
-        public List<GoogleResult>? Results { get; set; }
-    }
-
-    private sealed class GoogleResult
-    {
-        public GoogleGeometry? Geometry { get; set; }
-    }
-
-    private sealed class GoogleGeometry
-    {
-        public GoogleLocation? Location { get; set; }
-    }
-
-    private sealed class GoogleLocation
-    {
-        public double Lat { get; set; }
-        public double Lng { get; set; }
+        return GeocodeOutcome.NotFound;
     }
 }

@@ -41,12 +41,9 @@ public class AdminPricingTiersController : ControllerBase
         var tier = new PricingTier { Id = Guid.NewGuid(), Name = AdminInput.Clean(request.Name) };
         _dbContext.PricingTiers.Add(tier);
 
-        // The first tier ever created is always the default, whatever the request says.
-        var makeDefault = request.IsDefault || !await _dbContext.PricingTiers.AnyAsync(t => t.IsDefault);
-        if (makeDefault)
+        if (await DefaultPricingTier.ShouldBeDefaultAsync(_dbContext, request.IsDefault))
         {
-            await ClearDefaultAsync();
-            tier.IsDefault = true;
+            await DefaultPricingTier.MakeDefaultAsync(_dbContext, tier);
         }
 
         if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(PricingTier), tier.Id, request))
@@ -71,15 +68,10 @@ public class AdminPricingTiersController : ControllerBase
             return BadRequest("Name is required.");
         }
 
-        if (tier.IsDefault && !request.IsDefault)
+        var defaultProblem = await DefaultPricingTier.ApplyRequestedDefaultAsync(_dbContext, tier, request.IsDefault);
+        if (defaultProblem is not null)
         {
-            return BadRequest("A default tier is required. Make another tier the default instead.");
-        }
-
-        if (request.IsDefault && !tier.IsDefault)
-        {
-            await ClearDefaultAsync();
-            tier.IsDefault = true;
+            return BadRequest(defaultProblem);
         }
 
         tier.Name = AdminInput.Clean(request.Name);
@@ -89,18 +81,6 @@ public class AdminPricingTiersController : ControllerBase
         }
 
         return Ok(ToDto(tier));
-    }
-
-    private async Task ClearDefaultAsync()
-    {
-        var current = await _dbContext.PricingTiers.Where(t => t.IsDefault).ToListAsync();
-        foreach (var existing in current)
-        {
-            existing.IsDefault = false;
-        }
-
-        // Flush the un-flagging first so the unique "single default" index is never violated.
-        await _dbContext.SaveChangesAsync();
     }
 
     private static PricingTierDto ToDto(PricingTier tier) => new(tier.Id, tier.Name, tier.IsDefault);
