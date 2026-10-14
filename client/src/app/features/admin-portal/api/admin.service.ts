@@ -131,6 +131,23 @@ export interface UpsertCoverageAreaRequest {
   polygonGeoJson: string | null;
 }
 
+export interface StockRecord {
+  id: string;
+  productId: string;
+  productName: string;
+  warehouseId: string;
+  qtyOnHand: number;
+  qtyReserved: number;
+  reorderPoint: number;
+}
+
+export interface UpsertStockRequest {
+  productId: string;
+  warehouseId: string;
+  qtyOnHand: number;
+  reorderPoint: number;
+}
+
 export interface AuditLogEntry {
   id: string;
   actorUserId: string;
@@ -275,6 +292,15 @@ export class AdminService {
 
   deleteCoverageArea(id: string): Observable<void> {
     return this.http.delete<void>(`/api/admin/coverage-areas/${id}`);
+  }
+
+  // Admins may read the stock list through the employee endpoint (it allows Employee and Admin).
+  getStock(): Observable<StockRecord[]> {
+    return this.http.get<StockRecord[]>('/api/employee/inventory');
+  }
+
+  upsertStock(request: UpsertStockRequest): Observable<StockRecord> {
+    return this.http.put<StockRecord>('/api/admin/inventory', request);
   }
 
   getAuditLog(page = 1, pageSize = 50): Observable<AuditLogEntry[]> {

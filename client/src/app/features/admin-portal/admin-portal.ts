@@ -8,8 +8,6 @@ import { LoadState } from '../../shared/ui/load-state/load-state';
 import {
   AdminService,
   DealAdmin,
-  Warehouse,
-  CoverageArea,
   AuditLogEntry,
 } from './api/admin.service';
 
@@ -24,8 +22,6 @@ export class AdminPortal implements OnInit {
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
   protected readonly deals = loadable(() => this.adminService.getDeals(), [] as DealAdmin[]);
-  protected readonly warehouses = loadable(() => this.adminService.getWarehouses(), [] as Warehouse[]);
-  protected readonly coverageAreas = loadable(() => this.adminService.getCoverageAreas(), [] as CoverageArea[]);
   protected readonly auditLog = loadable(() => this.adminService.getAuditLog(), [] as AuditLogEntry[]);
   protected readonly createEmployeeAction = action();
 
@@ -36,8 +32,6 @@ export class AdminPortal implements OnInit {
 
   ngOnInit(): void {
     this.deals.load();
-    this.warehouses.load();
-    this.coverageAreas.load();
     this.auditLog.load();
   }
 

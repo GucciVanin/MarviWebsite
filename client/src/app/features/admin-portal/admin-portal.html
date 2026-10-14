@@ -36,54 +36,6 @@
 </section>
 
 <section class="card">
-  <h3>{{ t.warehousesTitle }}</h3>
-  <app-load-state [state]="warehouses" [emptyText]="t.noWarehouses" />
-  @if (warehouses.data().length) {
-    <table class="table">
-      <thead>
-        <tr>
-          <th>{{ t.name }}</th>
-          <th>{{ t.address }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (warehouse of warehouses.data(); track warehouse.id) {
-          <tr>
-            <td>{{ warehouse.name }}</td>
-            <td>{{ warehouse.address }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  }
-</section>
-
-<section class="card">
-  <h3>{{ t.coverageTitle }}</h3>
-  <app-load-state [state]="coverageAreas" [emptyText]="t.noCoverage" />
-  @if (coverageAreas.data().length) {
-    <table class="table">
-      <thead>
-        <tr>
-          <th>{{ t.warehouse }}</th>
-          <th>{{ t.type }}</th>
-          <th>{{ t.radius }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (area of coverageAreas.data(); track area.id) {
-          <tr>
-            <td>{{ area.warehouseId }}</td>
-            <td>{{ area.type }}</td>
-            <td>{{ area.radiusMiles }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  }
-</section>
-
-<section class="card">
   <h3>{{ t.auditTitle }}</h3>
   <app-load-state [state]="auditLog" [emptyText]="t.noAudit" />
   @if (auditLog.data().length) {

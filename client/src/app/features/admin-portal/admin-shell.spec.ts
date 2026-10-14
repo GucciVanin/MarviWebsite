@@ -14,6 +14,7 @@ describe('AdminShell', () => {
       ['Visão geral', '/admin'],
       ['Catálogo', '/admin/catalogo'],
       ['Preços', '/admin/precos'],
+      ['Operação', '/admin/operacao'],
     ]);
   });
 });

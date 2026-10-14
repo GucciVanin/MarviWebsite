@@ -1,0 +1,236 @@
+<div class="stack">
+  <!-- Warehouses -->
+  <section class="card" data-testid="warehouses-section" aria-labelledby="warehouses-title">
+    <h2 id="warehouses-title">{{ t.warehousesTitle }}</h2>
+    <app-load-state [state]="warehouses" [emptyText]="t.noWarehouses" />
+    <app-error-alert [error]="warehouseDeleteAction.error()" />
+    @if (warehouses.data().length) {
+      <table class="table" data-testid="warehouses">
+        <thead>
+          <tr>
+            <th>{{ t.name }}</th>
+            <th>{{ t.address }}</th>
+            <th class="num">{{ t.latitude }}</th>
+            <th class="num">{{ t.longitude }}</th>
+            <th>{{ t.actions }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (warehouse of warehouses.data(); track warehouse.id) {
+            <tr>
+              <td>{{ warehouse.name }}</td>
+              <td>{{ warehouse.address }}</td>
+              <td class="num">{{ warehouse.latitude }}</td>
+              <td class="num">{{ warehouse.longitude }}</td>
+              <td>
+                @if (confirmingWarehouseId() === warehouse.id) {
+                  <button type="button" class="btn btn--primary btn--small" (click)="deleteWarehouse(warehouse.id)">{{ t.confirmDelete }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingWarehouseId.set(null)">{{ t.cancel }}</button>
+                } @else {
+                  <button type="button" class="btn btn--outline btn--small" (click)="editWarehouse(warehouse)">{{ t.edit }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingWarehouseId.set(warehouse.id)">{{ t.delete }}</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    <form data-testid="warehouse-form" (ngSubmit)="saveWarehouse()">
+      <h3>{{ editingWarehouseId() ? t.editWarehouse : t.newWarehouse }}</h3>
+      <div class="toolbar">
+        <div class="field">
+          <label for="warehouseName">{{ t.name }}</label>
+          <input id="warehouseName" name="warehouseName" type="text" [(ngModel)]="warehouseName" />
+        </div>
+        <div class="field">
+          <label for="warehouseAddress">{{ t.address }}</label>
+          <input id="warehouseAddress" name="warehouseAddress" type="text" [(ngModel)]="warehouseAddress" />
+        </div>
+        <div class="field">
+          <label for="warehouseLat">{{ t.latitude }}</label>
+          <input id="warehouseLat" name="warehouseLat" type="number" step="any" [(ngModel)]="warehouseLat" />
+        </div>
+        <div class="field">
+          <label for="warehouseLng">{{ t.longitude }}</label>
+          <input id="warehouseLng" name="warehouseLng" type="number" step="any" [(ngModel)]="warehouseLng" />
+        </div>
+      </div>
+      <button type="submit" class="btn btn--primary" [disabled]="warehouseAction.busy()">{{ t.saveWarehouse }}</button>
+      @if (editingWarehouseId()) {
+        <button type="button" class="btn btn--outline" (click)="resetWarehouseForm()">{{ t.cancel }}</button>
+      }
+      @if (warehouseProblem(); as problem) {
+        <p class="alert alert--error" role="alert">{{ problem }}</p>
+      }
+      <app-error-alert [error]="warehouseAction.error()" />
+      @if (warehouseSaved()) {
+        <p class="alert alert--success" role="status">{{ t.warehouseSaved }}</p>
+      }
+    </form>
+  </section>
+
+  <!-- Coverage areas -->
+  <section class="card" data-testid="areas-section" aria-labelledby="areas-title">
+    <h2 id="areas-title">{{ t.areasTitle }}</h2>
+    <app-load-state [state]="areas" [emptyText]="t.noAreas" />
+    <app-error-alert [error]="areaDeleteAction.error()" />
+    @if (areas.data().length) {
+      <table class="table" data-testid="areas">
+        <thead>
+          <tr>
+            <th>{{ t.warehouse }}</th>
+            <th>{{ t.areaType }}</th>
+            <th class="num">{{ t.radius }}</th>
+            <th>{{ t.actions }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (area of areas.data(); track area.id) {
+            <tr>
+              <td>{{ warehouseNameOf(area.warehouseId) }}</td>
+              <td>
+                {{ area.type === 'Radius' ? t.radiusType : t.polygonType }}
+                @if (area.type === 'Polygon') {
+                  <span class="badge badge--warn">{{ t.polygonNotUsed }}</span>
+                }
+              </td>
+              <td class="num">{{ area.radiusMiles ?? '—' }}</td>
+              <td>
+                @if (confirmingAreaId() === area.id) {
+                  <button type="button" class="btn btn--primary btn--small" (click)="deleteArea(area.id)">{{ t.confirmDelete }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingAreaId.set(null)">{{ t.cancel }}</button>
+                } @else {
+                  <button type="button" class="btn btn--outline btn--small" (click)="editArea(area)">{{ t.edit }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingAreaId.set(area.id)">{{ t.delete }}</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    <form data-testid="area-form" (ngSubmit)="saveArea()">
+      <h3>{{ editingAreaId() ? t.editArea : t.newArea }}</h3>
+      <div class="toolbar">
+        <div class="field">
+          <label for="areaWarehouse">{{ t.warehouse }}</label>
+          <select id="areaWarehouse" name="areaWarehouse" [(ngModel)]="areaWarehouse">
+            <option value="">{{ t.chooseWarehouse }}</option>
+            @for (warehouse of warehouses.data(); track warehouse.id) {
+              <option [value]="warehouse.id">{{ warehouse.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="areaType">{{ t.areaType }}</label>
+          <select id="areaType" name="areaType" [(ngModel)]="areaType">
+            <option value="Radius">{{ t.radiusType }}</option>
+            <option value="Polygon">{{ t.polygonType }}</option>
+          </select>
+        </div>
+        @if (areaType() === 'Radius') {
+          <div class="field">
+            <label for="areaRadius">{{ t.radius }}</label>
+            <input id="areaRadius" name="areaRadius" type="number" min="0" step="any" [(ngModel)]="areaRadius" />
+          </div>
+        }
+      </div>
+      @if (areaType() === 'Polygon') {
+        <p class="muted">{{ t.polygonHint }}</p>
+        <div class="field">
+          <label for="areaPolygon">{{ t.polygon }}</label>
+          <textarea id="areaPolygon" name="areaPolygon" rows="4" [(ngModel)]="areaPolygon"></textarea>
+        </div>
+      }
+      <button type="submit" class="btn btn--primary" [disabled]="areaAction.busy()">{{ t.saveArea }}</button>
+      @if (editingAreaId()) {
+        <button type="button" class="btn btn--outline" (click)="resetAreaForm()">{{ t.cancel }}</button>
+      }
+      @if (areaProblem(); as problem) {
+        <p class="alert alert--error" role="alert">{{ problem }}</p>
+      }
+      <app-error-alert [error]="areaAction.error()" />
+      @if (areaSaved()) {
+        <p class="alert alert--success" role="status">{{ t.areaSaved }}</p>
+      }
+    </form>
+  </section>
+
+  <!-- Stock -->
+  <section class="card" data-testid="stock-section" aria-labelledby="stock-title">
+    <h2 id="stock-title">{{ t.stockTitle }}</h2>
+    <app-load-state [state]="stock" [emptyText]="t.noStock" />
+    @if (stock.data().length) {
+      <table class="table" data-testid="stock">
+        <thead>
+          <tr>
+            <th>{{ t.product }}</th>
+            <th>{{ t.warehouse }}</th>
+            <th class="num">{{ t.onHand }}</th>
+            <th class="num">{{ t.reserved }}</th>
+            <th class="num">{{ t.reorderPoint }}</th>
+            <th>{{ t.actions }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (record of stock.data(); track record.id) {
+            <tr>
+              <td>{{ record.productName }}</td>
+              <td>{{ warehouseNameOf(record.warehouseId) }}</td>
+              <td class="num">{{ record.qtyOnHand }}</td>
+              <td class="num">{{ record.qtyReserved }}</td>
+              <td class="num">{{ record.reorderPoint }}</td>
+              <td><button type="button" class="btn btn--outline btn--small" (click)="editStock(record)">{{ t.adjust }}</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    <form data-testid="stock-form" (ngSubmit)="saveStock()">
+      <h3>{{ editingStock() ? t.editStock : t.newStock }}</h3>
+      <div class="toolbar">
+        <div class="field">
+          <label for="stockProduct">{{ t.product }}</label>
+          <select id="stockProduct" name="stockProduct" [(ngModel)]="stockProduct" [disabled]="editingStock()">
+            <option value="">{{ t.chooseProduct }}</option>
+            @for (product of products.data(); track product.id) {
+              <option [value]="product.id">{{ product.name }} ({{ product.sku }})</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="stockWarehouse">{{ t.warehouse }}</label>
+          <select id="stockWarehouse" name="stockWarehouse" [(ngModel)]="stockWarehouse" [disabled]="editingStock()">
+            <option value="">{{ t.chooseWarehouse }}</option>
+            @for (warehouse of warehouses.data(); track warehouse.id) {
+              <option [value]="warehouse.id">{{ warehouse.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="stockOnHand">{{ t.onHand }}</label>
+          <input id="stockOnHand" name="stockOnHand" type="number" min="0" step="1" [(ngModel)]="stockOnHand" />
+        </div>
+        <div class="field">
+          <label for="stockReorder">{{ t.reorderPoint }}</label>
+          <input id="stockReorder" name="stockReorder" type="number" min="0" step="1" [(ngModel)]="stockReorder" />
+        </div>
+      </div>
+      <button type="submit" class="btn btn--primary" [disabled]="stockAction.busy()">{{ t.saveStock }}</button>
+      @if (editingStock()) {
+        <button type="button" class="btn btn--outline" (click)="resetStockForm()">{{ t.cancel }}</button>
+      }
+      @if (stockProblem(); as problem) {
+        <p class="alert alert--error" role="alert">{{ problem }}</p>
+      }
+      <app-error-alert [error]="stockAction.error()" />
+      @if (stockSaved()) {
+        <p class="alert alert--success" role="status">{{ t.stockSaved }}</p>
+      }
+    </form>
+  </section>
+</div>
