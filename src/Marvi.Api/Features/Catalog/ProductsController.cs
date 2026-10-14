@@ -46,9 +46,12 @@ public class ProductsController : ControllerBase
         var pricingRows = await _dbContext.ProductPricings.Where(pp => pp.PricingTierId == tier.Id).ToListAsync();
         var now = DateTime.UtcNow;
         var activeDeals = await _dbContext.Deals.Where(Deal.ActiveAt(now)).ToListAsync();
-        var inventory = await _dbContext.InventoryRecords.ToListAsync();
+        // Only the stock of the products being returned, not every stock record in the system.
+        var productIds = products.Select(p => p.Id).ToList();
+        var availableByProduct = StockAvailability.AvailableByProduct(
+            await _dbContext.InventoryRecords.Where(i => productIds.Contains(i.ProductId)).ToListAsync());
 
-        var result = products.Select(p => BuildListItem(p, tier, pricingRows, activeDeals, inventory)).ToList();
+        var result = products.Select(p => BuildListItem(p, tier, pricingRows, activeDeals, availableByProduct)).ToList();
         return Ok(result);
     }
 
@@ -73,7 +76,7 @@ public class ProductsController : ControllerBase
         var inventory = await _dbContext.InventoryRecords.Where(i => i.ProductId == id).ToListAsync();
 
         var (price, dealName) = TryResolvePrice(product, tier, pricingRows, activeDeals);
-        var inStock = inventory.Sum(i => i.QtyOnHand - i.QtyReserved) > 0;
+        var inStock = StockAvailability.InStock(inventory);
 
         return Ok(new ProductDetailDto(product.Id, product.Sku, product.Name, product.Description, product.ImageUrl, product.Attributes, price, dealName, inStock));
     }
@@ -96,10 +99,10 @@ public class ProductsController : ControllerBase
         return await DefaultPricingTier.FindAsync(_dbContext);
     }
 
-    private ProductListItemDto BuildListItem(Product product, PricingTier tier, List<ProductPricing> pricingRows, List<Deal> activeDeals, List<InventoryRecord> inventory)
+    private ProductListItemDto BuildListItem(Product product, PricingTier tier, List<ProductPricing> pricingRows, List<Deal> activeDeals, IReadOnlyDictionary<Guid, int> availableByProduct)
     {
         var (price, dealName) = TryResolvePrice(product, tier, pricingRows, activeDeals);
-        var inStock = inventory.Where(i => i.ProductId == product.Id).Sum(i => i.QtyOnHand - i.QtyReserved) > 0;
+        var inStock = StockAvailability.InStock(availableByProduct, product.Id);
         return new ProductListItemDto(product.Id, product.Sku, product.Name, product.ImageUrl, product.Attributes, price, dealName, inStock);
     }
 
