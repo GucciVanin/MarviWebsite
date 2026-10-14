@@ -1,4 +1,5 @@
 using Marvi.Api.Features.Catalog.Contracts;
+using Marvi.Api.Features.Identity;
 using Marvi.Domain.Catalog;
 using Marvi.Domain.Inventory;
 using Marvi.Infrastructure.Data;
@@ -80,8 +81,7 @@ public class ProductsController : ControllerBase
     // Clients use their own tier; anonymous and tierless callers get the default (list-price) tier.
     private async Task<PricingTier?> ResolveTierAsync()
     {
-        var clientIdClaim = User.FindFirst("client_id")?.Value;
-        if (clientIdClaim is not null && Guid.TryParse(clientIdClaim, out var clientId))
+        if (User.ClientId() is { } clientId)
         {
             var clientAccount = await _dbContext.ClientAccounts
                 .Include(c => c.PricingTier)

@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Quotes.Contracts;
 using Marvi.Domain.Catalog;
 using Marvi.Domain.Quotes;
@@ -39,8 +40,7 @@ public class EmployeeQuotesController : ControllerBase
     public async Task<ActionResult<QuoteDto>> PriceQuote(Guid id, PriceQuoteRequest request)
     {
         // Admins may price quotes without an employee account; the quote then records no pricing employee.
-        var employeeId = Guid.TryParse(User.FindFirst("employee_id")?.Value, out var parsedId) ? parsedId : (Guid?)null;
-        if (employeeId is null && !User.IsInRole("Admin"))
+        if (!User.CanActAsStaff(out var employeeId))
         {
             return Forbid();
         }

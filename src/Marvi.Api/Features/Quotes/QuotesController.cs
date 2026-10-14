@@ -1,4 +1,5 @@
 using Marvi.Api.Features.Catalog;
+using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Orders.Contracts;
 using Marvi.Api.Features.Quotes.Contracts;
 using Marvi.Domain.Catalog;
@@ -33,7 +34,7 @@ public class QuotesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<QuoteDto>> CreateQuote(CreateQuoteRequest request)
     {
-        var clientId = GetClientId();
+        var clientId = User.ClientId();
         if (clientId is null)
         {
             return Forbid();
@@ -87,7 +88,7 @@ public class QuotesController : ControllerBase
     [HttpGet("mine")]
     public async Task<ActionResult<IEnumerable<QuoteDto>>> GetMine()
     {
-        var clientId = GetClientId();
+        var clientId = User.ClientId();
         if (clientId is null)
         {
             return Forbid();
@@ -104,7 +105,7 @@ public class QuotesController : ControllerBase
     [HttpPost("{id:guid}/accept")]
     public async Task<ActionResult<OrderDto>> Accept(Guid id)
     {
-        var clientId = GetClientId();
+        var clientId = User.ClientId();
         if (clientId is null)
         {
             return Forbid();
@@ -152,12 +153,6 @@ public class QuotesController : ControllerBase
 
         var dto = await LoadOrderDtoAsync(order.Id);
         return Created(string.Empty, dto);
-    }
-
-    private Guid? GetClientId()
-    {
-        var claim = User.FindFirst("client_id")?.Value;
-        return Guid.TryParse(claim, out var id) ? id : null;
     }
 
     private async Task<QuoteDto> LoadQuoteDtoAsync(Guid quoteId)
