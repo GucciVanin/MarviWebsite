@@ -79,4 +79,25 @@ public class StockAvailabilityTests : IClassFixture<MarviApiFactory>
         Assert.False(await InStockInListAsync(soldOut));
         Assert.False(await InStockInListAsync(noStock));
     }
+
+    // Many products with different stock at once: each gets exactly its own flag, and one product's stock never leaks into another's.
+    [Fact]
+    public async Task AManyProductCatalog_FlagsEachProductFromItsOwnWarehouses()
+    {
+        var expected = new Dictionary<Guid, bool>();
+        for (var i = 0; i < 12; i++)
+        {
+            var inStock = i % 3 == 0;              // every third product has free stock
+            var productId = inStock ? await ProductWithStockAsync((5, 1), (0, 0)) : await ProductWithStockAsync((2, 2), (1, 1));
+            expected[productId] = inStock;
+        }
+
+        var items = (await _factory.CreateClient().GetFromJsonAsync<List<JsonElement>>("/api/products"))!
+            .ToDictionary(i => i.GetProperty("id").GetGuid(), i => i.GetProperty("inStock").GetBoolean());
+
+        foreach (var (productId, inStock) in expected)
+        {
+            Assert.Equal(inStock, items[productId]);
+        }
+    }
 }
