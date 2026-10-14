@@ -36,6 +36,20 @@ export interface UpsertProductRequest {
   attributes: Record<string, string>;
 }
 
+export interface CategoryAdmin {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  productCount: number;
+}
+
+export interface UpsertCategoryRequest {
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
 export type DiscountType = 'Percent' | 'Fixed';
 
 export interface DealAdmin {
@@ -117,6 +131,22 @@ export class AdminService {
 
   suspendClient(id: string): Observable<void> {
     return this.http.put<void>(`/api/admin/clients/${id}/suspend`, {});
+  }
+
+  getCategories(): Observable<CategoryAdmin[]> {
+    return this.http.get<CategoryAdmin[]>('/api/admin/categories');
+  }
+
+  createCategory(request: UpsertCategoryRequest): Observable<CategoryAdmin> {
+    return this.http.post<CategoryAdmin>('/api/admin/categories', request);
+  }
+
+  updateCategory(id: string, request: UpsertCategoryRequest): Observable<CategoryAdmin> {
+    return this.http.put<CategoryAdmin>(`/api/admin/categories/${id}`, request);
+  }
+
+  deleteCategory(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/admin/categories/${id}`);
   }
 
   getProducts(): Observable<ProductAdmin[]> {

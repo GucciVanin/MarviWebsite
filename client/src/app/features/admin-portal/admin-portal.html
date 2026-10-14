@@ -1,6 +1,5 @@
-<h2>{{ t.title }}</h2>
-
-<section>
+<div class="stack">
+<section class="card">
   <h3>{{ t.createEmployeeTitle }}</h3>
   <input type="email" [(ngModel)]="newEmployeeEmail" [placeholder]="t.email" />
   <input type="password" [(ngModel)]="newEmployeePassword" [placeholder]="t.password" />
@@ -9,36 +8,11 @@
   <app-error-alert [error]="createEmployeeAction.error()" />
 </section>
 
-<section>
-  <h3>{{ t.productsTitle }}</h3>
-  <app-load-state [state]="products" [emptyText]="t.noProducts" />
-  @if (products.data().length) {
-    <table>
-      <thead>
-        <tr>
-          <th>{{ t.sku }}</th>
-          <th>{{ t.name }}</th>
-          <th>{{ t.active }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (product of products.data(); track product.id) {
-          <tr>
-            <td>{{ product.sku }}</td>
-            <td>{{ product.name }}</td>
-            <td>{{ product.isActive ? t.yes : t.no }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  }
-</section>
-
-<section>
+<section class="card">
   <h3>{{ t.dealsTitle }}</h3>
   <app-load-state [state]="deals" [emptyText]="t.noDeals" />
   @if (deals.data().length) {
-    <table>
+    <table class="table">
       <thead>
         <tr>
           <th>{{ t.name }}</th>
@@ -61,11 +35,11 @@
   }
 </section>
 
-<section>
+<section class="card">
   <h3>{{ t.warehousesTitle }}</h3>
   <app-load-state [state]="warehouses" [emptyText]="t.noWarehouses" />
   @if (warehouses.data().length) {
-    <table>
+    <table class="table">
       <thead>
         <tr>
           <th>{{ t.name }}</th>
@@ -84,11 +58,11 @@
   }
 </section>
 
-<section>
+<section class="card">
   <h3>{{ t.coverageTitle }}</h3>
   <app-load-state [state]="coverageAreas" [emptyText]="t.noCoverage" />
   @if (coverageAreas.data().length) {
-    <table>
+    <table class="table">
       <thead>
         <tr>
           <th>{{ t.warehouse }}</th>
@@ -109,11 +83,11 @@
   }
 </section>
 
-<section>
+<section class="card">
   <h3>{{ t.auditTitle }}</h3>
   <app-load-state [state]="auditLog" [emptyText]="t.noAudit" />
   @if (auditLog.data().length) {
-    <table>
+    <table class="table">
       <thead>
         <tr>
           <th>{{ t.timestamp }}</th>
@@ -133,3 +107,4 @@
     </table>
   }
 </section>
+</div>

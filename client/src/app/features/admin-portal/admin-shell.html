@@ -1,0 +1,8 @@
+<div class="container page stack">
+  <h1>{{ t.label }}</h1>
+  <nav class="tabs" [attr.aria-label]="t.label">
+    <a routerLink="/admin" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">{{ t.overview }}</a>
+    <a routerLink="/admin/catalogo" routerLinkActive="is-active">{{ t.catalog }}</a>
+  </nav>
+  <router-outlet />
+</div>

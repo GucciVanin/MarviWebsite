@@ -130,3 +130,22 @@
 }
 
 .btn--small { padding: 0.3rem 0.9rem; font-size: 0.9rem; }
+
+// Sub-page navigation inside a portal (e.g. the admin area).
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+
+  a {
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius-pill);
+    border: 2px solid var(--color-navy-900);
+    color: var(--color-navy-900);
+    font-weight: 700;
+    text-decoration: none;
+
+    &:hover,
+    &.is-active { background: var(--color-navy-900); color: var(--color-text-inverse); }
+  }
+}
