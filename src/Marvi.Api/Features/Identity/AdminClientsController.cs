@@ -52,6 +52,42 @@ public class AdminClientsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Changes a customer's credit limit and pricing tier (MRV-1.3). The status is left alone, so this also works for a
+    /// suspended customer; the next quote is priced from the new tier.
+    /// </summary>
+    [HttpPut("{id:guid}/update-credit")]
+    public async Task<IActionResult> UpdateCredit(Guid id, UpdateClientCreditRequest request)
+    {
+        var clientAccount = await _dbContext.ClientAccounts.FirstOrDefaultAsync(c => c.Id == id);
+        if (clientAccount is null)
+        {
+            return NotFound();
+        }
+
+        if (request.CreditLimit < 0)
+        {
+            return BadRequest("Credit limit cannot be negative.");
+        }
+
+        if (!await _dbContext.PricingTiers.AnyAsync(t => t.Id == request.PricingTierId))
+        {
+            return BadRequest("Unknown pricing tier.");
+        }
+
+        var previousTierId = clientAccount.PricingTierId;
+        var previousCreditLimit = clientAccount.CreditLimit;
+        clientAccount.PricingTierId = request.PricingTierId;
+        clientAccount.CreditLimit = request.CreditLimit;
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(ClientAccount), id,
+                new { request.PricingTierId, request.CreditLimit, PreviousPricingTierId = previousTierId, PreviousCreditLimit = previousCreditLimit }))
+        {
+            return Conflict(AuditLogger.ConflictMessage);
+        }
+
+        return NoContent();
+    }
+
     [HttpPut("{id:guid}/suspend")]
     public async Task<IActionResult> Suspend(Guid id)
     {

@@ -264,6 +264,21 @@ ok('...it can no longer be accepted (400) and no order is created', (await call(
 ok('...and rejecting twice is refused (400)', (await call('POST', `/api/quotes/${rejQuote.id}/reject`, { token: clientA.token })).status === 400);
 ok('...an unknown quote is 404', (await call('POST', `/api/quotes/${crypto.randomUUID()}/reject`, { token: clientA.token })).status === 404);
 
+section('UPDATE CREDIT: an admin adjusts credit and tier without touching the status (on real Postgres)');
+const clientD = await registerClient('Adega do Dedé', 'dede@adega.test');
+const upd = await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 1234.5 } });
+ok('admin updates credit and tier (204)', upd.status === 204, String(upd.status));
+const profD = (await call('GET', `/api/employee/clients/${clientD.id}`, { token: emp })).json;
+ok('...the profile shows the new credit, tier and an unchanged Approved status', profD.creditLimit === 1234.5 && profD.pricingTierName === 'Wholesale' && profD.status === 'Approved');
+const updAudit = (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.find((e) => e.entityId === clientD.id && e.action === 'Update');
+ok('...and the change is in the audit log with the previous values', !!updAudit && updAudit.details.data.includes('PreviousCreditLimit') && updAudit.details.data.includes('1234.5'));
+ok('a suspended customer can be adjusted and stays suspended', (await call('PUT', `/api/admin/clients/${clientC.id}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 10 } })).status === 204
+  && (await call('GET', `/api/employee/clients/${clientC.id}`, { token: emp })).json.status === 'Suspended');
+ok('a negative credit, an unknown tier and an unknown customer are refused (400/400/404)',
+  (await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: -1 } })).status === 400
+  && (await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } })).status === 400
+  && (await call('PUT', `/api/admin/clients/${crypto.randomUUID()}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 1 } })).status === 404);
+
 section('QUOTE HISTORY: employees read every quote, paged and filterable (on real Postgres)');
 const histA = (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&pageSize=2`, { token: emp })).json;
 ok('history of one customer: its quotes only, in every status, with the total', histA.totalCount >= 4 && histA.items.length === 2 && histA.items.every((q) => q.clientAccountId === clientA.id)
@@ -459,6 +474,7 @@ const endpoints = [
   ['POST', `/api/quotes/${ID}/reject`, undefined, ['client']],
   ['GET', '/api/employee/quotes/history', undefined, ['employee', 'admin']],
   ['GET', '/api/employee/orders/history', undefined, ['employee', 'admin']],
+  ['PUT', `/api/admin/clients/${ID}/update-credit`, { pricingTierId: ID, creditLimit: 1 }, ['admin']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {
