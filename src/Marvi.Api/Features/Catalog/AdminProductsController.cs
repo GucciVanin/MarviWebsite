@@ -14,8 +14,6 @@ namespace Marvi.Api.Features.Catalog;
 [Authorize(Roles = "Admin")]
 public class AdminProductsController : ControllerBase
 {
-    private const int MaxSkuLength = 64;
-    private const int MaxNameLength = 200;
     private const string InUseMessage = "The product appears on quotes or orders and cannot be deleted. Deactivate it instead.";
 
     private readonly AppDbContext _dbContext;
@@ -156,9 +154,9 @@ public class AdminProductsController : ControllerBase
             return InputProblem.BadRequest("SKU and name are required.");
         }
 
-        if (AdminInput.ExceedsLength(sku, MaxSkuLength) || AdminInput.ExceedsLength(name, MaxNameLength))
+        if (AdminInput.ExceedsLength(sku, ProductRules.MaxSkuLength) || AdminInput.ExceedsLength(name, ProductRules.MaxNameLength))
         {
-            return InputProblem.BadRequest($"SKU is limited to {MaxSkuLength} characters and name to {MaxNameLength}.");
+            return InputProblem.BadRequest($"SKU is limited to {ProductRules.MaxSkuLength} characters and name to {ProductRules.MaxNameLength}.");
         }
 
         if (await _dbContext.Products.Where(p => p.Id != existingId).AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, sku)))
