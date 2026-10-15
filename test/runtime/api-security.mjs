@@ -264,6 +264,24 @@ ok('...it can no longer be accepted (400) and no order is created', (await call(
 ok('...and rejecting twice is refused (400)', (await call('POST', `/api/quotes/${rejQuote.id}/reject`, { token: clientA.token })).status === 400);
 ok('...an unknown quote is 404', (await call('POST', `/api/quotes/${crypto.randomUUID()}/reject`, { token: clientA.token })).status === 404);
 
+section('QUOTE HISTORY: employees read every quote, paged and filterable (on real Postgres)');
+const histA = (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&pageSize=2`, { token: emp })).json;
+ok('history of one customer: its quotes only, in every status, with the total', histA.totalCount >= 4 && histA.items.length === 2 && histA.items.every((q) => q.clientAccountId === clientA.id)
+  && histA.pageSize === 2 && histA.page === 1);
+ok('...newest first', histA.items[0].createdAt >= histA.items[1].createdAt);
+const histAll = (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&pageSize=200`, { token: emp })).json.items;
+ok('...includes accepted, rejected and priced quotes', ['Accepted', 'Rejected', 'Priced'].every((s) => histAll.some((q) => q.status === s)));
+ok('...a rejected quote is no longer in the pricing queue but stays in the history',
+  !(await call('GET', '/api/employee/quotes/queue', { token: emp })).json.some((q) => q.id === rejQuote.id) && histAll.some((q) => q.id === rejQuote.id));
+ok('...second page continues without repeating', (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&page=2&pageSize=2`, { token: emp })).json.items.every((q) => !histA.items.some((h) => h.id === q.id)));
+ok('status filter', (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&status=Rejected`, { token: emp })).json.items.every((q) => q.status === 'Rejected'));
+const today = new Date().toISOString().slice(0, 10);
+const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+ok('date filter: today onwards includes this run\'s quotes', (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&from=${today}&to=${tomorrow}`, { token: emp })).json.totalCount === histA.totalCount);
+ok('...a range in the past is empty', (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&from=2001-01-01&to=2001-02-01`, { token: emp })).json.totalCount === 0);
+ok('...an invalid page or an inverted range is refused (400)', (await call('GET', '/api/employee/quotes/history?page=0', { token: emp })).status === 400
+  && (await call('GET', '/api/employee/quotes/history?from=2026-05-01&to=2026-04-01', { token: emp })).status === 400);
+
 // ---------------------------------------------------------------- security
 section('AUDIT: an admin change and its audit entry are stored together');
 const auditRows = () => Number(sql('select count(*) from audit_log_entries'));
@@ -418,6 +436,7 @@ const endpoints = [
   ['GET', '/api/orders/mine', undefined, ['client']], ['GET', '/api/quotes/mine', undefined, ['client']],
   ['POST', '/api/quotes', { lineItems: [{ productId: ID, qty: 1 }] }, ['client']], ['POST', `/api/quotes/${ID}/accept`, undefined, ['client']],
   ['POST', `/api/quotes/${ID}/reject`, undefined, ['client']],
+  ['GET', '/api/employee/quotes/history', undefined, ['employee', 'admin']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {

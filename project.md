@@ -126,7 +126,9 @@ Why first: the API is ahead of the UI, and the owner cannot exercise the product
 | ID | Story | Acceptance criteria |
 |---|---|---|
 | MRV-1.1 | ~~As a client I get immediate access after registering~~ **Done in Sprint 1b** | Implemented per spec (Q2 resolved). Remaining: tests for `Pending` behavior if admin approval is ever re-introduced |
-| MRV-1.2 | As an employee I see the full history of quotes, orders and inventory | `GET /api/employee/quotes/history`, `/orders/history`, `/inventory/history` (paged, filterable by client/date); inventory changes are recorded when orders consume stock |
+| MRV-1.2a | ~~Quotes history~~ **Done (2026-10-15, in the Employee history PR)** — `GET /api/employee/quotes/history`: every quote in any status, newest first, filter by customer, status and request date (`from` inclusive, `to` exclusive, UTC), paged with `TotalCount`; shared `Paging`/`PagedResult`/`DateRange` in `Api/Features/Common` (the audit log now uses the same paging rule). API only: the screen is part of MRV-2.4b. Original criteria (whole story 1.2): | `GET /api/employee/quotes/history`, `/orders/history`, `/inventory/history` (paged, filterable by client/date); inventory changes are recorded when orders consume stock |
+| MRV-1.2b | Orders history | `GET /api/employee/orders/history`, same filters and paging as 1.2a. Orders have no timestamp today, so this adds `Order.PlacedAt` with a migration that backfills existing orders (from the quote's request date when there is one) and shows it on the order |
+| MRV-1.2c | Inventory history | **Blocked, sliced out of 1.2 (2026-10-15):** there is no stock-movement record and orders do not reserve or decrement stock (Release 2), so there is nothing to list. Needs a movement ledger (written by admin stock changes and, later, by orders) before `GET /api/employee/inventory/history` is meaningful; to be specced with the Release 2 stock-reservation row |
 | MRV-1.3 | As an admin I adjust a client's credit and pricing tier | `PUT /api/admin/clients/{id}/update-credit`; audited |
 | MRV-1.4 | ~~As a client I can reject a priced quote~~ **Done (2026-10-15, in the Quote rejection PR)** — `QuoteWorkflowService.RejectQuote` and `POST /api/quotes/{id}/reject` (owner only; 400 unless Priced; 403 for another customer; 404 unknown; allowed for a suspended account because it creates nothing); the customer portal offers "Recusar cotação" with a confirming click and shows the quote as Recusada. Original criteria: | `POST /api/quotes/{id}/reject`; only Priced quotes; only the owner |
 | MRV-1.5 | ~~Anonymous pricing uses a deliberate list-price tier~~ **Done in Sprint 1b** | `PricingTier.IsDefault` + migration; one default enforced |
@@ -169,7 +171,7 @@ permissions.
 | Quotes | `POST /api/quotes/{id}/reject` | Client | ✔ |
 | Orders | `GET /api/orders/mine` | Client | ✔ |
 | Quotes | `GET /api/employee/quotes/queue`, `PUT /api/employee/quotes/{id}/price` | Employee, Admin | ✔ |
-| Quotes | `GET /api/employee/quotes/history` | Employee, Admin | ○ |
+| Quotes | `GET /api/employee/quotes/history` (MRV-1.2a: `clientId`, `status`, `from`, `to`, `page`, `pageSize`) | Employee, Admin | ✔ |
 | Orders | `POST /api/employee/orders` | Employee, Admin | ✔ |
 | Orders | `GET /api/employee/orders/history` | Employee, Admin | ○ |
 | Inventory | `GET /api/employee/inventory` | Employee, Admin | ✔ |

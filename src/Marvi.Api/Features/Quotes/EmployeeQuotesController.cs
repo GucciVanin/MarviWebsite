@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Common;
 using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Quotes.Contracts;
 using Marvi.Domain.Catalog;
@@ -34,6 +35,60 @@ public class EmployeeQuotesController : ControllerBase
             .ToListAsync();
 
         return Ok(quotes.Select(ToDto));
+    }
+
+    /// <summary>
+    /// Every quote ever requested, in any status, newest first (MRV-1.2a). Filter by customer, status and request date
+    /// (`from` inclusive, `to` exclusive, read as UTC); paged.
+    /// </summary>
+    [HttpGet("history")]
+    public async Task<ActionResult<PagedResult<QuoteDto>>> GetHistory(
+        [FromQuery] Guid? clientId,
+        [FromQuery] QuoteStatus? status,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = Paging.DefaultPageSize)
+    {
+        var problem = Paging.Validate(page, pageSize) ?? DateRange.Validate(from, to);
+        if (problem is not null)
+        {
+            return BadRequest(problem);
+        }
+
+        var query = _dbContext.Quotes.AsQueryable();
+        if (clientId.HasValue)
+        {
+            query = query.Where(q => q.ClientAccountId == clientId.Value);
+        }
+
+        if (status.HasValue)
+        {
+            query = query.Where(q => q.Status == status.Value);
+        }
+
+        if (from.HasValue)
+        {
+            var start = DateRange.AsUtc(from.Value);
+            query = query.Where(q => q.CreatedAt >= start);
+        }
+
+        if (to.HasValue)
+        {
+            var end = DateRange.AsUtc(to.Value);
+            query = query.Where(q => q.CreatedAt < end);
+        }
+
+        var total = await query.CountAsync();
+        var (size, skip) = Paging.Resolve(page, pageSize);
+        var quotes = await query
+            .Include(q => q.LineItems).ThenInclude(li => li.Product)
+            .OrderByDescending(q => q.CreatedAt).ThenBy(q => q.Id)
+            .Skip(skip)
+            .Take(size)
+            .ToListAsync();
+
+        return Ok(new PagedResult<QuoteDto>(quotes.Select(ToDto).ToList(), page, size, total));
     }
 
     [HttpPut("{id:guid}/price")]
