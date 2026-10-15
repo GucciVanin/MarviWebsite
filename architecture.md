@@ -176,7 +176,7 @@ Geocoding returns a `GeocodeOutcome` (MRV-4.8): `Found`, `NotFound` (the provide
 | `BasketPricingService` (MRV-4.3) | The one way to price a Basket (CONTEXT.md): `Validate(lines)` (non-empty, quantity >= 1), `Price(lines, PricingData)` and `PriceLine(...)`. Returns each line in request order as `PricedBasketLine` (`Product` null = unknown product, `UnitPrice` null = no price for the tier; never 0). Quotes, employee orders and the public catalog all price through it; `PricingDataLoader` (Api) loads the data. Deals are filtered with the single definition `Deal.ActiveAt(now)` |
 | `PricingService.ResolvePrice(product, tier, pricingRows, activeDeals, qty)` | Tier unit price by quantity break (rows unique per product + tier + `MinQty`), then best active deal → `PricingResult`; throws `InvalidOperationException` when the tier has no price for the product |
 | `CoverageService.CheckCoverage(lat, lng, warehouses)` (MRV-4.9) | Callers pass warehouses with their areas and do not filter: the service evaluates Radius areas by haversine distance and skips Polygon areas (not supported until Release 2: they never cover and never break the check). The older `CheckCoverage(lat, lng, (warehouse, area) pairs)` still throws `NotSupportedException` for a Polygon pair |
-| `QuoteWorkflowService` | `CreateQuote`, `PriceQuote` (Submitted → Priced; every line needs a non-negative final price; employee id nullable for admins), `AcceptQuote` (Priced → Accepted, returns the new `Order` built by `OrderFactory`; a line without a final price throws `QuoteNotFullyPricedException` -> 409); other invalid transitions throw `InvalidOperationException` |
+| `QuoteWorkflowService` | `CreateQuote`, `PriceQuote` (Submitted → Priced; every line needs a non-negative final price; employee id nullable for admins), `AcceptQuote` (Priced → Accepted, returns the new `Order` built by `OrderFactory`; a line without a final price throws `QuoteNotFullyPricedException` -> 409), `RejectQuote` (Priced -> Rejected, MRV-1.4: the customer turns a priced quote down and it can no longer be accepted); other invalid transitions throw `InvalidOperationException` |
 | `OrderFactory.Place(customer, lines, ...)` (MRV-4.3) | The one place an `Order` is built from priced lines (ids, line items, `TotalAmount` = sum of unit price x qty); used by `AcceptQuote` and employee orders |
 | `StockAvailability` (MRV-4.10) | The one definition of stock availability: a product's available units are `QtyOnHand - QtyReserved` summed over its inventory records (one per warehouse), in stock when above zero. `Available(records)`, `InStock(records)`, `AvailableByProduct(records)`. The public catalog list loads only the stock records of the products it returns and the detail loads one product's; neither computes the sum itself. Reserving stock on orders is not built yet (Release 2), so `QtyReserved` is only ever set by hand today |
 
@@ -189,7 +189,7 @@ stateDiagram-v2
         [*] --> Submitted: client creates
         Submitted --> Priced: employee prices
         Priced --> Accepted: client accepts (creates Order)
-        Priced --> Rejected: planned (MRV-1.4)
+        Priced --> Rejected: client rejects (MRV-1.4)
         Submitted --> Expired: enum exists, no transition yet
     }
 ```
@@ -458,7 +458,7 @@ src/app/
     home/                   the public landing page (project.md section 10): hero, flow, live stats band, category tiles, closing banner; every data-driven area has static fallback copy  + api/ (public-stats)
     auth/login/             login page
     storefront/             public catalog (search and category filter kept in the URL: ?category=<id>&q=<text>), deals, delivery check  + api/ (deals, coverage); products and categories come from core/catalog
-    client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept, see orders  + api/ (quotes, orders)
+    client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept or reject (reject asks for a confirming click), see orders  + api/ (quotes, orders)
     employee-portal/        price queued quotes, look a customer up by ID, place an order for an approved customer, stock  + api/ (employee)
     admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock)  + api/ (admin)
 ```

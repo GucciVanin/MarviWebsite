@@ -27,6 +27,10 @@ export class QuotesService {
     return this.http.get<Quote[]>('/api/quotes/mine');
   }
 
+  reject(id: string): Observable<Quote> {
+    return this.http.post<Quote>(`/api/quotes/${id}/reject`, {});
+  }
+
   accept(id: string): Observable<Order> {
     return this.http.post<Order>(`/api/quotes/${id}/accept`, {});
   }

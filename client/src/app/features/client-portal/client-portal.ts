@@ -37,6 +37,9 @@ export class ClientPortal implements OnInit {
   protected readonly requestSent = signal(false);
   protected readonly requestAction = action();
   protected readonly acceptAction = action();
+  protected readonly rejectAction = action();
+  /** The quote whose rejection is waiting for a second, confirming click (it cannot be undone). */
+  protected readonly confirmingRejectId = signal<string | null>(null);
 
   ngOnInit(): void {
     this.quotes.load();
@@ -75,6 +78,13 @@ export class ClientPortal implements OnInit {
         this.quotes.load();
       },
     );
+  }
+
+  rejectQuote(id: string): void {
+    this.rejectAction.run(this.quotesService.reject(id), () => {
+      this.confirmingRejectId.set(null);
+      this.quotes.load();
+    });
   }
 
   acceptQuote(id: string): void {

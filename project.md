@@ -41,7 +41,7 @@ people, catalog, pricing, warehouses and audit. See [goal.md](goal.md).
 | F4 | Product attributes as free-form spec sheet | Done | `Product.Attributes`, stored as jsonb |
 | F5 | Admin CRUD: products, deals, warehouses, coverage areas, pricing tiers, per-tier product prices | Done | Categories added in MRV-1.6 (CRUD under `/api/admin/categories`) |
 | F6 | Coverage check by address (single warehouse, radius) | Done | Polygon areas throw `NotSupportedException` until Release 2 |
-| F7 | Quotes: client creates, system auto-prices, employee sets final price, client accepts | Partial | Create / queue / price / accept done. Client **reject** missing (MRV-1.4) |
+| F7 | Quotes: client creates, system auto-prices, employee sets final price, client accepts | Partial | Create / queue / price / accept done. Client reject done (MRV-1.4) |
 | F8 | Accepted quote becomes an order | Done | Single operation, `QuoteWorkflowService.AcceptQuote` |
 | F9 | Employee places orders directly | Done | Requires client `Approved`; server-side pricing; refuses products with no price for the client's tier |
 | F10 | Employee history of quotes, orders, inventory changes | Not started | Only the quote queue and per-client profile exist (MRV-1.2) |
@@ -128,7 +128,7 @@ Why first: the API is ahead of the UI, and the owner cannot exercise the product
 | MRV-1.1 | ~~As a client I get immediate access after registering~~ **Done in Sprint 1b** | Implemented per spec (Q2 resolved). Remaining: tests for `Pending` behavior if admin approval is ever re-introduced |
 | MRV-1.2 | As an employee I see the full history of quotes, orders and inventory | `GET /api/employee/quotes/history`, `/orders/history`, `/inventory/history` (paged, filterable by client/date); inventory changes are recorded when orders consume stock |
 | MRV-1.3 | As an admin I adjust a client's credit and pricing tier | `PUT /api/admin/clients/{id}/update-credit`; audited |
-| MRV-1.4 | As a client I can reject a priced quote | `POST /api/quotes/{id}/reject`; only Priced quotes; only the owner |
+| MRV-1.4 | ~~As a client I can reject a priced quote~~ **Done (2026-10-15, in the Quote rejection PR)** — `QuoteWorkflowService.RejectQuote` and `POST /api/quotes/{id}/reject` (owner only; 400 unless Priced; 403 for another customer; 404 unknown; allowed for a suspended account because it creates nothing); the customer portal offers "Recusar cotação" with a confirming click and shows the quote as Recusada. Original criteria: | `POST /api/quotes/{id}/reject`; only Priced quotes; only the owner |
 | MRV-1.5 | ~~Anonymous pricing uses a deliberate list-price tier~~ **Done in Sprint 1b** | `PricingTier.IsDefault` + migration; one default enforced |
 | MRV-1.6 | ~~As an admin I manage categories~~ **Done** | `Category` entity (name unique ignoring case, `SortOrder`, `IsActive`); audited CRUD under `/api/admin/categories`; public `GET /api/categories` (active only, with active-product counts); `Product.CategoryId` is a real foreign key and product writes reject unknown categories; delete is blocked with 409 while a product or deal uses the category. Migration `AddCategories` keeps pre-existing orphan `category_id` values by creating an inactive `Legacy <id>` category for each, which an admin can rename and activate. Deals also reject unknown category ids. Concurrent duplicate/delete races return 409 (only for real unique/FK violations; case-insensitive unique index `ix_categories_name_lower`; verified with 12 parallel creates: one 201, eleven 409). Verified on real PostgreSQL |
 | MRV-2.1 | As an admin I import products from CSV | Schema agreed (Q1); per-row validation report; idempotent by SKU; audited; lives in the Catalog feature |
@@ -166,7 +166,7 @@ permissions.
 | Catalog | `GET /api/products`, `GET /api/products/{id}`, `GET /api/deals` | Anonymous (tier price when a client token is sent) | ✔ |
 | Coverage | `POST /api/coverage/check` | Anonymous | ✔ |
 | Quotes | `POST /api/quotes`, `GET /api/quotes/mine`, `POST /api/quotes/{id}/accept` | Client | ✔ |
-| Quotes | `POST /api/quotes/{id}/reject` | Client | ○ |
+| Quotes | `POST /api/quotes/{id}/reject` | Client | ✔ |
 | Orders | `GET /api/orders/mine` | Client | ✔ |
 | Quotes | `GET /api/employee/quotes/queue`, `PUT /api/employee/quotes/{id}/price` | Employee, Admin | ✔ |
 | Quotes | `GET /api/employee/quotes/history` | Employee, Admin | ○ |

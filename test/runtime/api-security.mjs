@@ -250,6 +250,20 @@ ok('accepting a quote with a line that has no final price is refused (409)', fre
 ok('...and no order was created', (await call('GET', '/api/orders/mine', { token: clientA.token })).json.length === ordersBefore);
 ok('...and the quote is still Priced', (await call('GET', '/api/quotes/mine', { token: clientA.token })).json.find((q) => q.id === freeQuote.id)?.status === 'Priced');
 
+section('REJECT: a customer can turn down a priced quote, and only that');
+const rejQuote = (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: 2 }] } })).json;
+ok('a quote that is not priced yet cannot be rejected (400)', (await call('POST', `/api/quotes/${rejQuote.id}/reject`, { token: clientA.token })).status === 400);
+ok('...it is priced by an employee (200)', (await call('PUT', `/api/employee/quotes/${rejQuote.id}/price`, { token: emp, body: { lineItems: [{ lineItemId: rejQuote.lineItems[0].id, finalUnitPrice: 3 }] } })).status === 200);
+ok('another customer cannot reject it (403/404)', [403, 404].includes((await call('POST', `/api/quotes/${rejQuote.id}/reject`, { token: clientB.token })).status));
+const ordersBeforeReject = (await call('GET', '/api/orders/mine', { token: clientA.token })).json.length;
+const rejected = await call('POST', `/api/quotes/${rejQuote.id}/reject`, { token: clientA.token });
+ok('its owner rejects it (200, status Rejected)', rejected.status === 200 && rejected.json.status === 'Rejected', String(rejected.status));
+ok('...and the list shows it as Rejected', (await call('GET', '/api/quotes/mine', { token: clientA.token })).json.find((q) => q.id === rejQuote.id)?.status === 'Rejected');
+ok('...it can no longer be accepted (400) and no order is created', (await call('POST', `/api/quotes/${rejQuote.id}/accept`, { token: clientA.token })).status === 400
+  && (await call('GET', '/api/orders/mine', { token: clientA.token })).json.length === ordersBeforeReject);
+ok('...and rejecting twice is refused (400)', (await call('POST', `/api/quotes/${rejQuote.id}/reject`, { token: clientA.token })).status === 400);
+ok('...an unknown quote is 404', (await call('POST', `/api/quotes/${crypto.randomUUID()}/reject`, { token: clientA.token })).status === 404);
+
 // ---------------------------------------------------------------- security
 section('AUDIT: an admin change and its audit entry are stored together');
 const auditRows = () => Number(sql('select count(*) from audit_log_entries'));
@@ -403,6 +417,7 @@ const endpoints = [
   ['GET', '/api/employee/quotes/queue', undefined, ['employee', 'admin']], ['PUT', `/api/employee/quotes/${ID}/price`, { lineItems: [{ lineItemId: ID, finalUnitPrice: 1 }] }, ['employee', 'admin']],
   ['GET', '/api/orders/mine', undefined, ['client']], ['GET', '/api/quotes/mine', undefined, ['client']],
   ['POST', '/api/quotes', { lineItems: [{ productId: ID, qty: 1 }] }, ['client']], ['POST', `/api/quotes/${ID}/accept`, undefined, ['client']],
+  ['POST', `/api/quotes/${ID}/reject`, undefined, ['client']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {

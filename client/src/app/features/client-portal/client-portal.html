@@ -54,6 +54,7 @@
     <h2 id="quotes-title">{{ t.quotesTitle }}</h2>
     <app-load-state [state]="quotes" [emptyText]="t.noQuotes" />
     <app-error-alert [error]="acceptAction.error()" />
+    <app-error-alert [error]="rejectAction.error()" />
     @for (quote of quotes.data(); track quote.id) {
       <article class="card" data-testid="quote">
         <header class="toolbar">
@@ -83,9 +84,19 @@
           </tbody>
         </table>
         @if (quote.status === 'Priced') {
-          <button type="button" class="btn btn--primary" [disabled]="acceptAction.busy()" (click)="acceptQuote(quote.id)">
-            {{ t.accept }}
-          </button>
+          <div class="toolbar">
+            <button type="button" class="btn btn--primary" [disabled]="acceptAction.busy() || rejectAction.busy()" (click)="acceptQuote(quote.id)">
+              {{ t.accept }}
+            </button>
+            @if (confirmingRejectId() === quote.id) {
+              <button type="button" class="btn btn--outline" [disabled]="rejectAction.busy()" (click)="rejectQuote(quote.id)">{{ t.confirmReject }}</button>
+              <button type="button" class="btn btn--outline" (click)="confirmingRejectId.set(null)">{{ t.cancel }}</button>
+            } @else {
+              <button type="button" class="btn btn--outline" [disabled]="acceptAction.busy()" (click)="confirmingRejectId.set(quote.id)">
+                {{ t.reject }}
+              </button>
+            }
+          </div>
         }
       </article>
     }

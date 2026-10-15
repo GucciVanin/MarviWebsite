@@ -121,6 +121,55 @@ public class QuoteFlowTests : IClassFixture<MarviApiFactory>
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    /// <summary>A quote the given client requested and an admin has priced.</summary>
+    private static async Task<QuoteDto> CreatePricedQuoteAsync(HttpClient admin, HttpClient client)
+    {
+        var productId = await CreatePricedProductAsync(admin, unitPrice: 10m);
+        var created = await client.PostAsJsonAsync("/api/quotes", new CreateQuoteRequest([new QuoteLineItemRequest(productId, 2)]));
+        var quote = (await created.Content.ReadFromJsonAsync<QuoteDto>())!;
+        var priced = await admin.PutAsJsonAsync($"/api/employee/quotes/{quote.Id}/price",
+            new PriceQuoteRequest([new PriceQuoteLineRequest(quote.LineItems.Single().Id, 9m)]));
+        priced.EnsureSuccessStatusCode();
+        return quote;
+    }
+
+    [Fact]
+    public async Task Client_CanRejectItsPricedQuote_AndCanThenNoLongerAcceptIt()
+    {
+        var admin = await LoginAsync(MarviApiFactory.AdminEmail, MarviApiFactory.AdminPassword);
+        var (client, _) = await RegisterClientAsync();
+        var quote = await CreatePricedQuoteAsync(admin, client);
+
+        var rejected = await client.PostAsync($"/api/quotes/{quote.Id}/reject", null);
+
+        Assert.Equal(HttpStatusCode.OK, rejected.StatusCode);
+        Assert.Equal(QuoteStatus.Rejected, (await rejected.Content.ReadFromJsonAsync<QuoteDto>())!.Status);
+        var mine = (await client.GetFromJsonAsync<List<QuoteDto>>("/api/quotes/mine"))!;
+        Assert.Equal(QuoteStatus.Rejected, Assert.Single(mine, q => q.Id == quote.Id).Status);
+        var accept = await client.PostAsync($"/api/quotes/{quote.Id}/accept", null);
+        Assert.Equal(HttpStatusCode.BadRequest, accept.StatusCode);
+    }
+
+    [Fact]
+    public async Task RejectQuote_RefusesAQuoteThatIsNotPriced_OrNotYours_OrUnknown()
+    {
+        var admin = await LoginAsync(MarviApiFactory.AdminEmail, MarviApiFactory.AdminPassword);
+        var (owner, _) = await RegisterClientAsync();
+        var (stranger, _) = await RegisterClientAsync();
+        var productId = await CreatePricedProductAsync(admin, unitPrice: 10m);
+        var submitted = (await (await owner.PostAsJsonAsync("/api/quotes", new CreateQuoteRequest([new QuoteLineItemRequest(productId, 1)])))
+            .Content.ReadFromJsonAsync<QuoteDto>())!;
+        var priced = await CreatePricedQuoteAsync(admin, owner);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.PostAsync($"/api/quotes/{submitted.Id}/reject", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await stranger.PostAsync($"/api/quotes/{priced.Id}/reject", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.PostAsync($"/api/quotes/{Guid.NewGuid()}/reject", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _factory.CreateClient().PostAsync($"/api/quotes/{priced.Id}/reject", null)).StatusCode);
+
+        // The refused attempts changed nothing: the owner can still accept it.
+        Assert.Equal(HttpStatusCode.Created, (await owner.PostAsync($"/api/quotes/{priced.Id}/accept", null)).StatusCode);
+    }
+
     private async Task<HttpClient> LoginAsync(string email, string password)
     {
         var client = _factory.CreateClient();
