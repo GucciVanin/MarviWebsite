@@ -28,8 +28,14 @@ public static class ClientProfileRules
             return (null, $"Company name is limited to {MaxCompanyNameLength} characters and the address to {MaxAddressLength}.");
         }
 
-        var shipping = (shippingAddresses ?? [])
-            .Select(a => a?.Trim() ?? string.Empty)
+        var shippingInput = (shippingAddresses ?? []).Select(a => a?.Trim() ?? string.Empty).ToList();
+        if (new[] { company, billing }.Concat(shippingInput).Any(text => text.Any(char.IsControl)))
+        {
+            // A NUL character cannot be stored, and a line break inside an address would be split in two by the one-address-per-line form.
+            return (null, "Company name and addresses cannot contain control characters or line breaks.");
+        }
+
+        var shipping = shippingInput
             .Where(a => a.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();

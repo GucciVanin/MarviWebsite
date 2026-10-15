@@ -5,16 +5,17 @@
     <form (ngSubmit)="save()">
       <div class="field">
         <label for="profile-company">{{ t.company }}</label>
-        <input id="profile-company" name="company" type="text" autocomplete="organization" required [ngModel]="companyName()" (ngModelChange)="companyName.set($event); saved.set(false)" />
+        <input id="profile-company" name="company" type="text" autocomplete="organization" required [maxLength]="maxCompany" [readOnly]="saveAction.busy()" [ngModel]="companyName()" (ngModelChange)="companyName.set($event); saved.set(false)" />
       </div>
       <div class="field">
         <label for="profile-billing">{{ t.billing }}</label>
-        <input id="profile-billing" name="billing" type="text" autocomplete="street-address" required [ngModel]="billingAddress()" (ngModelChange)="billingAddress.set($event); saved.set(false)" />
+        <input id="profile-billing" name="billing" type="text" autocomplete="street-address" required [maxLength]="maxAddress" [readOnly]="saveAction.busy()" [ngModel]="billingAddress()" (ngModelChange)="billingAddress.set($event); saved.set(false)" />
       </div>
       <div class="field">
         <label for="profile-shipping">{{ t.shipping }}</label>
-        <textarea id="profile-shipping" name="shipping" rows="4" aria-describedby="profile-shipping-hint" [ngModel]="shippingText()" (ngModelChange)="shippingText.set($event); saved.set(false)"></textarea>
+        <textarea id="profile-shipping" name="shipping" rows="4" aria-describedby="profile-shipping-hint profile-shipping-problem" [readOnly]="saveAction.busy()" [ngModel]="shippingText()" (ngModelChange)="shippingText.set($event); saved.set(false)"></textarea>
         <p id="profile-shipping-hint" class="muted">{{ t.shippingHint }}</p>
+        <p id="profile-shipping-problem" role="status">{{ problem() }}</p>
       </div>
       <button type="submit" class="btn btn--primary" [disabled]="!canSave()">{{ t.save }}</button>
     </form>

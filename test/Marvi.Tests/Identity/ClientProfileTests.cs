@@ -60,10 +60,31 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
         await PutAsync(client, "Acme", "Rua A", ["Rua B", "Rua C"]);
 
         var response = await PutAsync(client, "Acme", "Rua A", ["Rua C"]);
-        var cleared = await PutAsync(client, "Acme", "Rua A", null);
+        var cleared = await PutAsync(client, "Acme", "Rua A", []);
 
         Assert.Equal(["Rua C"], (await response.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!.ShippingAddresses);
         Assert.Empty((await cleared.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!.ShippingAddresses);
+    }
+
+    [Fact]
+    public async Task LeavingTheShippingListOut_IsRefused_NotTreatedAsClearingIt()
+    {
+        var (client, _) = await _factory.RegisterClientAsync();
+        await PutAsync(client, "Acme", "Rua A", ["Rua B"]);
+
+        var response = await client.PutAsJsonAsync("/api/client/profile", new { companyName = "Acme", billingAddress = "Rua A" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(["Rua B"], (await client.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!.ShippingAddresses);
+    }
+
+    [Fact]
+    public async Task ControlCharacters_AreRefused_NotAServerError()
+    {
+        var (client, _) = await _factory.RegisterClientAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await PutAsync(client, "Acme", "Rua A", ["x\u0000y"])).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await PutAsync(client, "A\u0000cme", "Rua A", [])).StatusCode);
     }
 
     [Fact]
@@ -123,7 +144,7 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
         var admin = await _factory.AdminAsync();
 
         Assert.Equal(HttpStatusCode.Forbidden, (await admin.GetAsync("/api/client/profile")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await PutAsync(admin, "A", "B", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await PutAsync(admin, "A", "B", [])).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await _factory.CreateClient().GetAsync("/api/client/profile")).StatusCode);
     }
 }

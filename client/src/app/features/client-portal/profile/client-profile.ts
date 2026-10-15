@@ -7,6 +7,11 @@ import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { ClientProfile, ProfileService } from '../api/profile.service';
 
+// The server's limits (ClientProfileRules): checked here too so the customer is told in pt-BR before sending.
+const MAX_COMPANY_LENGTH = 200;
+const MAX_ADDRESS_LENGTH = 500;
+const MAX_SHIPPING_ADDRESSES = 10;
+
 /** The customer's own company details (MRV-2.2): company name, billing address and a list of shipping addresses, one per line. */
 @Component({
   selector: 'app-client-profile',
@@ -25,7 +30,24 @@ export class ClientProfileCard implements OnInit {
   protected readonly billingAddress = signal('');
   protected readonly shippingText = signal('');
   protected readonly saved = signal(false);
-  protected readonly canSave = computed(() => this.companyName().trim() !== '' && this.billingAddress().trim() !== '' && !this.saveAction.busy());
+  /** The shipping addresses as the server will see them: one per line, trimmed, without blank lines or repeats (ignoring case). */
+  private readonly shippingLines = computed(() => {
+    const lines = this.shippingText().split('\n').map((line) => line.trim()).filter((line) => line !== '');
+    return lines.filter((line, index) => lines.findIndex((other) => other.toLowerCase() === line.toLowerCase()) === index);
+  });
+  /** The limits the server enforces, said in pt-BR before anything is sent. */
+  protected readonly problem = computed(() => {
+    const lines = this.shippingLines();
+    if (lines.length > MAX_SHIPPING_ADDRESSES) {
+      return this.t.tooManyAddresses;
+    }
+    return lines.some((line) => line.length > MAX_ADDRESS_LENGTH) ? this.t.addressTooLong : null;
+  });
+  protected readonly canSave = computed(
+    () => this.companyName().trim() !== '' && this.billingAddress().trim() !== '' && this.problem() === null && !this.saveAction.busy(),
+  );
+  protected readonly maxCompany = MAX_COMPANY_LENGTH;
+  protected readonly maxAddress = MAX_ADDRESS_LENGTH;
 
   private filled = false;
 
@@ -48,12 +70,8 @@ export class ClientProfileCard implements OnInit {
       return;
     }
     this.saved.set(false);
-    const shippingAddresses = this.shippingText()
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line !== '');
     this.saveAction.run(
-      this.service.update({ companyName: this.companyName().trim(), billingAddress: this.billingAddress().trim(), shippingAddresses }),
+      this.service.update({ companyName: this.companyName().trim(), billingAddress: this.billingAddress().trim(), shippingAddresses: this.shippingLines() }),
       (saved) => {
         this.fill(saved);
         this.saved.set(true);

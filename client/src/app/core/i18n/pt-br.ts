@@ -144,6 +144,8 @@ export const PT = {
     billing: 'Endereço de cobrança',
     shipping: 'Endereços de entrega',
     shippingHint: 'Um endereço por linha (até 10).',
+    tooManyAddresses: 'No máximo 10 endereços de entrega.',
+    addressTooLong: 'Cada endereço pode ter no máximo 500 caracteres.',
     save: 'Salvar dados',
     saved: 'Dados salvos.',
   },

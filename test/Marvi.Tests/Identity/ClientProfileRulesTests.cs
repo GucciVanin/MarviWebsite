@@ -34,6 +34,19 @@ public class ClientProfileRulesTests
         Assert.Null(ClientProfileRules.Check(new string('c', 200), new string('a', 500)).Problem);
     }
 
+    [Theory]
+    [InlineData("Ac\u0000me", "Rua A", "Rua B")]
+    [InlineData("Acme", "Rua\nA", "Rua B")]
+    [InlineData("Acme", "Rua A", "Rua B\nApto 3")]
+    [InlineData("Acme", "Rua A", "Rua\tB")]
+    public void ControlCharactersAndLineBreaks_AreRefused_EverywhereInTheDetails(string company, string billing, string shipping)
+    {
+        var (profile, problem) = ClientProfileRules.Check(company, billing, [shipping]);
+
+        Assert.Null(profile);
+        Assert.Contains("control characters", problem);
+    }
+
     [Fact]
     public void ShippingAddresses_DropBlanksAndRepeats_KeepingTheFirstAndTheOrder()
     {

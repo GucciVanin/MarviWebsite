@@ -293,6 +293,9 @@ ok('a missing company name, too many addresses and an over-long address are refu
   && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: Array.from({ length: 11 }, (_, i) => `Rua ${i}`) } })).status === 400
   && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: ['y'.repeat(501)] } })).status === 400
   && (await call('GET', '/api/client/profile', { token: clientD.token })).json.companyName === 'Adega');
+ok('leaving the shipping list out is refused (400), not treated as clearing it; a NUL character is a 400, not a 500',
+  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10' } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: ['x\u0000y'] } })).status === 400);
 ok('it is always the caller\'s own account: another customer\'s details are untouched', (await call('GET', '/api/client/profile', { token: clientA.token })).json.companyName === 'Bar do Zé');
 
 section('CSV IMPORT: an admin imports products from a file (on real Postgres)');

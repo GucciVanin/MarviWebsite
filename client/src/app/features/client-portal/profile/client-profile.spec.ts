@@ -78,6 +78,44 @@ describe('ClientProfileCard', () => {
     expect(save().disabled).toBe(true);
   });
 
+  it('says in pt-BR, before sending anything, when there are too many shipping addresses or one is too long', async () => {
+    const { http, root, settle, type } = setup();
+    http.expectOne('/api/client/profile').flush(profile());
+    await settle();
+    const save = () => root.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+
+    type('profile-shipping', Array.from({ length: 11 }, (_, i) => `Rua ${i}`).join('\n'));
+    await settle();
+    expect(text(root)).toContain('No máximo 10 endereços');
+    expect(save().disabled).toBe(true);
+
+    type('profile-shipping', 'x'.repeat(501));
+    await settle();
+    expect(text(root)).toContain('no máximo 500 caracteres');
+    expect(save().disabled).toBe(true);
+
+    // Repeats do not count: the server drops them, so ten different addresses plus repeats are fine.
+    type('profile-shipping', [...Array.from({ length: 10 }, (_, i) => `Rua ${i}`), 'rua 0'].join('\n'));
+    await settle();
+    expect(text(root)).not.toContain('No máximo 10 endereços');
+    expect(save().disabled).toBe(false);
+  });
+
+  it('does not let the fields change while the details are being saved, so a reply cannot overwrite new typing', async () => {
+    const { fixture, http, root, settle, field } = setup();
+    http.expectOne('/api/client/profile').flush(profile());
+    await settle();
+
+    root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(field<HTMLInputElement>('profile-company').readOnly).toBe(true);
+    expect(field<HTMLTextAreaElement>('profile-shipping').readOnly).toBe(true);
+    http.expectOne('/api/client/profile').flush(profile());
+    await settle();
+    expect(field<HTMLInputElement>('profile-company').readOnly).toBe(false);
+  });
+
   it('explains in pt-BR when the server refuses the details, and keeps what was typed', async () => {
     const { fixture, http, root, settle, field, type } = setup();
     http.expectOne('/api/client/profile').flush(profile());
