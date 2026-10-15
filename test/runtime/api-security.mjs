@@ -312,14 +312,10 @@ const badImport = await importCsv(`sku,name,category,price\nIMP-OK-${impSku},Fin
 ok('a file with errors imports nothing (400) and lists every problem with its line', badImport.status === 400 && badImport.json.errors.length === 3
   && badImport.json.errors.every((e) => e.line === 3) && sql(`select count(*) from products where sku like 'IMP-%-${impSku}'`) === '0');
 ok('a typo in a column name is an error, not ignored', (await importCsv('sku,name,prce\nA,B,1\n')).json.errors[0].message.includes("Unknown column 'prce'"));
-const ambiguousPrice = await importCsv('sku;name;price
-AMB-' + impSku + ';Ambiguous;1.234
-');
+const ambiguousPrice = await importCsv(`sku;name;price\nAMB-${impSku};Ambiguous;1.234\n`);
 ok('a Brazilian thousands price such as 1.234 is refused as ambiguous, never stored as 1.234 (400)', ambiguousPrice.status === 400 && ambiguousPrice.json.errors[0].message.includes('at most 2 decimals')
   && sql(`select count(*) from products where sku='AMB-' || '${impSku}'`) === '0');
-const excelTrailing = await importCsv(`sku;name;price;
-XL-${impSku};Excel export;1.234,00;
-`);
+const excelTrailing = await importCsv(`sku;name;price;\nXL-${impSku};Excel export;1.234,00;\n`);
 ok('an Excel export with a trailing separator on every line imports (1.234,00 = R$ 1234)', excelTrailing.status === 200 && excelTrailing.json.created === 1
   && sql(`select unit_price from product_pricings pp join products p on p.id = pp.product_id where p.sku='XL-${impSku}'`) === '1234.00');
 ok('the import is in the audit log', (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.action === 'Import' && e.details.data.includes('"Created":1') && e.details.data.includes(impSku)));
