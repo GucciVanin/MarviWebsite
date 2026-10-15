@@ -19,6 +19,7 @@ public static class OrderFactory
             ClientAccountId = clientAccountId,
             QuoteId = quoteId,
             Status = OrderStatus.Placed,
+            PlacedAt = DateTime.UtcNow,
             DeliveryAddress = deliveryAddress,
             PlacedByEmployeeId = placedByEmployeeId
         };

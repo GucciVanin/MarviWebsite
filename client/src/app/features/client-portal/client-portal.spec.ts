@@ -225,7 +225,7 @@ describe('ClientPortal', () => {
     http.expectOne('/api/quotes/q1/accept').flush({});
     http.expectOne('/api/quotes/mine').flush([quote('q1', 'Accepted', [line('Cola 2L', 2, 12.5, 11)])]);
     http.expectOne('/api/orders/mine').flush([
-      { id: 'o1', clientAccountId: 'c1', quoteId: 'q1', status: 'Placed', deliveryAddress: '', warehouseId: null, placedByEmployeeId: null, totalAmount: 22,
+      { id: 'o1', clientAccountId: 'c1', quoteId: 'q1', status: 'Placed', deliveryAddress: '', warehouseId: null, placedByEmployeeId: null, placedAt: '2026-10-14T13:42:00Z', totalAmount: 22,
         lineItems: [{ id: 'ol1', productId: 'p1', productName: 'Cola 2L', qty: 2, unitPrice: 11 }] },
     ]);
     await settle();
@@ -356,7 +356,7 @@ describe('ClientPortal', () => {
   it('shows each order with its lines, total and status', async () => {
     const { root, settle } = setup({
       orders: [
-        { id: 'o1', clientAccountId: 'c1', quoteId: 'q1', status: 'Fulfilled', deliveryAddress: 'Rua A, 10', warehouseId: null, placedByEmployeeId: null, totalAmount: 1234.5,
+        { id: 'o1', clientAccountId: 'c1', quoteId: 'q1', status: 'Fulfilled', deliveryAddress: 'Rua A, 10', warehouseId: null, placedByEmployeeId: null, placedAt: '2026-10-14T13:42:00Z', totalAmount: 1234.5,
           lineItems: [{ id: 'ol1', productId: 'p1', productName: 'Cola 2L', qty: 2, unitPrice: 617.25 }] },
       ],
     });
@@ -365,6 +365,7 @@ describe('ClientPortal', () => {
     const card = root.querySelector('[data-testid="order"]')!;
     expect(card.textContent).toContain('Entregue');
     expect(card.textContent).toContain('Rua A, 10');
+    expect(card.textContent).toContain('Realizado em 14/10/2026');
     expect(card.textContent).toContain('Cola 2L');
     expect(card.textContent).toContain('1.234,50');
   });

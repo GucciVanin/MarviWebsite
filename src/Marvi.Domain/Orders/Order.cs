@@ -17,6 +17,8 @@ public class Order
     public Warehouse? Warehouse { get; set; }
     public Guid? PlacedByEmployeeId { get; set; }
     public EmployeeAccount? PlacedByEmployee { get; set; }
+    /// <summary>When the order was placed (UTC). Set by <see cref="OrderFactory"/>; the history is filtered and sorted by it.</summary>
+    public DateTime PlacedAt { get; set; }
     public decimal TotalAmount { get; set; }
     public List<OrderLineItem> LineItems { get; set; } = new();
 }

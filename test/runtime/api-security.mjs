@@ -282,6 +282,21 @@ ok('...a range in the past is empty', (await call('GET', `/api/employee/quotes/h
 ok('...an invalid page or an inverted range is refused (400)', (await call('GET', '/api/employee/quotes/history?page=0', { token: emp })).status === 400
   && (await call('GET', '/api/employee/quotes/history?from=2026-05-01&to=2026-04-01', { token: emp })).status === 400);
 
+section('ORDER HISTORY: employees read every order with the time it was placed (on real Postgres)');
+const ordA = (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&pageSize=200`, { token: emp })).json;
+const ordAMine = (await call('GET', '/api/orders/mine', { token: clientA.token })).json;
+ok('history of one customer: all and only its orders, with the total', ordA.totalCount === ordAMine.length && ordA.items.every((o) => o.clientAccountId === clientA.id));
+ok('...every order carries a placement time that is recent and in the past', ordA.items.every((o) => Date.parse(o.placedAt) > Date.now() - 3600_000 && Date.parse(o.placedAt) <= Date.now() + 5000));
+ok('...newest first', ordA.items.every((o, i) => i === 0 || Date.parse(ordA.items[i - 1].placedAt) >= Date.parse(o.placedAt)));
+ok('...the customer sees the same time on their own orders', ordAMine.every((o) => o.placedAt && ordA.items.some((h) => h.id === o.id && h.placedAt === o.placedAt)));
+ok('...paged with the total', (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&page=1&pageSize=1`, { token: emp })).json.items.length === 1);
+ok('status filter', (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&status=Cancelled`, { token: emp })).json.totalCount === 0
+  && (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&status=Placed`, { token: emp })).json.totalCount === ordA.totalCount);
+ok('date filter: today includes them, a past range does not', (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&from=${today}&to=${tomorrow}`, { token: emp })).json.totalCount === ordA.totalCount
+  && (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&from=2001-01-01&to=2001-02-01`, { token: emp })).json.totalCount === 0);
+ok('...an invalid page or an inverted range is refused (400)', (await call('GET', '/api/employee/orders/history?pageSize=0', { token: emp })).status === 400
+  && (await call('GET', '/api/employee/orders/history?from=2026-05-01&to=2026-04-01', { token: emp })).status === 400);
+
 // ---------------------------------------------------------------- security
 section('AUDIT: an admin change and its audit entry are stored together');
 const auditRows = () => Number(sql('select count(*) from audit_log_entries'));
@@ -437,6 +452,7 @@ const endpoints = [
   ['POST', '/api/quotes', { lineItems: [{ productId: ID, qty: 1 }] }, ['client']], ['POST', `/api/quotes/${ID}/accept`, undefined, ['client']],
   ['POST', `/api/quotes/${ID}/reject`, undefined, ['client']],
   ['GET', '/api/employee/quotes/history', undefined, ['employee', 'admin']],
+  ['GET', '/api/employee/orders/history', undefined, ['employee', 'admin']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {

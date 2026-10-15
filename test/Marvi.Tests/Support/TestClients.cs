@@ -44,6 +44,16 @@ public static class TestClients
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Creates a product priced for the default tier (the tier new clients are assigned).</summary>
+    public static async Task<Guid> CreatePricedProductAsync(this HttpClient admin, decimal unitPrice)
+    {
+        var productId = await admin.CreateProductAsync();
+        var tiers = (await admin.GetFromJsonAsync<List<PricingTierDto>>("/api/admin/pricing-tiers"))!;
+        var defaultTier = Assert.Single(tiers, t => t.IsDefault);
+        (await admin.PutAsJsonAsync($"/api/admin/products/{productId}/pricing", new UpsertProductPricingRequest(defaultTier.Id, unitPrice, 1))).EnsureSuccessStatusCode();
+        return productId;
+    }
+
     public static async Task<Guid> CreateProductAsync(this HttpClient admin, string? sku = null, string name = "Widget", Guid? categoryId = null)
     {
         var response = await admin.PostAsJsonAsync("/api/admin/products",

@@ -443,6 +443,10 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("delivery_address");
 
+                    b.Property<DateTime>("PlacedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("placed_at");
+
                     b.Property<Guid?>("PlacedByEmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("placed_by_employee_id");
