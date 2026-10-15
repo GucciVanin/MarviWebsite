@@ -16,6 +16,7 @@ public static class AuditActions
     public const string Upsert = "Upsert";
     public const string Approve = "Approve";
     public const string Suspend = "Suspend";
+    public const string Import = "Import";
 }
 
 /// <summary>

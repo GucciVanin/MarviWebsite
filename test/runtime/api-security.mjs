@@ -279,6 +279,48 @@ ok('a negative credit, an unknown tier and an unknown customer are refused (400/
   && (await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } })).status === 400
   && (await call('PUT', `/api/admin/clients/${crypto.randomUUID()}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 1 } })).status === 404);
 
+section('CSV IMPORT: an admin imports products from a file (on real Postgres)');
+const importCsv = (csv, query = '', token = admin) => {
+  const form = new FormData();
+  form.append('file', new Blob([csv], { type: 'text/csv' }), 'products.csv');
+  return call('POST', `/api/admin/products/import${query}`, { token, raw: form });
+};
+const impSku = `IMP-${crypto.randomBytes(4).toString('hex')}`;
+const semicolonCsv = `﻿sku;name;description;category;price;stock;attr_Marca;tier_Wholesale\r\n${impSku};Cerveja Importada;"Gelada; 600ml";cervejas;12,50;25;Acme;10,00\r\n`;
+const noWarehouse = await importCsv(semicolonCsv);
+ok('with two warehouses, stock without a chosen warehouse is refused (400) and nothing is created', noWarehouse.status === 400 && noWarehouse.json.applied === false
+  && sql(`select count(*) from products where sku='${impSku}'`) === '0');
+const dry = await importCsv(semicolonCsv, `?dryRun=true&warehouseId=${wh1.id}`);
+ok('a dry run reports what would be created and changes nothing', dry.status === 200 && dry.json.dryRun && !dry.json.applied && dry.json.created === 1
+  && sql(`select count(*) from products where sku='${impSku}'`) === '0');
+const imported = await importCsv(semicolonCsv, `?warehouseId=${wh1.id}`);
+ok('a semicolon file with a byte order mark, quoted text and Brazilian numbers imports (200, 1 created)', imported.status === 200 && imported.json.applied && imported.json.created === 1 && imported.json.updated === 0, imported.text.slice(0, 200));
+const impProduct = (await call('GET', '/api/admin/products', { token: admin })).json.find((p) => p.sku === impSku);
+ok('...name, description, category and attribute are stored', impProduct?.name === 'Cerveja Importada' && impProduct.description === 'Gelada; 600ml' && impProduct.categoryId === cat.beer.id && impProduct.attributes.Marca === 'Acme');
+const visitorSees = (await call('GET', '/api/products')).json.find((p) => p.sku === impSku);
+// The category has a running 10% deal in the seed data, so the default-tier price 12.50 shows as 11.25: the category was set too.
+ok('...the default-tier price (less the category\'s running deal) is what a visitor sees', near(visitorSees?.price, 11.25) && visitorSees.dealName === 'Cervejas -10%', JSON.stringify(visitorSees));
+ok('...the tier price and the stock are stored', sql(`select unit_price from product_pricings where product_id='${impProduct.id}' and pricing_tier_id='${wholesale.id}'`) === '10.00'
+  && sql(`select qty_on_hand from inventory_records where product_id='${impProduct.id}' and warehouse_id='${wh1.id}'`) === '25');
+const reimport = await importCsv(`sku,name,price\n${impSku.toLowerCase()},Cerveja Renomeada,9.90\n`);
+ok('importing again matches the SKU ignoring case: updated, not duplicated', reimport.status === 200 && reimport.json.created === 0 && reimport.json.updated === 1
+  && sql(`select count(*) from products where lower(sku)='${impSku.toLowerCase()}'`) === '1');
+const afterReimport = (await call('GET', '/api/admin/products', { token: admin })).json.find((p) => p.sku === impSku);
+ok('...a blank cell kept the existing description and category, and the new price (9.90 less the deal = 8.91) applies', afterReimport.name === 'Cerveja Renomeada' && afterReimport.description === 'Gelada; 600ml'
+  && afterReimport.categoryId === cat.beer.id && near((await call('GET', '/api/products')).json.find((p) => p.sku === impSku)?.price, 8.91));
+const badImport = await importCsv(`sku,name,category,price\nIMP-OK-${impSku},Fine,Cervejas,5\nIMP-BAD-${impSku},,Nope,abc\n`);
+ok('a file with errors imports nothing (400) and lists every problem with its line', badImport.status === 400 && badImport.json.errors.length === 3
+  && badImport.json.errors.every((e) => e.line === 3) && sql(`select count(*) from products where sku like 'IMP-%-${impSku}'`) === '0');
+ok('a typo in a column name is an error, not ignored', (await importCsv('sku,name,prce\nA,B,1\n')).json.errors[0].message.includes("Unknown column 'prce'"));
+const ambiguousPrice = await importCsv(`sku;name;price\nAMB-${impSku};Ambiguous;1.234\n`);
+ok('a Brazilian thousands price such as 1.234 is refused as ambiguous, never stored as 1.234 (400)', ambiguousPrice.status === 400 && ambiguousPrice.json.errors[0].message.includes('at most 2 decimals')
+  && sql(`select count(*) from products where sku='AMB-' || '${impSku}'`) === '0');
+const excelTrailing = await importCsv(`sku;name;price;\nXL-${impSku};Excel export;1.234,00;\n`);
+ok('an Excel export with a trailing separator on every line imports (1.234,00 = R$ 1234)', excelTrailing.status === 200 && excelTrailing.json.created === 1
+  && sql(`select unit_price from product_pricings pp join products p on p.id = pp.product_id where p.sku='XL-${impSku}'`) === '1234.00');
+ok('the import is in the audit log', (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.action === 'Import' && e.details.data.includes('"Created":1') && e.details.data.includes(impSku)));
+ok('only admins may import (403 for an employee)', (await importCsv('sku,name\nA,B\n', '', emp)).status === 403);
+
 section('QUOTE HISTORY: employees read every quote, paged and filterable (on real Postgres)');
 const histA = (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&pageSize=2`, { token: emp })).json;
 ok('history of one customer: its quotes only, in every status, with the total', histA.totalCount >= 4 && histA.items.length === 2 && histA.items.every((q) => q.clientAccountId === clientA.id)
@@ -475,6 +517,7 @@ const endpoints = [
   ['GET', '/api/employee/quotes/history', undefined, ['employee', 'admin']],
   ['GET', '/api/employee/orders/history', undefined, ['employee', 'admin']],
   ['PUT', `/api/admin/clients/${ID}/update-credit`, { pricingTierId: ID, creditLimit: 1 }, ['admin']],
+  ['POST', '/api/admin/products/import', undefined, ['admin']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {
