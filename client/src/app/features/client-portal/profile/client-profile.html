@@ -1,0 +1,26 @@
+<section class="card" aria-labelledby="profile-title">
+  <h2 id="profile-title">{{ t.title }}</h2>
+  <app-load-state [state]="profile" />
+  @if (profile.loaded()) {
+    <form (ngSubmit)="save()">
+      <div class="field">
+        <label for="profile-company">{{ t.company }}</label>
+        <input id="profile-company" name="company" type="text" autocomplete="organization" required [ngModel]="companyName()" (ngModelChange)="companyName.set($event); saved.set(false)" />
+      </div>
+      <div class="field">
+        <label for="profile-billing">{{ t.billing }}</label>
+        <input id="profile-billing" name="billing" type="text" autocomplete="street-address" required [ngModel]="billingAddress()" (ngModelChange)="billingAddress.set($event); saved.set(false)" />
+      </div>
+      <div class="field">
+        <label for="profile-shipping">{{ t.shipping }}</label>
+        <textarea id="profile-shipping" name="shipping" rows="4" aria-describedby="profile-shipping-hint" [ngModel]="shippingText()" (ngModelChange)="shippingText.set($event); saved.set(false)"></textarea>
+        <p id="profile-shipping-hint" class="muted">{{ t.shippingHint }}</p>
+      </div>
+      <button type="submit" class="btn btn--primary" [disabled]="!canSave()">{{ t.save }}</button>
+    </form>
+    <app-error-alert [error]="saveAction.error()" />
+    @if (saved()) {
+      <p class="alert alert--success" role="status">{{ t.saved }}</p>
+    }
+  }
+</section>

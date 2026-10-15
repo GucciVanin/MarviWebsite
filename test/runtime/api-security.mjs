@@ -279,6 +279,22 @@ ok('a negative credit, an unknown tier and an unknown customer are refused (400/
   && (await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } })).status === 400
   && (await call('PUT', `/api/admin/clients/${crypto.randomUUID()}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 1 } })).status === 404);
 
+section('CLIENT PROFILE: a customer edits their own company details (on real Postgres)');
+const ownProfile = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
+ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.shippingAddresses.length === 0);
+const putProfile = await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: '  Adega do Dedé Ltda ', billingAddress: 'Rua Nova, 10', shippingAddresses: ['Av. Brasil, 100', ' ', 'av. brasil, 100', 'Rua do Porto, 5 — loja 2'] } });
+ok('...edits them: trimmed, blank and repeated shipping lines dropped (200)', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda'
+  && JSON.stringify(putProfile.json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
+ok('...the shipping list is stored as a list in the database and staff see the same', sql(`select cardinality(shipping_addresses) from client_accounts where id='${clientD.id}'`) === '2'
+  && JSON.stringify((await call('GET', `/api/employee/clients/${clientD.id}`, { token: emp })).json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
+ok('...the list is replaced as a whole (an empty list clears it)', (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: [] } })).json.shippingAddresses.length === 0);
+ok('a missing company name, too many addresses and an over-long address are refused (400) and change nothing',
+  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: ' ', billingAddress: 'x', shippingAddresses: [] } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: Array.from({ length: 11 }, (_, i) => `Rua ${i}`) } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: ['y'.repeat(501)] } })).status === 400
+  && (await call('GET', '/api/client/profile', { token: clientD.token })).json.companyName === 'Adega');
+ok('it is always the caller\'s own account: another customer\'s details are untouched', (await call('GET', '/api/client/profile', { token: clientA.token })).json.companyName === 'Bar do Zé');
+
 section('CSV IMPORT: an admin imports products from a file (on real Postgres)');
 const importCsv = (csv, query = '', token = admin) => {
   const form = new FormData();
@@ -518,6 +534,7 @@ const endpoints = [
   ['GET', '/api/employee/orders/history', undefined, ['employee', 'admin']],
   ['PUT', `/api/admin/clients/${ID}/update-credit`, { pricingTierId: ID, creditLimit: 1 }, ['admin']],
   ['POST', '/api/admin/products/import', undefined, ['admin']],
+  ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {

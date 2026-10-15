@@ -138,6 +138,15 @@ export const PT = {
     priceOnRequest: 'Sob consulta',
     add: 'Adicionar',
   },
+  clientProfile: {
+    title: 'Meus dados',
+    company: 'Nome da empresa',
+    billing: 'Endereço de cobrança',
+    shipping: 'Endereços de entrega',
+    shippingHint: 'Um endereço por linha (até 10).',
+    save: 'Salvar dados',
+    saved: 'Dados salvos.',
+  },
   clientPortal: {
     title: 'Minha área',
     catalogTitle: 'Montar cotação',
