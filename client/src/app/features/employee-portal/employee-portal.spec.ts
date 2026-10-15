@@ -282,7 +282,7 @@ describe('EmployeePortal', () => {
       lineItems: [{ productId: '1', qty: 2 }, { productId: '2', qty: 1 }],
     });
     post.flush({
-      id: 'o1', clientAccountId: 'c-123', quoteId: null, status: 'Placed', deliveryAddress: 'Rua Entrega, 10', warehouseId: null, placedByEmployeeId: 'e1',
+      id: 'o1', clientAccountId: 'c-123', quoteId: null, status: 'Placed', deliveryAddress: 'Rua Entrega, 10', warehouseId: null, placedByEmployeeId: 'e1', placedAt: '2026-10-14T13:42:00Z',
       totalAmount: 30, lineItems: [{ id: 'ol1', productId: '1', productName: 'Cola 2L', qty: 2, unitPrice: 10 }, { id: 'ol2', productId: '2', productName: 'Água', qty: 1, unitPrice: 10 }],
     });
     await settle();

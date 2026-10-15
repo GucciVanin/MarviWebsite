@@ -109,6 +109,7 @@
       <article class="card" data-testid="order">
         <header class="toolbar">
           <strong>{{ order.deliveryAddress || t.noAddress }}</strong>
+          <span class="muted">{{ t.placedOn }} {{ order.placedAt | ptDate }}</span>
           <span class="badge badge--ok">{{ statuses.order[order.status] ?? order.status }}</span>
         </header>
         <table class="table">

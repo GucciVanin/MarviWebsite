@@ -215,14 +215,5 @@ public class QuotesController : ControllerBase
         quote.PricedByEmployeeId,
         quote.LineItems.Select(li => new QuoteLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.SuggestedUnitPrice, li.FinalUnitPrice)).ToList());
 
-    private static OrderDto ToDto(Order order) => new(
-        order.Id,
-        order.ClientAccountId,
-        order.QuoteId,
-        order.Status,
-        order.DeliveryAddress,
-        order.WarehouseId,
-        order.PlacedByEmployeeId,
-        order.TotalAmount,
-        order.LineItems.Select(li => new OrderLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.UnitPrice)).ToList());
+    private static OrderDto ToDto(Order order) => OrderDto.From(order);
 }

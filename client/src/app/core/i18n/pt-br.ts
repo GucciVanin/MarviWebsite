@@ -152,6 +152,7 @@ export const PT = {
     quotesTitle: 'Minhas cotações',
     noQuotes: 'Nenhuma cotação ainda.',
     ordersTitle: 'Meus pedidos',
+    placedOn: 'Realizado em',
     noOrders: 'Nenhum pedido ainda.',
     status: 'Situação',
     sentOn: 'Enviada em',

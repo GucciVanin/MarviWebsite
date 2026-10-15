@@ -1,4 +1,5 @@
 using Marvi.Api.Features.Catalog;
+using Marvi.Api.Features.Common;
 using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Orders.Contracts;
 using Marvi.Domain.Catalog;
@@ -95,6 +96,61 @@ public class EmployeeOrdersController : ControllerBase
         return Created(string.Empty, dto);
     }
 
+    /// <summary>
+    /// Every order ever placed, in any status, newest first (MRV-1.2b). Filter by customer, status and placement date
+    /// (`from` inclusive, `to` exclusive, read as UTC); paged.
+    /// </summary>
+    [HttpGet("history")]
+    public async Task<ActionResult<PagedResult<OrderDto>>> GetHistory(
+        [FromQuery] Guid? clientId,
+        [FromQuery] OrderStatus? status,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = Paging.DefaultPageSize)
+    {
+        var problem = Paging.Validate(page, pageSize) ?? DateRange.Validate(from, to)
+            ?? (status.HasValue && !Enum.IsDefined(status.Value) ? "Unknown status." : null);
+        if (problem is not null)
+        {
+            return BadRequest(problem);
+        }
+
+        var query = _dbContext.Orders.AsQueryable();
+        if (clientId.HasValue)
+        {
+            query = query.Where(o => o.ClientAccountId == clientId.Value);
+        }
+
+        if (status.HasValue)
+        {
+            query = query.Where(o => o.Status == status.Value);
+        }
+
+        if (from.HasValue)
+        {
+            var start = DateRange.AsUtc(from.Value);
+            query = query.Where(o => o.PlacedAt >= start);
+        }
+
+        if (to.HasValue)
+        {
+            var end = DateRange.AsUtc(to.Value);
+            query = query.Where(o => o.PlacedAt < end);
+        }
+
+        var total = await query.CountAsync();
+        var (size, skip) = Paging.Resolve(page, pageSize);
+        var orders = await query
+            .Include(o => o.LineItems).ThenInclude(li => li.Product)
+            .OrderByDescending(o => o.PlacedAt).ThenBy(o => o.Id)
+            .Skip(skip)
+            .Take(size)
+            .ToListAsync();
+
+        return Ok(new PagedResult<OrderDto>(orders.Select(ToDto).ToList(), page, size, total));
+    }
+
     private async Task<OrderDto> LoadOrderDtoAsync(Guid orderId)
     {
         var order = await _dbContext.Orders
@@ -103,14 +159,5 @@ public class EmployeeOrdersController : ControllerBase
         return ToDto(order);
     }
 
-    private static OrderDto ToDto(Order order) => new(
-        order.Id,
-        order.ClientAccountId,
-        order.QuoteId,
-        order.Status,
-        order.DeliveryAddress,
-        order.WarehouseId,
-        order.PlacedByEmployeeId,
-        order.TotalAmount,
-        order.LineItems.Select(li => new OrderLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.UnitPrice)).ToList());
+    private static OrderDto ToDto(Order order) => OrderDto.From(order);
 }

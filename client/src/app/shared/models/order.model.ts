@@ -16,6 +16,7 @@ export interface Order {
   deliveryAddress: string;
   warehouseId: string | null;
   placedByEmployeeId: string | null;
+  placedAt: string;
   totalAmount: number;
   lineItems: OrderLineItem[];
 }
