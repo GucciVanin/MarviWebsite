@@ -110,7 +110,29 @@ public class QuoteHistoryTests : IClassFixture<MarviApiFactory>
         Assert.Empty(firstPage.Items.Select(q => q.Id).Intersect(secondPage.Items.Select(q => q.Id)));
     }
 
+    [Fact]
+    public async Task History_DateBounds_FromIsInclusive_ToIsExclusive_AndOffsetsAreHonoured()
+    {
+        var admin = await _factory.AdminAsync();
+        var product = await admin.CreateProductAsync();
+        var (client, clientId) = await _factory.RegisterClientAsync();
+        var atFrom = await RequestQuoteAsync(client, product);
+        var atTo = await RequestQuoteAsync(client, product);
+        await SetCreatedAtAsync(atFrom.Id, new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc));
+        await SetCreatedAtAsync(atTo.Id, new DateTime(2026, 3, 2, 12, 0, 0, DateTimeKind.Utc));
+
+        var exact = await HistoryAsync(admin, $"?clientId={clientId}&from=2026-03-01T12:00:00Z&to=2026-03-02T12:00:00Z");
+        // 2026-03-02T09:00-03:00 is 12:00 UTC: the same instant as the quote, so it is excluded by `to`.
+        var withOffset = await HistoryAsync(admin, $"?clientId={clientId}&from=2026-03-01T09:00:00-03:00&to=2026-03-02T09:00:00-03:00");
+        var justAfter = await HistoryAsync(admin, $"?clientId={clientId}&from=2026-03-01T12:00:01Z");
+
+        Assert.Equal([atFrom.Id], exact.Items.Select(q => q.Id));
+        Assert.Equal([atFrom.Id], withOffset.Items.Select(q => q.Id));
+        Assert.Equal([atTo.Id], justAfter.Items.Select(q => q.Id));
+    }
+
     [Theory]
+    [InlineData("?status=99")]
     [InlineData("?page=0")]
     [InlineData("?pageSize=0")]
     [InlineData("?from=2026-05-01&to=2026-04-01")]

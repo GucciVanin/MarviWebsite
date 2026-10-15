@@ -25,8 +25,8 @@ Contents: 1 Rules for agents · 2 System context · 3 Repository map · 4 Backen
 7. **Admin input rules live in `AdminInput` / `DeleteGuards` / `InputProblem`** (`Api/Features/Admin`, MRV-4.6): `Clean` (trim), `IsBlank`, `ExceedsLength`, `EqualsIgnoreCase` (a database-side "same name ignoring case" filter) `DeleteGuard`s ("still referenced, cannot delete" with its message, declared next to the controller together with its race fallback message) and `InputProblem` (the one result every admin validator returns: 400 or 409 plus a message; the controller turns it into the response with `ToResult(this)`). Employee creation keeps its array-of-messages 400 body because that response shape is part of its contract. Controllers keep their own limits and messages but must not re-implement trimming, case-insensitive comparison or the delete pre-check. Today deals do not trim or limit names, and deal, pricing-tier and warehouse names have no length limit; adding limits there is an owner decision, not a refactor.
 8. **Schema changes need an EF migration** in `Marvi.Infrastructure/Migrations`.
 9. **List endpoints that can grow use `Paging` / `PagedResult<T>` / `DateRange`** (`Api/Features/Common`, MRV-1.2a): pages start at 1, a request never returns more than 200 rows
-   (`Paging.Resolve`), the response carries `TotalCount`, and a `from`/`to` date filter is `from` inclusive, `to` exclusive, read as UTC. Used by the employee history endpoints and the audit log.
-9. After a change run `dotnet test Marvi.slnx` and (client) `npx tsc -p tsconfig.app.json --noEmit`
+   (`Paging.Resolve`), the response carries `TotalCount`, and a `from`/`to` date filter is `from` inclusive, `to` exclusive, read as UTC. The employee history endpoints use all three; the audit log (still a bare list, no total) shares only the paging cap.
+10. After a change run `dotnet test Marvi.slnx` and (client) `npx tsc -p tsconfig.app.json --noEmit`
    or `npm run build` (needs Node >= 22.22.3).
 
 ## 2. System context

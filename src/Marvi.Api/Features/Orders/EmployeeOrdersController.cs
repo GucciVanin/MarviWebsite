@@ -109,7 +109,8 @@ public class EmployeeOrdersController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize)
     {
-        var problem = Paging.Validate(page, pageSize) ?? DateRange.Validate(from, to);
+        var problem = Paging.Validate(page, pageSize) ?? DateRange.Validate(from, to)
+            ?? (status.HasValue && !Enum.IsDefined(status.Value) ? "Unknown status." : null);
         if (problem is not null)
         {
             return BadRequest(problem);

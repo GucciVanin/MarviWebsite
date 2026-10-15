@@ -103,6 +103,7 @@ public class OrderHistoryTests : IClassFixture<MarviApiFactory>
     }
 
     [Theory]
+    [InlineData("?status=99")]
     [InlineData("?page=0")]
     [InlineData("?pageSize=0")]
     [InlineData("?from=2026-05-01&to=2026-04-01")]

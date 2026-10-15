@@ -294,6 +294,12 @@ ok('status filter', (await call('GET', `/api/employee/orders/history?clientId=${
   && (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&status=Placed`, { token: emp })).json.totalCount === ordA.totalCount);
 ok('date filter: today includes them, a past range does not', (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&from=${today}&to=${tomorrow}`, { token: emp })).json.totalCount === ordA.totalCount
   && (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&from=2001-01-01&to=2001-02-01`, { token: emp })).json.totalCount === 0);
+const hourAgo = encodeURIComponent(new Date(Date.now() - 3600_000).toISOString());
+const hourAhead = encodeURIComponent(new Date(Date.now() + 3600_000).toISOString());
+ok('...full UTC timestamps work as bounds on Postgres', (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&from=${hourAgo}&to=${hourAhead}`, { token: emp })).json.totalCount === ordA.totalCount
+  && (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&from=${hourAhead}`, { token: emp })).json.totalCount === 0);
+ok('...an unknown status is refused (400)', (await call('GET', '/api/employee/orders/history?status=99', { token: emp })).status === 400
+  && (await call('GET', '/api/employee/quotes/history?status=99', { token: emp })).status === 400);
 ok('...an invalid page or an inverted range is refused (400)', (await call('GET', '/api/employee/orders/history?pageSize=0', { token: emp })).status === 400
   && (await call('GET', '/api/employee/orders/history?from=2026-05-01&to=2026-04-01', { token: emp })).status === 400);
 
