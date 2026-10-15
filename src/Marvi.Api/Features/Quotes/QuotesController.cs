@@ -155,6 +155,42 @@ public class QuotesController : ControllerBase
         return Created(string.Empty, dto);
     }
 
+    /// <summary>A customer turns down a priced quote. Unlike accepting, this is allowed for a suspended account: it creates nothing.</summary>
+    [HttpPost("{id:guid}/reject")]
+    public async Task<ActionResult<QuoteDto>> Reject(Guid id)
+    {
+        var clientId = User.ClientId();
+        if (clientId is null)
+        {
+            return Forbid();
+        }
+
+        var quote = await _dbContext.Quotes
+            .Include(q => q.LineItems).ThenInclude(li => li.Product)
+            .FirstOrDefaultAsync(q => q.Id == id);
+        if (quote is null)
+        {
+            return NotFound();
+        }
+
+        if (quote.ClientAccountId != clientId.Value)
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            _quoteWorkflowService.RejectQuote(quote);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+
+        await _dbContext.SaveChangesAsync();
+        return Ok(ToDto(quote));
+    }
+
     private async Task<QuoteDto> LoadQuoteDtoAsync(Guid quoteId)
     {
         var quote = await _dbContext.Quotes

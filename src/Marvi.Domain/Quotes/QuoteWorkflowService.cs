@@ -56,6 +56,17 @@ public class QuoteWorkflowService
         quote.PricedByEmployeeId = employeeId;
     }
 
+    /// <summary>The customer turns down a priced quote. Only a Priced quote can be rejected, and it can no longer be accepted.</summary>
+    public void RejectQuote(Quote quote)
+    {
+        if (quote.Status != QuoteStatus.Priced)
+        {
+            throw new InvalidOperationException($"Quote must be in '{QuoteStatus.Priced}' status to be rejected, but was '{quote.Status}'.");
+        }
+
+        quote.Status = QuoteStatus.Rejected;
+    }
+
     public Order AcceptQuote(Quote quote)
     {
         if (quote.Status != QuoteStatus.Priced)

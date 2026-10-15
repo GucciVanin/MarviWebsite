@@ -35,6 +35,32 @@ public class QuoteWorkflowServiceTests
     }
 
     [Fact]
+    public void RejectQuote_WhenPriced_MarksItRejected_AndItCanNoLongerBeAccepted()
+    {
+        var lineItem = new QuoteLineItem { Id = Guid.NewGuid(), ProductId = Guid.NewGuid(), Qty = 1, SuggestedUnitPrice = 5m };
+        var quote = _sut.CreateQuote(Guid.NewGuid(), [lineItem]);
+        _sut.PriceQuote(quote, null, [(lineItem.Id, 4m)]);
+
+        _sut.RejectQuote(quote);
+
+        Assert.Equal(QuoteStatus.Rejected, quote.Status);
+        Assert.Throws<InvalidOperationException>(() => _sut.AcceptQuote(quote));
+    }
+
+    [Theory]
+    [InlineData(QuoteStatus.Submitted)]
+    [InlineData(QuoteStatus.Accepted)]
+    [InlineData(QuoteStatus.Rejected)]
+    public void RejectQuote_WhenNotPriced_ThrowsInvalidOperationException(QuoteStatus status)
+    {
+        var quote = _sut.CreateQuote(Guid.NewGuid(), []);
+        quote.Status = status;
+
+        Assert.Throws<InvalidOperationException>(() => _sut.RejectQuote(quote));
+        Assert.Equal(status, quote.Status);
+    }
+
+    [Fact]
     public void AcceptQuote_WhenNotPriced_ThrowsInvalidOperationException()
     {
         var quote = _sut.CreateQuote(Guid.NewGuid(), []);

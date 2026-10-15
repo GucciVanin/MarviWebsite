@@ -234,6 +234,55 @@ describe('ClientPortal', () => {
     expect(root.querySelector('[data-testid="order"]')!.textContent).toContain('22,00');
   });
 
+  it('rejects a priced quote only after a confirming click, then shows it as refused', async () => {
+    const { fixture, http, root, settle, button } = setup({
+      quotes: [quote('q1', 'Priced', [line('Cola 2L', 2, 12.5, 11)])],
+    });
+    await settle();
+
+    button('Recusar cotação').click();
+    fixture.detectChanges();
+    http.expectNone('/api/quotes/q1/reject');
+    expect(text(root)).toContain('Confirmar recusa');
+
+    button('Confirmar recusa').click();
+    fixture.detectChanges();
+    http.expectOne('/api/quotes/q1/reject').flush(quote('q1', 'Rejected', [line('Cola 2L', 2, 12.5, 11)]));
+    http.expectOne('/api/quotes/mine').flush([quote('q1', 'Rejected', [line('Cola 2L', 2, 12.5, 11)])]);
+    await settle();
+
+    expect(text(root)).toContain('Recusada');
+    expect(Array.from(root.querySelectorAll('[data-testid="quote"] button'))).toEqual([]);
+  });
+
+  it('lets the customer back out of rejecting a quote', async () => {
+    const { fixture, http, root, settle, button } = setup({ quotes: [quote('q1', 'Priced', [line('Cola 2L', 1, 12.5, 11)])] });
+    await settle();
+
+    button('Recusar cotação').click();
+    fixture.detectChanges();
+    button('Cancelar').click();
+    fixture.detectChanges();
+
+    http.expectNone('/api/quotes/q1/reject');
+    expect(text(root)).not.toContain('Confirmar recusa');
+    expect(button('Recusar cotação')).toBeDefined();
+  });
+
+  it('explains a refused rejection in pt-BR', async () => {
+    const { fixture, http, root, settle, button } = setup({ quotes: [quote('q1', 'Priced', [line('Cola 2L', 1, 12.5, 11)])] });
+    await settle();
+
+    button('Recusar cotação').click();
+    fixture.detectChanges();
+    button('Confirmar recusa').click();
+    fixture.detectChanges();
+    http.expectOne('/api/quotes/q1/reject').flush('Quote must be in Priced status', { status: 400, statusText: 'Bad Request' });
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('dados enviados são inválidos');
+  });
+
   // The API refuses a suspended customer with 403 and a message; the screen must say so in pt-BR.
   const statusMessages: [number, string][] = [
     [400, 'dados enviados são inválidos'],
