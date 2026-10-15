@@ -151,6 +151,22 @@ public class ProductImportPlannerTests
     }
 
     [Fact]
+    public void ANameThatMoreThanOneCategoryOrTierHas_IsRefused_NotGuessed()
+    {
+        var catalog = Catalog() with
+        {
+            AmbiguousCategoryNames = new HashSet<string> { "Twice" },
+            AmbiguousTierNames = new HashSet<string> { "Vip" },
+        };
+
+        var category = ProductImportPlanner.Plan("sku,name,category\nA,Alpha,twice\n", catalog);
+        var tier = ProductImportPlanner.Plan("sku,name,tier_vip\nA,Alpha,5\n", catalog);
+
+        Assert.Contains("matches more than one category", category.Errors.Single().Message);
+        Assert.Contains("more than one tier has", tier.Errors.Single().Message);
+    }
+
+    [Fact]
     public void PriceAndTheDefaultTiersColumn_CannotBothBeGiven()
     {
         var plan = Plan("sku,name,price,tier_Standard\nA,Alpha,5,6\n");

@@ -7,11 +7,15 @@ namespace Marvi.Domain.Catalog;
 /// <param name="TierIdsByName">Existing pricing tiers by name (matched ignoring case).</param>
 /// <param name="DefaultTierId">The tier the plain `price` column is for.</param>
 /// <param name="CanImportStock">Whether a warehouse has been chosen for the `stock` column.</param>
+/// <param name="AmbiguousCategoryNames">Category names that more than one category has; a row or column that uses one is refused rather than guessed.</param>
+/// <param name="AmbiguousTierNames">The same for pricing tier names (tier names are not unique in the database).</param>
 public sealed record ImportCatalog(
     IReadOnlyDictionary<string, Guid> CategoryIdsByName,
     IReadOnlyDictionary<string, Guid> TierIdsByName,
     Guid DefaultTierId,
-    bool CanImportStock);
+    bool CanImportStock,
+    IReadOnlySet<string>? AmbiguousCategoryNames = null,
+    IReadOnlySet<string>? AmbiguousTierNames = null);
 
 /// <summary>One product row that passed every check. A null value means the cell was blank: leave an existing value as it is.</summary>
 public sealed record PlannedProduct(
@@ -57,8 +61,10 @@ public static class ProductImportPlanner
 
         var categories = new Dictionary<string, Guid>(catalog.CategoryIdsByName, StringComparer.OrdinalIgnoreCase);
         var tiers = new Dictionary<string, Guid>(catalog.TierIdsByName, StringComparer.OrdinalIgnoreCase);
+        var ambiguousCategories = new HashSet<string>(catalog.AmbiguousCategoryNames ?? new HashSet<string>(), StringComparer.OrdinalIgnoreCase);
+        var ambiguousTiers = new HashSet<string>(catalog.AmbiguousTierNames ?? new HashSet<string>(), StringComparer.OrdinalIgnoreCase);
 
-        var columns = ReadHeader(document.Header, tiers, out var headerErrors);
+        var columns = ReadHeader(document.Header, tiers, ambiguousTiers, out var headerErrors);
         if (headerErrors.Count > 0)
         {
             return new ImportPlan([], headerErrors);
@@ -120,7 +126,11 @@ public static class ProductImportPlanner
             var categoryName = Cell("category");
             if (categoryName.Length > 0)
             {
-                if (categories.TryGetValue(categoryName, out var id))
+                if (ambiguousCategories.Contains(categoryName))
+                {
+                    rowErrors.Add($"Category '{categoryName}' matches more than one category; rename one of them first.");
+                }
+                else if (categories.TryGetValue(categoryName, out var id))
                 {
                     categoryId = id;
                 }
@@ -204,7 +214,7 @@ public static class ProductImportPlanner
     }
 
     /// <summary>The column index by (lower-cased, except attribute names) column name, with every header problem reported on line 1.</summary>
-    private static Dictionary<string, int> ReadHeader(IReadOnlyList<string> header, Dictionary<string, Guid> tiers, out List<ImportError> errors)
+    private static Dictionary<string, int> ReadHeader(IReadOnlyList<string> header, Dictionary<string, Guid> tiers, HashSet<string> ambiguousTiers, out List<ImportError> errors)
     {
         errors = [];
         var columns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -233,7 +243,11 @@ public static class ProductImportPlanner
             }
             else if (name.StartsWith(TierPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                if (tiers.ContainsKey(name[TierPrefix.Length..]))
+                if (ambiguousTiers.Contains(name[TierPrefix.Length..]))
+                {
+                    errors.Add(new ImportError(1, $"Column '{name}' names a pricing tier that more than one tier has; rename one of them first."));
+                }
+                else if (tiers.ContainsKey(name[TierPrefix.Length..]))
                 {
                     columns[name] = index;
                 }

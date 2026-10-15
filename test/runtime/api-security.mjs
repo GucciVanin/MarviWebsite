@@ -297,15 +297,17 @@ const imported = await importCsv(semicolonCsv, `?warehouseId=${wh1.id}`);
 ok('a semicolon file with a byte order mark, quoted text and Brazilian numbers imports (200, 1 created)', imported.status === 200 && imported.json.applied && imported.json.created === 1 && imported.json.updated === 0, imported.text.slice(0, 200));
 const impProduct = (await call('GET', '/api/admin/products', { token: admin })).json.find((p) => p.sku === impSku);
 ok('...name, description, category and attribute are stored', impProduct?.name === 'Cerveja Importada' && impProduct.description === 'Gelada; 600ml' && impProduct.categoryId === cat.beer.id && impProduct.attributes.Marca === 'Acme');
-ok('...the price (default tier) is what a visitor sees', near((await call('GET', '/api/products')).json.find((p) => p.sku === impSku)?.price, 12.5));
+const visitorSees = (await call('GET', '/api/products')).json.find((p) => p.sku === impSku);
+// The category has a running 10% deal in the seed data, so the default-tier price 12.50 shows as 11.25: the category was set too.
+ok('...the default-tier price (less the category\'s running deal) is what a visitor sees', near(visitorSees?.price, 11.25) && visitorSees.dealName === 'Cervejas -10%', JSON.stringify(visitorSees));
 ok('...the tier price and the stock are stored', sql(`select unit_price from product_pricings where product_id='${impProduct.id}' and pricing_tier_id='${wholesale.id}'`) === '10.00'
   && sql(`select qty_on_hand from inventory_records where product_id='${impProduct.id}' and warehouse_id='${wh1.id}'`) === '25');
 const reimport = await importCsv(`sku,name,price\n${impSku.toLowerCase()},Cerveja Renomeada,9.90\n`);
 ok('importing again matches the SKU ignoring case: updated, not duplicated', reimport.status === 200 && reimport.json.created === 0 && reimport.json.updated === 1
   && sql(`select count(*) from products where lower(sku)='${impSku.toLowerCase()}'`) === '1');
 const afterReimport = (await call('GET', '/api/admin/products', { token: admin })).json.find((p) => p.sku === impSku);
-ok('...a blank cell kept the existing description and category, and the new price applies', afterReimport.name === 'Cerveja Renomeada' && afterReimport.description === 'Gelada; 600ml'
-  && afterReimport.categoryId === cat.beer.id && near((await call('GET', '/api/products')).json.find((p) => p.sku === impSku)?.price, 9.9));
+ok('...a blank cell kept the existing description and category, and the new price (9.90 less the deal = 8.91) applies', afterReimport.name === 'Cerveja Renomeada' && afterReimport.description === 'Gelada; 600ml'
+  && afterReimport.categoryId === cat.beer.id && near((await call('GET', '/api/products')).json.find((p) => p.sku === impSku)?.price, 8.91));
 const badImport = await importCsv(`sku,name,category,price\nIMP-OK-${impSku},Fine,Cervejas,5\nIMP-BAD-${impSku},,Nope,abc\n`);
 ok('a file with errors imports nothing (400) and lists every problem with its line', badImport.status === 400 && badImport.json.errors.length === 3
   && badImport.json.errors.every((e) => e.line === 3) && sql(`select count(*) from products where sku like 'IMP-%-${impSku}'`) === '0');

@@ -31,6 +31,14 @@ public class AdminProductImportController : ControllerBase
         _auditLogger = auditLogger;
     }
 
+    private static (Dictionary<string, Guid> Unique, HashSet<string> Ambiguous) NamesToIds(IEnumerable<(string Name, Guid Id)> rows)
+    {
+        var groups = rows.GroupBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        return (
+            groups.Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.Single().Id, StringComparer.OrdinalIgnoreCase),
+            groups.Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase));
+    }
+
     /// <param name="file">The CSV (UTF-8, comma or semicolon separated).</param>
     /// <param name="dryRun">Check the file and report what would happen, changing nothing.</param>
     /// <param name="warehouseId">The warehouse the `stock` column is for. Optional when there is exactly one warehouse.</param>
@@ -65,11 +73,13 @@ public class AdminProductImportController : ControllerBase
         // Without any tier yet the plain `price` column still needs a target: Guid.Empty stands in for the default tier
         // until an actual import creates it (a dry run must not create anything).
         var defaultTier = await DefaultPricingTier.FindAsync(_dbContext);
-        var catalog = new ImportCatalog(
-            await _dbContext.Categories.ToDictionaryAsync(c => c.Name, c => c.Id),
-            await _dbContext.PricingTiers.ToDictionaryAsync(t => t.Name, t => t.Id),
-            defaultTier?.Id ?? Guid.Empty,
-            CanImportStock: stockWarehouse.HasValue);
+        // Category names are unique ignoring case, tier names are not: a name that more than one tier has is refused
+        // by the planner instead of being matched to an arbitrary one.
+        var categories = await _dbContext.Categories.Select(c => new { c.Name, c.Id }).ToListAsync();
+        var tiers = await _dbContext.PricingTiers.Select(t => new { t.Name, t.Id }).ToListAsync();
+        var (categoryIds, ambiguousCategories) = NamesToIds(categories.Select(c => (c.Name, c.Id)));
+        var (tierIds, ambiguousTiers) = NamesToIds(tiers.Select(t => (t.Name, t.Id)));
+        var catalog = new ImportCatalog(categoryIds, tierIds, defaultTier?.Id ?? Guid.Empty, CanImportStock: stockWarehouse.HasValue, ambiguousCategories, ambiguousTiers);
 
         var plan = ProductImportPlanner.Plan(text, catalog);
         if (!plan.IsValid)
