@@ -103,6 +103,11 @@ public class ProductImportPlannerTests
     [InlineData("abc")]
     [InlineData("1,2,3")]
     [InlineData("1.2.3")]
+    [InlineData("1.234")]
+    [InlineData("12.500")]
+    [InlineData("1,234")]
+    [InlineData("0.125")]
+    [InlineData("1.234,567")]
     [InlineData("")]
     public void Prices_ThatAreNotNumbersOfZeroOrMore_AreRefused(string text)
     {
@@ -123,7 +128,7 @@ public class ProductImportPlannerTests
         Assert.Equal(
         [
             "2: Unknown category 'Nope'. Create it first (categories are never created by an import).",
-            "2: price 'abc' is not a number of 0 or more.",
+            "2: price 'abc' is not an amount of 0 or more with at most 2 decimals (write 1.234,00 or 1234, not 1.234).",
             "2: stock '-3' is not a whole number of 0 or more.",
             "3: sku is required.",
             "4: name is required.",
@@ -147,7 +152,7 @@ public class ProductImportPlannerTests
         Assert.Contains("The required column 'sku' is missing.", Messages(Plan("name\nA\n")).Single(m => m.Contains("sku")));
         Assert.Contains("appears more than once", Plan("sku,name,NAME\nA,B,C\n").Errors.Single().Message);
         Assert.Contains("pricing tier that does not exist", Plan("sku,name,tier_Platinum\nA,B,5\n").Errors.Single().Message);
-        Assert.Contains("has no name", Plan("sku,name,\nA,B,\n").Errors.Single().Message);
+        Assert.Contains("has no name", Plan("sku,,name\nA,,B\n").Errors.Single().Message);
     }
 
     [Fact]
@@ -214,6 +219,33 @@ public class ProductImportPlannerTests
         var plan = Plan("sku,name\nA,Alpha,extra\n");
 
         Assert.Contains("3 values but the header has 2 columns", plan.Errors.Single().Message);
+    }
+
+    [Fact]
+    public void ExcelsTrailingEmptyColumns_AreIgnored_InTheHeaderAndInTheRows()
+    {
+        var plan = Plan("sku;name;price;\nA;Alpha;1;\nB;Beta;2;;\n");
+
+        Assert.True(plan.IsValid, string.Join(" | ", Messages(plan)));
+        Assert.Equal(2, plan.Products.Count);
+        Assert.Contains("3 values but the header has 2 columns", Plan("sku,name\nA,Alpha,extra\n").Errors.Single().Message);
+    }
+
+    [Fact]
+    public void TheSeparatorIsTakenFromTheFirstNonBlankLine_EvenAfterBlankLinesOrWithOldMacLineEndings()
+    {
+        Assert.Equal(["A"], Plan("\n\nsku;name\nA;Alpha\n").Products.Select(p => p.Sku));
+        Assert.Equal(["A", "B"], Plan("sku;name\rA;Alpha\rB;Beta\r").Products.Select(p => p.Sku));
+    }
+
+    [Fact]
+    public void TextAfterAClosingQuote_IsAnError_AndLinesStayRightAcrossBareCarriageReturns()
+    {
+        Assert.Contains("after a closing quote", Plan("sku,name\nA,\"Alpha\"beta\n").Errors.Single().Message);
+
+        // A bare carriage return inside quotes is one line break, so the bad row B is on line 4.
+        var plan = Plan("sku,name,description\nA,Alpha,\"one\rtwo\"\nB,,x\n");
+        Assert.Equal(4, plan.Errors.Single().Line);
     }
 
     [Fact]

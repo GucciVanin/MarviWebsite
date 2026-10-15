@@ -88,7 +88,7 @@ public class AdminProductImportController : ControllerBase
                 plan.Errors.Select(e => new ProductImportErrorDto(e.Line, e.Message)).ToList()));
         }
 
-        var skus = plan.Products.Select(p => p.Sku.ToLower()).ToList();
+        var skus = plan.Products.Select(p => p.Sku.ToLowerInvariant()).ToList();
         var existing = await _dbContext.Products.Where(p => skus.Contains(p.Sku.ToLower())).ToListAsync();
         var bySku = existing.ToDictionary(p => p.Sku, StringComparer.OrdinalIgnoreCase);
         var created = plan.Products.Count(p => !bySku.ContainsKey(p.Sku));
@@ -99,7 +99,14 @@ public class AdminProductImportController : ControllerBase
             return Ok(new ProductImportReportDto(DryRun: true, Applied: false, plan.Products.Count, created, updated, []));
         }
 
-        var tierForPlainPrice = defaultTier ?? (plan.Products.Any(p => p.Prices.ContainsKey(Guid.Empty)) ? await DefaultPricingTier.GetOrCreateAsync(_dbContext) : null);
+        // No default tier yet (a database nobody has registered a customer in): add it to this same save, so a failed import
+        // leaves nothing behind.
+        var tierForPlainPrice = defaultTier;
+        if (tierForPlainPrice is null && plan.Products.Any(p => p.Prices.ContainsKey(Guid.Empty)))
+        {
+            tierForPlainPrice = new PricingTier { Id = Guid.NewGuid(), Name = DefaultPricingTier.DefaultName, IsDefault = true };
+            _dbContext.PricingTiers.Add(tierForPlainPrice);
+        }
 
         var existingIds = existing.Select(p => p.Id).ToList();
         var pricing = await _dbContext.ProductPricings.Where(pp => existingIds.Contains(pp.ProductId) && pp.MinQty == 1).ToListAsync();
@@ -167,7 +174,7 @@ public class AdminProductImportController : ControllerBase
         }
 
         if (!await _auditLogger.TrySaveAsync(AuditActions.Import, nameof(Product), Guid.NewGuid(),
-                new { FileName = file.FileName, Rows = plan.Products.Count, Created = created, Updated = updated, WarehouseId = stockWarehouse }))
+                new { FileName = file.FileName, Rows = plan.Products.Count, Created = created, Updated = updated, WarehouseId = stockWarehouse, Skus = plan.Products.Select(p => p.Sku).ToList() }))
         {
             return Conflict("The import conflicts with changes made at the same time (for example a duplicate SKU). Nothing was imported; try again.");
         }

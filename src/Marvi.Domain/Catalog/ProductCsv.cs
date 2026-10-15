@@ -23,7 +23,8 @@ public static class ProductCsv
             return (null, "The file is empty.");
         }
 
-        var firstLine = text.Split('\n', 2)[0];
+        // The first non-blank line is the header, whatever the line endings (a lone \r is a line ending too).
+        var firstLine = text.Split(['\r', '\n']).FirstOrDefault(l => l.Trim().Length > 0) ?? string.Empty;
         var separator = firstLine.Count(c => c == ';') > firstLine.Count(c => c == ',') ? ';' : ',';
 
         var records = new List<(int Line, List<string> Cells)>();
@@ -34,12 +35,15 @@ public static class ProductCsv
         var line = 1;
         var recordLine = 1;
         var quoteLine = 0;
+        var afterQuote = false;
+        string? malformed = null;
 
         void EndCell()
         {
             cells.Add(cell.ToString().Trim());
             cell.Clear();
             cellStarted = false;
+            afterQuote = false;
         }
 
         void EndRecord()
@@ -66,18 +70,31 @@ public static class ProductCsv
                 else if (c == '"')
                 {
                     inQuotes = false;
+                    afterQuote = true;
+                }
+                else if (c == '\r' || c == '\n')
+                {
+                    // Any line ending inside quotes counts as one line and is kept as a plain line feed.
+                    if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n')
+                    {
+                        i++;
+                    }
+
+                    line++;
+                    cell.Append('\n');
                 }
                 else
                 {
-                    if (c == '\n')
-                    {
-                        line++;
-                    }
-
                     cell.Append(c);
                 }
 
                 continue;
+            }
+
+            if (afterQuote && c != separator && c != '\n' && c != '\r' && !char.IsWhiteSpace(c))
+            {
+                malformed = $"Unexpected text after a closing quote on line {line}.";
+                break;
             }
 
             if (c == '"' && !cellStarted)
@@ -106,6 +123,11 @@ public static class ProductCsv
                 cell.Append(c);
                 cellStarted = cellStarted || !char.IsWhiteSpace(c);
             }
+        }
+
+        if (malformed is not null)
+        {
+            return (null, malformed);
         }
 
         if (inQuotes)

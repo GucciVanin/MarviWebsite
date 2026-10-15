@@ -64,7 +64,9 @@ public static class ProductImportPlanner
         var ambiguousCategories = new HashSet<string>(catalog.AmbiguousCategoryNames ?? new HashSet<string>(), StringComparer.OrdinalIgnoreCase);
         var ambiguousTiers = new HashSet<string>(catalog.AmbiguousTierNames ?? new HashSet<string>(), StringComparer.OrdinalIgnoreCase);
 
-        var columns = ReadHeader(document.Header, tiers, ambiguousTiers, out var headerErrors);
+        // Excel exports often end every line with a separator: trailing empty header cells and empty trailing values are ignored.
+        var header = document.Header.Reverse().SkipWhile(h => h.Length == 0).Reverse().ToList();
+        var columns = ReadHeader(header, tiers, ambiguousTiers, out var headerErrors);
         if (headerErrors.Count > 0)
         {
             return new ImportPlan([], headerErrors);
@@ -89,9 +91,10 @@ public static class ProductImportPlanner
             var rowErrors = new List<string>();
             string Cell(string column) => columns.TryGetValue(column, out var index) && index < row.Cells.Count ? row.Cells[index] : string.Empty;
 
-            if (row.Cells.Count > document.Header.Count)
+            var usedCells = row.Cells.Count - row.Cells.Reverse().TakeWhile(c => c.Length == 0).Count();
+            if (usedCells > header.Count)
             {
-                rowErrors.Add($"The row has {row.Cells.Count} values but the header has {document.Header.Count} columns.");
+                rowErrors.Add($"The row has {usedCells} values but the header has {header.Count} columns.");
             }
 
             var sku = Cell("sku");
@@ -150,7 +153,7 @@ public static class ProductImportPlanner
                 }
                 else
                 {
-                    rowErrors.Add($"price '{priceCell}' is not a number of 0 or more.");
+                    rowErrors.Add($"price '{priceCell}' is not an amount of 0 or more with at most 2 decimals (write 1.234,00 or 1234, not 1.234).");
                 }
             }
 
@@ -164,7 +167,7 @@ public static class ProductImportPlanner
 
                 if (!TryParseMoney(tierCell, out var tierPrice))
                 {
-                    rowErrors.Add($"{column} '{tierCell}' is not a number of 0 or more.");
+                    rowErrors.Add($"{column} '{tierCell}' is not an amount of 0 or more with at most 2 decimals (write 1.234,00 or 1234, not 1.234).");
                 }
                 else if (!prices.TryAdd(tierId, tierPrice))
                 {
@@ -276,7 +279,7 @@ public static class ProductImportPlanner
 
     /// <summary>
     /// A price as people write it: 12.5, 12,50, 1.234,50, 1,234.50 or R$ 12,50. When both separators appear, the last
-    /// one is the decimal point; a lone comma is a decimal comma. No sign.
+    /// one is the decimal point; a lone comma is a decimal comma. No sign, and at most two decimals (so an ambiguous "1.234" is refused).
     /// </summary>
     public static bool TryParseMoney(string text, out decimal value)
     {
@@ -302,7 +305,11 @@ public static class ProductImportPlanner
             return false;
         }
 
-        return decimal.TryParse(s, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out value);
+        // Money has at most two decimals. Anything longer is refused rather than guessed: a Brazilian "1.234" means R$ 1.234, but would be
+        // read as 1.234 here. Write 1.234,00 (or 1234) instead.
+        var point = s.IndexOf('.');
+        return (point < 0 || s.Length - point - 1 <= 2)
+            && decimal.TryParse(s, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out value);
     }
 
     private static ImportPlan Failed(int line, string message) => new([], [new ImportError(line, message)]);
