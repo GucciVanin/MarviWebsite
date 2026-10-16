@@ -32,7 +32,8 @@ export class Register {
     this.busy.set(true);
     const { email, password, companyName, billingAddress } = this;
     this.authService.register({ email, password, companyName, billingAddress }).subscribe({
-      // Clients have access immediately, so sign them straight in.
+      // A new customer is Pending until an admin approves them, but can sign in at once to keep their details up to date;
+      // the portal tells them their account awaits approval.
       next: () =>
         this.authService.login({ email, password }).subscribe({
           next: () => this.router.navigateByUrl(this.authService.homeUrl()),

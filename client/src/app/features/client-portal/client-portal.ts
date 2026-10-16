@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
@@ -11,6 +11,7 @@ import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import { QuotesService, Quote } from './api/quotes.service';
 import { OrdersService, Order } from './api/orders.service';
+import { ClientProfile, ProfileService } from './api/profile.service';
 import { ClientProfileCard } from './profile/client-profile';
 
 interface BasketLine {
@@ -29,10 +30,14 @@ export class ClientPortal implements OnInit {
   protected readonly statuses = PT.statuses;
   private readonly quotesService = inject(QuotesService);
   private readonly ordersService = inject(OrdersService);
+  private readonly profileService = inject(ProfileService);
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
   protected readonly quotes = loadable(() => this.quotesService.getMine(), [] as Quote[]);
   protected readonly orders = loadable(() => this.ordersService.getMine(), [] as Order[]);
+  /** The customer's own account: its status decides whether they may build quotes at all. */
+  protected readonly account = loadable(() => this.profileService.get(), null as ClientProfile | null);
+  protected readonly status = computed(() => (this.account.loaded() ? this.account.data()?.status ?? null : null));
 
   protected readonly basket = signal<BasketLine[]>([]);
   protected readonly requestSent = signal(false);
@@ -45,6 +50,7 @@ export class ClientPortal implements OnInit {
   ngOnInit(): void {
     this.quotes.load();
     this.orders.load();
+    this.account.load();
   }
 
   addToBasket(product: ProductListItem): void {

@@ -111,9 +111,12 @@ const empResp = await call('POST', '/api/admin/employees', { token: admin, body:
 ok('admin creates employee (201)', empResp.status === 201, String(empResp.status));
 const emp = await login(emp1Email, emp1Pw);
 
-const registerClient = async (name, email) => {
+// A new customer is Pending (least privilege); the runtime fixtures approve the ones that need to transact.
+const registerClient = async (name, email, { approve = true } = {}) => {
   const r = await call('POST', '/api/auth/register', { body: { email, password: 'Client-1234!', companyName: name, billingAddress: `Rua ${name}, 1` } });
-  return { id: r.json?.id, token: await login(email, 'Client-1234!'), email };
+  const id = r.json?.id;
+  if (approve) await call('PUT', `/api/admin/clients/${id}/approve`, { token: admin, body: { pricingTierId: standard.id } });
+  return { id, token: await login(email, 'Client-1234!'), email };
 };
 const clientA = await registerClient('Bar do Zé', 'ze@bar.test');
 const clientB = await registerClient('Mercado Grande', 'compras@mercado.test');
@@ -220,7 +223,7 @@ ok('client B cannot accept client A\'s quote (403/404)', [403, 404].includes((aw
 ok('client B quotes list does not include A\'s quotes', !(await call('GET', '/api/quotes/mine', { token: clientB.token })).json.some((q) => q.id === q2.id));
 
 section('ELIGIBILITY: only an Approved customer may transact (quote, accept, order)');
-// No endpoint produces Pending (registration approves immediately), so set it in the database like a legacy account.
+// Registration now leaves a customer Pending (see APPROVAL below); here we put an already-approved fixture back to Pending in the database to test the eligibility rule in isolation.
 // ClientAccountStatus is stored as an integer: 0 = Pending, 1 = Approved, 2 = Suspended.
 const clientP = await registerClient('Loja Pendente', 'loja@pendente.test');
 const orderLine = { productId: prod.cola.id, qty: 1 };
@@ -264,6 +267,24 @@ ok('...it can no longer be accepted (400) and no order is created', (await call(
   && (await call('GET', '/api/orders/mine', { token: clientA.token })).json.length === ordersBeforeReject);
 ok('...and rejecting twice is refused (400)', (await call('POST', `/api/quotes/${rejQuote.id}/reject`, { token: clientA.token })).status === 400);
 ok('...an unknown quote is 404', (await call('POST', `/api/quotes/${crypto.randomUUID()}/reject`, { token: clientA.token })).status === 404);
+
+section('APPROVAL: a new customer is Pending and can do nothing until an admin approves them with a tier (least privilege)');
+const newcomer = await registerClient('Recém Chegado Ltda', 'novo@chegado.test', { approve: false });
+const newcomerProfile = (await call('GET', '/api/client/profile', { token: newcomer.token })).json;
+ok('registration leaves the customer Pending', newcomerProfile.status === 'Pending', JSON.stringify(newcomerProfile.status));
+ok('a Pending customer is refused quotes (403) and cannot be given an order (403)', (await call('POST', '/api/quotes', { token: newcomer.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403
+  && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: newcomer.id, deliveryAddress: 'x', lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403);
+ok('...but can read and edit their own details', (await call('PUT', '/api/client/profile', { token: newcomer.token, body: { companyName: 'Recém Chegado Ltda', billingAddress: 'Rua Nova, 1', shippingAddresses: [] } })).status === 200);
+ok('...and sees the same prices as an anonymous visitor', JSON.stringify((await call('GET', '/api/products', { token: newcomer.token })).json.map((p) => [p.id, p.price])) === JSON.stringify((await call('GET', '/api/products')).json.map((p) => [p.id, p.price])));
+ok('approving without a tier is refused (400): nobody is approved by default', (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: admin, body: {} })).status === 400
+  && (await call('GET', '/api/client/profile', { token: newcomer.token })).json.status === 'Pending');
+ok('only an admin can approve (403 for the customer, 403 for an employee)', (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: newcomer.token, body: { pricingTierId: standard.id } })).status === 403
+  && (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: emp, body: { pricingTierId: standard.id } })).status === 403);
+ok('an admin approves with a chosen tier (204)', (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204);
+const approvedNewcomer = (await call('GET', `/api/employee/clients/${newcomer.id}`, { token: emp })).json;
+ok('...the customer is Approved on the tier the admin chose, and can now request a quote (201)', approvedNewcomer.status === 'Approved' && approvedNewcomer.pricingTierName === 'Wholesale'
+  && (await call('POST', '/api/quotes', { token: newcomer.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 201);
+ok('the approval is in the audit log with the previous status', (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.entityId === newcomer.id && e.action === 'Approve' && e.details.data.includes('Pending')));
 
 section('UPDATE TIER: an admin moves a customer to another pricing tier without touching the status (on real Postgres)');
 const clientD = await registerClient('Adega do Dedé', 'dede@adega.test');

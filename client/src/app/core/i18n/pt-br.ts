@@ -179,6 +179,8 @@ export const PT = {
   },
   clientPortal: {
     title: 'Minha área',
+    pendingNotice: 'Sua conta está aguardando a aprovação da Marvi. Assim que for aprovada, você poderá solicitar cotações e fazer pedidos. Enquanto isso, você pode manter seus dados atualizados abaixo.',
+    suspendedNotice: 'Sua conta está suspensa. Entre em contato com a Marvi para voltar a solicitar cotações e fazer pedidos.',
     catalogTitle: 'Montar cotação',
     catalogHint: 'Escolha os produtos e as quantidades. A Marvi confirma o preço final antes de você aceitar.',
     product: 'Produto',
@@ -327,6 +329,9 @@ export const PT = {
     suspend: 'Suspender',
     confirmSuspend: 'Confirmar suspensão',
     approve: 'Aprovar',
+    approveTier: 'Faixa de preço do cliente',
+    approveChoose: 'Escolha a faixa de preço',
+    confirmApprove: 'Confirmar aprovação',
     saved: 'Dados salvos.',
     suspended: 'Cliente suspenso.',
     approved: 'Cliente aprovado.',

@@ -63,8 +63,9 @@ public class AuthController : ControllerBase
             CompanyName = profile.CompanyName,
             BillingAddress = profile.BillingAddress,
             PricingTierId = defaultTier.Id,
-            // Clients get access immediately; admins can suspend them afterwards.
-            Status = ClientAccountStatus.Approved
+            // Least privilege (owner decision, MRV-5.3): a new customer can do nothing but read and edit their own details until
+            // an admin approves them with an explicit pricing tier.
+            Status = ClientAccountStatus.Pending
         };
 
         _dbContext.ClientAccounts.Add(clientAccount);

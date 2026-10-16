@@ -38,10 +38,14 @@ export class AdminCustomers implements OnInit {
   protected readonly editingId = signal<string | null>(null);
   protected readonly editTierId = signal('');
   protected readonly confirmingSuspendId = signal<string | null>(null);
+  /** The customer whose approval is being decided, and the tier the admin has chosen for them. */
+  protected readonly approvingId = signal<string | null>(null);
+  protected readonly approveTierId = signal('');
   protected readonly message = signal<string | null>(null);
   protected readonly saveAction = action();
 
   protected readonly canSave = computed(() => this.editTierId() !== '' && !this.saveAction.busy());
+  protected readonly canApprove = computed(() => this.approveTierId() !== '' && !this.saveAction.busy());
 
   ngOnInit(): void {
     this.customers.load();
@@ -93,25 +97,37 @@ export class AdminCustomers implements OnInit {
     this.saveAction.run(this.admin.suspendClient(customer.id), () => this.done(this.t.suspended));
   }
 
-  /** Reactivates a suspended customer. Approving needs a tier and a limit: they keep the ones they have. */
+  /**
+   * "Aprovar" is for every customer who is not approved. Least privilege: nobody is approved by default, so approving always
+   * needs the admin to choose a pricing tier. For a pending customer nothing is preselected; for a suspended one their current
+   * tier is suggested, and either way a confirming click follows.
+   */
+  protected askToApprove(customer: ClientSummary): void {
+    this.message.set(null);
+    this.saveAction.reset();
+    this.editingId.set(null);
+    this.confirmingSuspendId.set(null);
+    this.approvingId.set(customer.id);
+    this.approveTierId.set(customer.status === 'Suspended' ? customer.pricingTierId ?? '' : '');
+  }
+
+  protected cancelApproval(): void {
+    this.approvingId.set(null);
+  }
+
   protected approve(customer: ClientSummary): void {
-    const tierId = this.approvalTierId(customer);
-    if (!tierId) {
+    if (!this.canApprove()) {
       return;
     }
     this.message.set(null);
-    this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId: tierId }), () => this.done(this.t.approved));
-  }
-
-  /** The tier a reactivated customer keeps, or the default tier when they have none; null until it is known. */
-  protected approvalTierId(customer: ClientSummary): string | null {
-    return customer.pricingTierId ?? this.tiers.data().find((tier) => tier.isDefault)?.id ?? null;
+    this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId: this.approveTierId() }), () => this.done(this.t.approved));
   }
 
   private done(message: string): void {
     this.message.set(message);
     this.editingId.set(null);
     this.confirmingSuspendId.set(null);
+    this.approvingId.set(null);
     this.customers.load();
   }
 }

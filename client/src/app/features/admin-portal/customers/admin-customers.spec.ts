@@ -130,13 +130,13 @@ describe('AdminCustomers', () => {
     expect(button('Suspender', row('Bar do Zé'))).toBeDefined();
   });
 
-  it('offers Aprovar only for a suspended customer, never for one who is waiting or already approved', async () => {
+  it('offers Aprovar to every customer who is not approved (pending or suspended), and to nobody else', async () => {
     const { settle, button, row } = setup([customer('c1', 'Bar do Zé'), customer('c2', 'Mercado Sol', 'Suspended'), customer('c3', 'Loja Nova', 'Pending')]);
     await settle();
 
     expect(button('Aprovar', row('Mercado Sol'))).toBeDefined();
+    expect(button('Aprovar', row('Loja Nova'))).toBeDefined();
     expect(button('Aprovar', row('Bar do Zé'))).toBeUndefined();
-    expect(button('Aprovar', row('Loja Nova'))).toBeUndefined();
   });
 
   it('does not keep showing a refused change after the admin cancels, opens another customer or searches again', async () => {
@@ -156,21 +156,63 @@ describe('AdminCustomers', () => {
     expect(root.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it('approves a suspended customer again, keeping their tier', async () => {
+  it('approves a pending customer only with a pricing tier the admin chose: nothing is preselected', async () => {
+    const { fixture, http, root, settle, button, row, set, reload } = setup([customer('c3', 'Loja Nova', 'Pending')]);
+    await settle();
+
+    button('Aprovar', row('Loja Nova')).click();
+    await settle();
+    const select = root.querySelector<HTMLSelectElement>('select[name="approve-tier"]')!;
+    expect(select.value).toBe('');
+    expect(Array.from(select.options).map((o) => o.textContent?.trim())).toEqual(['Escolha a faixa de preço', 'Standard', 'Ouro']);
+    expect(button('Confirmar aprovação').disabled).toBe(true);
+
+    await set('select[name="approve-tier"]', 't-gold', 'change');
+    expect(button('Confirmar aprovação').disabled).toBe(false);
+    button('Confirmar aprovação').click();
+    fixture.detectChanges();
+
+    const request = http.expectOne('/api/admin/clients/c3/approve');
+    expect(request.request.body).toEqual({ pricingTierId: 't-gold' });
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    reload([customer('c3', 'Loja Nova', 'Approved', 't-gold')]);
+    await settle();
+
+    expect(text(root)).toContain('Cliente aprovado');
+    expect(row('Loja Nova').textContent).toContain('Aprovado');
+  });
+
+  it('approves a suspended customer again, with their current tier suggested but still confirmed', async () => {
     const { fixture, http, root, settle, button, row, reload } = setup();
     await settle();
 
     button('Aprovar', row('Mercado Sol')).click();
-    fixture.detectChanges();
+    await settle();
+    expect(root.querySelector<HTMLSelectElement>('select[name="approve-tier"]')!.value).toBe('t-gold');
+    http.expectNone('/api/admin/clients/c2/approve');
 
+    button('Confirmar aprovação').click();
+    fixture.detectChanges();
     const request = http.expectOne('/api/admin/clients/c2/approve');
     expect(request.request.body).toEqual({ pricingTierId: 't-gold' });
     request.flush(null, { status: 204, statusText: 'No Content' });
     reload([customer('c1', 'Bar do Zé'), customer('c2', 'Mercado Sol', 'Approved', 't-gold')]);
     await settle();
 
-    expect(text(root)).toContain('Cliente aprovado');
     expect(row('Mercado Sol').textContent).toContain('Aprovado');
+  });
+
+  it('lets the admin back out of an approval without sending anything', async () => {
+    const { fixture, http, root, settle, button, row } = setup([customer('c3', 'Loja Nova', 'Pending')]);
+    await settle();
+    button('Aprovar', row('Loja Nova')).click();
+    await settle();
+
+    button('Cancelar').click();
+    fixture.detectChanges();
+
+    http.expectNone('/api/admin/clients/c3/approve');
+    expect(root.querySelector('select[name="approve-tier"]')).toBeNull();
   });
 
   it('explains a refused change in pt-BR with the server reason', async () => {

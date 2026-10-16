@@ -142,7 +142,7 @@ public class AuditedMutationTests : IClassFixture<MarviApiFactory>
     public async Task ClientsEmployeesAndInventory_AreAudited()
     {
         var admin = await _factory.AdminAsync();
-        var (_, accountId) = await _factory.RegisterClientAsync();
+        var (_, accountId) = await _factory.RegisterPendingClientAsync(); // this test does the approving itself
         var tierId = (await OkAsync<PricingTierDto>(await admin.PostAsJsonAsync("/api/admin/pricing-tiers", new UpsertPricingTierRequest(Unique("Tier"), false)))).Id;
 
         (await admin.PutAsJsonAsync($"/api/admin/clients/{accountId}/approve", new ApproveClientRequest(tierId))).EnsureSuccessStatusCode();

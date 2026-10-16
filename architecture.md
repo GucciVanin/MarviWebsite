@@ -201,10 +201,10 @@ stateDiagram-v2
 stateDiagram-v2
     direction LR
     state "ClientAccount" as C {
-        [*] --> Approved: register (default tier assigned)
+        [*] --> Pending: register (default tier assigned, no access to quotes or orders)
+        Pending --> Approved: admin approves, choosing the tier (MRV-5.3)
         Approved --> Suspended: admin suspend
-        Suspended --> Approved: admin approve
-        Pending --> Approved: admin approve (legacy value, unused by registration)
+        Suspended --> Approved: admin approves again, choosing the tier
     }
 ```
 
@@ -365,7 +365,7 @@ sequenceDiagram
   (`ClaimTypes.Role` on .NET 10; older frameworks used `xmlsoap.org/2005/...`), not `"role"`. The SPA's `AuthService` decodes it; any new JWT consumer must too.
   The SPA once used the old URI, so `role()` was always null and every portal bounced the user home; `auth.service.spec.ts` now pins a payload copied from a real login.
 - Settings: `Jwt:Key`, `Jwt:Issuer` (`Marvi.Api`), `Jwt:Audience` (`Marvi.Client`). No refresh tokens.
-- `ClientAccountStatus`: registration yields `Approved`. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly. There is no credit anywhere (MRV-5.1): customers pay directly. A customer edits their own company name, billing address and shipping addresses through `GET/PUT /api/client/profile` (MRV-2.2); `ClientProfileRules` (Domain/Identity) is the one definition of what those may be, used by registration and by the profile, and the account always comes from the token. An admin changes a customer's credit limit and pricing tier with `PUT /api/admin/clients/{id}/update-credit` (MRV-1.3): the status is untouched, the change is audited with the previous values, and the limit is stored but not yet enforced by any rule.
+- `ClientAccountStatus`: registration yields `Pending` (least privilege, MRV-5.3): nobody is approved by default, and "Aprovar" always needs an explicit pricing tier. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly. There is no credit anywhere (MRV-5.1): customers pay directly. A customer edits their own company name, billing address and shipping addresses through `GET/PUT /api/client/profile` (MRV-2.2); `ClientProfileRules` (Domain/Identity) is the one definition of what those may be, used by registration and by the profile, and the account always comes from the token. An admin changes a customer's credit limit and pricing tier with `PUT /api/admin/clients/{id}/update-credit` (MRV-1.3): the status is untouched, the change is audited with the previous values, and the limit is stored but not yet enforced by any rule.
 - **Admins have no employee account**, so no `employee_id` claim. Employee-area endpoints accept Admin and record a null employee (`Quote.PricedByEmployeeId`, `Order.PlacedByEmployeeId`).
 - **First admin:** created at startup from `Seed:AdminEmail` / `Seed:AdminPassword` (dev values in `appsettings.Development.json` and `deploy/docker-compose.yml`; set your own elsewhere). Without them no Admin exists.
 

@@ -71,7 +71,7 @@ The Angular CLI in `client/` requires Node >= 22.22.3 (or 24.15+/26+).
 The API creates an Admin at startup from `Seed:AdminEmail` / `Seed:AdminPassword`. Development values live in
 `src/Marvi.Api/appsettings.Development.json` and `deploy/.env.example` — change them for anything real. Sign in as that admin to
 create employees, products, per-tier prices (`/api/admin/products/{id}/pricing`), warehouses and stock; clients register themselves at
-`/register` and get access immediately.
+`/register`, then wait as **Pending** until an admin approves them ("Aprovar" in the admin area, choosing their pricing tier); a Pending customer can only manage their own details.
 
 ## Database migrations
 
