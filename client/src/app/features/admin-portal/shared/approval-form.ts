@@ -1,4 +1,4 @@
-import { Component, computed, input, linkedSignal, output } from '@angular/core';
+import { Component, ElementRef, afterNextRender, computed, inject, input, linkedSignal, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { PT } from '../../../core/i18n/pt-br';
 import type { PricingTier } from '../api/admin.service';
@@ -30,6 +30,13 @@ export class ApprovalForm {
     return suggested && this.tiers().some((tier) => tier.id === suggested) ? suggested : '';
   });
   protected readonly canConfirm = computed(() => this.chosen() !== '' && !this.busy());
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  constructor() {
+    // The form appears in the middle of a table: put the keyboard on its select so the admin does not have to tab to it.
+    afterNextRender(() => this.host.nativeElement.querySelector('select')?.focus());
+  }
 
   protected confirm(): void {
     if (this.canConfirm()) {

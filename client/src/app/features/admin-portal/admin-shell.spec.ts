@@ -1,12 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { AdminShell } from './admin-shell';
 
 describe('AdminShell', () => {
   function setup() {
-    TestBed.configureTestingModule({ imports: [AdminShell], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [AdminShell], providers: [provideRouter([{ path: 'elsewhere', children: [] }]), provideHttpClient(), provideHttpClientTesting()] });
     const fixture = TestBed.createComponent(AdminShell);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
@@ -17,7 +17,7 @@ describe('AdminShell', () => {
 
   const inbox = (total: number) => ({
     total,
-    customers: { count: total, items: [] }, quotes: { count: 0, items: [] }, lowStock: { count: 0, items: [] }, unpricedProducts: { count: 0, items: [] },
+    customers: { count: total, items: [] }, quotes: { count: 0, items: [] }, lowStock: { count: 0, items: [] }, unpricedProducts: { count: 0, items: [] }, unstockedProducts: { count: 0, items: [] },
   });
 
   it('offers every admin sub-page from one navigation, with the inbox first', () => {
@@ -55,6 +55,20 @@ describe('AdminShell', () => {
     fixture.detectChanges();
 
     expect(links()[0][0]).toBe('Pendências');
+  });
+
+  it('asks again when the admin moves to another admin page, so the count does not go stale after a change made on the way', async () => {
+    const { fixture, http } = setup();
+    http.expectOne('/api/admin/pending-actions').flush(inbox(3));
+    await fixture.whenStable();
+
+    await TestBed.inject(Router).navigateByUrl('/elsewhere');
+    const again = http.expectOne('/api/admin/pending-actions');
+    again.flush(inbox(1));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="inbox-count"]')!.textContent?.trim()).toBe('1');
   });
 
   it('keeps working, without a count, when the inbox cannot be loaded', async () => {

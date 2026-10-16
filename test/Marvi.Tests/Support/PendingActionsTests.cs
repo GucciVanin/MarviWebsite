@@ -36,6 +36,7 @@ public class PendingActionsTests
 
         Assert.Equal(0, pending.Total);
         Assert.Equal(0, pending.Customers.Count);
+        Assert.Empty(pending.UnstockedProducts.Items);
         Assert.Empty(pending.Customers.Items);
         Assert.Empty(pending.Quotes.Items);
         Assert.Empty(pending.LowStock.Items);
@@ -144,6 +145,45 @@ public class PendingActionsTests
     }
 
     [Fact]
+    public async Task AProductPricedOnlyForBigQuantities_StillShowsSobConsultaToVisitors_SoItIsListedAsUnpriced()
+    {
+        await using var factory = new MarviApiFactory();
+        var admin = await factory.AdminAsync();
+        await factory.RegisterClientAsync(); // creates the default pricing tier
+        var defaultTier = (await admin.GetFromJsonAsync<List<PricingTierDto>>("/api/admin/pricing-tiers"))!.Single(t => t.IsDefault);
+        var product = await admin.CreateProductAsync(name: "Só por atacado");
+        (await admin.PutAsJsonAsync($"/api/admin/products/{product}/pricing", new UpsertProductPricingRequest(defaultTier.Id, 3m, 10))).EnsureSuccessStatusCode();
+
+        var visitorPrice = (await factory.CreateClient().GetFromJsonAsync<List<ProductListItemDto>>("/api/products"))!.Single(p => p.Id == product).Price;
+        var pending = await GetAsync(admin);
+
+        Assert.Null(visitorPrice);
+        Assert.Contains(pending.UnpricedProducts.Items, p => p.ProductId == product);
+    }
+
+    [Fact]
+    public async Task ActiveProductsWithNoStockRecordAtAll_AreListed_UntilTheyAreStocked()
+    {
+        await using var factory = new MarviApiFactory();
+        var admin = await factory.AdminAsync();
+        var warehouse = await CreateWarehouseAsync(admin, "CD Teste");
+        var unstocked = await admin.CreateProductAsync(name: "Nunca recebeu estoque");
+        var stocked = await admin.CreateProductAsync(name: "Com estoque");
+        (await admin.PutAsJsonAsync("/api/admin/inventory", new UpsertInventoryRequest(stocked, warehouse, 100, 10))).EnsureSuccessStatusCode();
+
+        var pending = await GetAsync(admin);
+
+        var item = Assert.Single(pending.UnstockedProducts.Items);
+        Assert.Equal(unstocked, item.ProductId);
+        Assert.Equal(1, pending.UnstockedProducts.Count);
+
+        (await admin.PutAsJsonAsync("/api/admin/inventory", new UpsertInventoryRequest(unstocked, warehouse, 0, 10))).EnsureSuccessStatusCode();
+        var afterRecord = await GetAsync(admin);
+        Assert.Equal(0, afterRecord.UnstockedProducts.Count);
+        Assert.Contains(afterRecord.LowStock.Items, i => i.ProductId == unstocked); // a record at zero is low stock instead
+    }
+
+    [Fact]
     public async Task TheTotalAddsEveryGroup_AndEachGroupListsAtMostFiftyButCountsAll()
     {
         await using var factory = new MarviApiFactory();
@@ -169,7 +209,8 @@ public class PendingActionsTests
         Assert.Equal(55, pending.Customers.Count);
         Assert.Equal(50, pending.Customers.Items.Count);
         Assert.Equal("Espera 54", pending.Customers.Items[0].CompanyName); // the one waiting longest
-        Assert.Equal(55 + 1, pending.Total);
+        // The product has neither a price nor a stock record: it waits in two groups.
+        Assert.Equal(55 + 2, pending.Total);
     }
 
     [Fact]

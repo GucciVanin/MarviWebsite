@@ -10,6 +10,7 @@ import type { PagedResult } from '../../../shared/models/paged.model';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { AdminService, PricingTier } from '../api/admin.service';
+import { PendingActionsService } from '../api/pending-actions.service';
 
 const PAGE_SIZE = 20;
 
@@ -26,6 +27,7 @@ export class AdminCustomers implements OnInit {
   protected readonly t = PT.adminCustomers;
   protected readonly portal = PT.employeePortal;
   private readonly admin = inject(AdminService);
+  private readonly pendingActions = inject(PendingActionsService);
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
   protected readonly search = signal('');
@@ -129,5 +131,7 @@ export class AdminCustomers implements OnInit {
     this.confirmingSuspendId.set(null);
     this.approvingId.set(null);
     this.customers.load();
+    // A decision here changes what is waiting in the admin inbox (and the count on its tab).
+    this.pendingActions.refresh(true);
   }
 }

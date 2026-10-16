@@ -5,9 +5,9 @@ import { provideRouter } from '@angular/router';
 import { AdminInbox } from './admin-inbox';
 
 const group = (items: object[], count = items.length) => ({ count, items });
-const inbox = (over: Partial<Record<'customers' | 'quotes' | 'lowStock' | 'unpricedProducts', object>> = {}) => {
+const inbox = (over: Partial<Record<'customers' | 'quotes' | 'lowStock' | 'unpricedProducts' | 'unstockedProducts', object>> = {}) => {
   const body = {
-    customers: group([]), quotes: group([]), lowStock: group([]), unpricedProducts: group([]), ...over,
+    customers: group([]), quotes: group([]), lowStock: group([]), unpricedProducts: group([]), unstockedProducts: group([]), ...over,
   } as Record<string, { count: number }>;
   return { total: Object.values(body).reduce((sum, g) => sum + g.count, 0), ...body };
 };
@@ -66,6 +66,69 @@ describe('AdminInbox', () => {
     const unpriced = root.querySelector('[data-testid="pending-unpriced"]')!;
     expect(unpriced.textContent).toContain('Água Tônica');
     expect(unpriced.querySelector('a')!.getAttribute('href')).toBe('/admin/precos');
+  });
+
+  it('lists active products that no warehouse has ever held, with the screen to stock them', async () => {
+    const { root, settle } = setup(inbox({ unstockedProducts: group([{ productId: 'p9', sku: 'NOVO-1', name: 'Produto Novo' }]) }));
+    await settle();
+
+    const item = root.querySelector('[data-testid="pending-unstocked"]')!;
+    expect(item.textContent).toContain('Produto Novo');
+    expect(item.querySelector('a')!.getAttribute('href')).toBe('/admin/operacao');
+    expect(text(root)).toContain('Produtos ativos sem estoque cadastrado');
+  });
+
+  it('takes a decided customer off the list at once, before the refreshed list arrives, so it cannot be decided twice', async () => {
+    const { fixture, http, root, settle, button, row, reload } = setup();
+    await settle();
+    button('Suspender', row('Bar Novo')).click();
+    await settle();
+    button('Confirmar suspensão').click();
+    fixture.detectChanges();
+    http.expectOne('/api/admin/clients/c2/suspend').flush(null, { status: 204, statusText: 'No Content' });
+    await settle(); // the refreshed list has not arrived yet
+
+    expect(root.querySelectorAll('[data-testid="pending-customer"]').length).toBe(1);
+    expect(text(root)).not.toContain('Bar Novo');
+    reload(inbox({ customers: group([waiting('c1', 'Loja Nova')]) }));
+  });
+
+  it('says so when the tier list cannot be loaded, instead of offering a form that can never be confirmed', async () => {
+    TestBed.configureTestingModule({ imports: [AdminInbox], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    const fixture = TestBed.createComponent(AdminInbox);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/admin/pending-actions').flush(inbox({ customers: group([waiting('c1', 'Loja Nova')]) }));
+    http.expectOne('/api/admin/pricing-tiers').flush('boom', { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === 'Aprovar')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(root.querySelector('[data-testid="pending-approval"] [role="alert"]')?.textContent).toContain('Erro no servidor');
+  });
+
+  it('closes an open form when a 409 shows the list was stale', async () => {
+    const { fixture, http, root, settle, button, row, reload } = setup();
+    await settle();
+    button('Aprovar', row('Loja Nova')).click();
+    await settle();
+    const select = root.querySelector<HTMLSelectElement>('select[name="approve-tier"]')!;
+    select.value = 't-std';
+    select.dispatchEvent(new Event('change'));
+    await settle();
+
+    button('Confirmar aprovação').click();
+    fixture.detectChanges();
+    http.expectOne('/api/admin/clients/c1/approve').flush('This customer is already approved.', { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+    reload(inbox({ customers: group([waiting('c2', 'Bar Novo')]) }));
+    await settle();
+
+    expect(root.querySelector('select[name="approve-tier"]')).toBeNull();
   });
 
   it('says so, group by group, when nothing is waiting, and celebrates an empty inbox', async () => {

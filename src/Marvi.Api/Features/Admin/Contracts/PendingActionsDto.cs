@@ -12,8 +12,8 @@ public record PendingQuoteDto(Guid Id, Guid ClientAccountId, string CompanyName,
 /// <summary>A stock record at or below its reorder point.</summary>
 public record LowStockDto(Guid ProductId, string Sku, string ProductName, Guid WarehouseId, string WarehouseName, int Available, int ReorderPoint);
 
-/// <summary>An active product with no price in the default tier: visitors see "Sob consulta" for it.</summary>
-public record UnpricedProductDto(Guid ProductId, string Sku, string Name);
+/// <summary>A product that needs attention: an active product with no price a visitor can see ("Sob consulta"), or with no stock record at all.</summary>
+public record ProductRefDto(Guid ProductId, string Sku, string Name);
 
 /// <summary>Everything that is waiting on an admin (MRV-6.2): the admin portal's inbox. `Total` is the sum of the counts.</summary>
 public record PendingActionsDto(
@@ -21,4 +21,5 @@ public record PendingActionsDto(
     PendingGroup<PendingCustomerDto> Customers,
     PendingGroup<PendingQuoteDto> Quotes,
     PendingGroup<LowStockDto> LowStock,
-    PendingGroup<UnpricedProductDto> UnpricedProducts);
+    PendingGroup<ProductRefDto> UnpricedProducts,
+    PendingGroup<ProductRefDto> UnstockedProducts);

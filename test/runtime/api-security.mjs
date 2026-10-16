@@ -300,6 +300,13 @@ ok('approving an approved customer again is a 409 ("already decided")', (await c
 const suspensions = await Promise.all([1, 2, 3, 4, 5].map(() => call('PUT', `/api/admin/clients/${racer.id}/suspend`, { token: admin })));
 ok('5 simultaneous suspensions: exactly one succeeds, the rest are 409, none is a 500', suspensions.filter((r) => r.status === 204).length === 1 && suspensions.filter((r) => r.status === 409).length === 4, suspensions.map((r) => r.status).join(','));
 ok('...and the suspension is audited exactly once, with the previous status', sql(`select count(*) from audit_log_entries where entity_id='${racer.id}' and action='Suspend'`) === '1');
+const profileRace = await registerClient('Perfil e Decisão Ltda', 'perfil@corrida.test', { approve: false });
+const raceResults = await Promise.all([
+  call('PUT', `/api/admin/clients/${profileRace.id}/approve`, { token: admin, body: { pricingTierId: standard.id } }),
+  ...[1, 2, 3, 4, 5, 6].map((n) => call('PUT', '/api/client/profile', { token: profileRace.token, body: { companyName: `Perfil ${n}`, billingAddress: `Rua ${n}`, shippingAddresses: [] } })),
+]);
+ok('a customer saving their profile while an admin decides them never gets a 500 (200, or 409 at worst), and the decision still wins', raceResults.every((r) => r.status < 500) && raceResults[0].status === 204
+  && (await call('GET', '/api/client/profile', { token: profileRace.token })).json.status === 'Approved', raceResults.map((r) => r.status).join(','));
 ok('a suspended customer can be approved again (204)', (await call('PUT', `/api/admin/clients/${racer.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204);
 
 section('PENDING ACTIONS: the admin inbox lists everything waiting on someone (on real Postgres)');
@@ -310,8 +317,9 @@ ok('...oldest first', inbox.customers.items.every((c, i) => i === 0 || Date.pars
 ok('a product that is out of stock is below its reorder point (low stock)', inbox.lowStock.items.some((i) => i.productId === prod.oos.id && i.available <= i.reorderPoint && i.warehouseName));
 ok('an active product with no price is listed as unpriced, a priced one is not', inbox.unpricedProducts.items.some((p) => p.productId === prod.nopr.id) && !inbox.unpricedProducts.items.some((p) => p.productId === prod.cola.id));
 ok('a quote nobody has priced is waiting, with the company that asked', inbox.quotes.count === inbox.quotes.items.length && inbox.quotes.items.every((q) => q.companyName && q.lineCount >= 1));
-ok('the total is the sum of the groups, and each group lists at most 50', inbox.total === inbox.customers.count + inbox.quotes.count + inbox.lowStock.count + inbox.unpricedProducts.count
-  && [inbox.customers, inbox.quotes, inbox.lowStock, inbox.unpricedProducts].every((g) => g.items.length <= 50 && g.items.length <= g.count));
+ok('an active product that no warehouse has ever held is listed (these fixtures leave mixer and nopr without any stock record), a stocked one is not', inbox.unstockedProducts.items.some((p) => p.productId === prod.nopr.id) && !inbox.unstockedProducts.items.some((p) => p.productId === prod.cola.id));
+const groups = [inbox.customers, inbox.quotes, inbox.lowStock, inbox.unpricedProducts, inbox.unstockedProducts];
+ok('the total is the sum of the groups, and each group lists at most 50', inbox.total === groups.reduce((sum, g) => sum + g.count, 0) && groups.every((g) => g.items.length <= 50 && g.items.length <= g.count));
 await call('PUT', `/api/admin/clients/${waiting.id}/suspend`, { token: admin });
 ok('once an admin has decided, the customer leaves the inbox', !(await call('GET', '/api/admin/pending-actions', { token: admin })).json.customers.items.some((c) => c.id === waiting.id));
 

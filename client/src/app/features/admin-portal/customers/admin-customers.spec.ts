@@ -178,6 +178,8 @@ describe('AdminCustomers', () => {
     reload([customer('c3', 'Loja Nova', 'Approved', 't-gold')]);
     await settle();
 
+    // A decision here changes what is waiting in the admin inbox, so the inbox (and the count on its tab) is asked again.
+    http.expectOne('/api/admin/pending-actions').flush({ total: 0 });
     expect(text(root)).toContain('Cliente aprovado');
     expect(row('Loja Nova').textContent).toContain('Aprovado');
   });

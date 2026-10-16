@@ -70,6 +70,13 @@ describe('ApprovalForm', () => {
     expect(button('Confirmar aprovação').disabled).toBe(true);
   });
 
+  it('puts the keyboard on the select when it appears, so nobody has to tab through the table to reach it', async () => {
+    const { fixture, select } = await setup();
+
+    expect(document.activeElement).toBe(select());
+    fixture.destroy();
+  });
+
   it('can be cancelled, and cannot be confirmed while a request is running', async () => {
     const { host, button, settle } = await setup('t-std');
 

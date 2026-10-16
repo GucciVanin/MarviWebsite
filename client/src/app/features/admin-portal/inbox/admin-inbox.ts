@@ -32,6 +32,9 @@ export class AdminInbox implements OnInit {
 
   protected readonly approvingId = signal<string | null>(null);
   protected readonly confirmingSuspendId = signal<string | null>(null);
+  /** Customers an admin has just decided: gone from the list at once, before the refreshed list arrives. */
+  private readonly decidedIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly waitingCustomers = computed(() => (this.data()?.customers.items ?? []).filter((customer) => !this.decidedIds().has(customer.id)));
   protected readonly message = signal<string | null>(null);
   protected readonly decide = action();
 
@@ -39,18 +42,23 @@ export class AdminInbox implements OnInit {
     // Another admin decided first (a 409): what is on screen is stale, so refresh it without being asked.
     effect(() => {
       if (this.decide.error()?.status === 409) {
-        untracked(() => this.refresh());
+        untracked(() => {
+          this.approvingId.set(null);
+          this.confirmingSuspendId.set(null);
+          this.service.refresh(true);
+        });
       }
     });
   }
 
   ngOnInit(): void {
-    this.refresh();
+    this.service.refresh();
     this.tiers.load();
   }
 
+  /** The refresh button: always asks again. */
   protected refresh(): void {
-    this.service.refresh();
+    this.service.refresh(true);
   }
 
   /** "1 item aguardando" / "3 itens aguardando". */
@@ -78,18 +86,19 @@ export class AdminInbox implements OnInit {
 
   protected approve(id: string, pricingTierId: string): void {
     this.message.set(null);
-    this.decide.run(this.admin.approveClient(id, { pricingTierId }), () => this.decided(this.t.approved));
+    this.decide.run(this.admin.approveClient(id, { pricingTierId }), () => this.decided(id, this.t.approved));
   }
 
   protected suspend(id: string): void {
     this.message.set(null);
-    this.decide.run(this.admin.suspendClient(id), () => this.decided(this.t.suspended));
+    this.decide.run(this.admin.suspendClient(id), () => this.decided(id, this.t.suspended));
   }
 
-  private decided(message: string): void {
+  private decided(id: string, message: string): void {
     this.message.set(message);
     this.approvingId.set(null);
     this.confirmingSuspendId.set(null);
-    this.refresh();
+    this.decidedIds.update((ids) => new Set(ids).add(id));
+    this.service.refresh(true);
   }
 }

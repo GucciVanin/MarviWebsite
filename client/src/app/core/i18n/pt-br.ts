@@ -356,6 +356,9 @@ export const PT = {
     unpricedHint: 'Enquanto não tiverem preço na faixa padrão, os visitantes veem "Sob consulta".',
     noUnpriced: 'Nenhum produto ativo sem preço.',
     setPrice: 'Definir preço',
+    unstockedTitle: 'Produtos ativos sem estoque cadastrado',
+    unstockedHint: 'Nenhum depósito recebeu esses produtos ainda: ninguém consegue comprá-los.',
+    noUnstocked: 'Nenhum produto ativo sem estoque cadastrado.',
   },
   adminCustomers: {
     title: 'Clientes',

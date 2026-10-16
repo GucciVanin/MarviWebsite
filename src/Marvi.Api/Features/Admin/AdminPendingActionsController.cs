@@ -1,6 +1,7 @@
 using Marvi.Api.Features.Admin.Contracts;
 using Marvi.Api.Features.Catalog;
 using Marvi.Domain.Identity;
+using Marvi.Domain.Inventory;
 using Marvi.Domain.Quotes;
 using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -35,8 +36,9 @@ public class AdminPendingActionsController : ControllerBase
         var quotes = await QuotesAsync();
         var lowStock = await LowStockAsync();
         var unpriced = await UnpricedProductsAsync();
+        var unstocked = await UnstockedProductsAsync();
 
-        return Ok(new PendingActionsDto(customers.Count + quotes.Count + lowStock.Count + unpriced.Count, customers, quotes, lowStock, unpriced));
+        return Ok(new PendingActionsDto(customers.Count + quotes.Count + lowStock.Count + unpriced.Count + unstocked.Count, customers, quotes, lowStock, unpriced, unstocked));
     }
 
     private async Task<PendingGroup<PendingCustomerDto>> CustomersAsync()
@@ -63,8 +65,8 @@ public class AdminPendingActionsController : ControllerBase
 
     private async Task<PendingGroup<LowStockDto>> LowStockAsync()
     {
-        // The reorder rule is Domain's (StockAvailability.NeedsReorder); the same condition is written here so the database filters it.
-        var query = _dbContext.InventoryRecords.Where(i => i.Product!.IsActive && i.QtyOnHand - i.QtyReserved <= i.ReorderPoint);
+        // The reorder rule is Domain's, as an expression the database filters by (StockAvailability.NeedsReorderFilter).
+        var query = _dbContext.InventoryRecords.Where(StockAvailability.NeedsReorderFilter).Where(i => i.Product!.IsActive);
         var items = await query
             .OrderBy(i => i.QtyOnHand - i.QtyReserved - i.ReorderPoint).ThenBy(i => i.Product!.Name).ThenBy(i => i.Id)
             .Take(MaxItemsPerGroup)
@@ -73,16 +75,30 @@ public class AdminPendingActionsController : ControllerBase
         return new PendingGroup<LowStockDto>(await query.CountAsync(), items);
     }
 
-    private async Task<PendingGroup<UnpricedProductDto>> UnpricedProductsAsync()
+    private async Task<PendingGroup<ProductRefDto>> UnpricedProductsAsync()
     {
-        // No default tier yet means nothing can be priced for anyone, so every active product is waiting for a price.
+        // A visitor is priced for one unit, so a price a visitor can see is a default-tier row that applies from quantity 1 (MinQty <= 1);
+        // a product priced only for bigger quantities still shows "Sob consulta". No default tier yet means nothing can be priced for
+        // anyone, so every active product is waiting for a price.
         var defaultTierId = (await DefaultPricingTier.FindAsync(_dbContext))?.Id ?? Guid.Empty;
-        var query = _dbContext.Products.Where(p => p.IsActive && !p.ProductPricings.Any(pp => pp.PricingTierId == defaultTierId));
+        var query = _dbContext.Products.Where(p => p.IsActive && !p.ProductPricings.Any(pp => pp.PricingTierId == defaultTierId && pp.MinQty <= 1));
+        return await GroupOfProductsAsync(query);
+    }
+
+    private async Task<PendingGroup<ProductRefDto>> UnstockedProductsAsync()
+    {
+        // An active product that no warehouse has ever held cannot be bought (one with a record at zero is low stock instead).
+        var query = _dbContext.Products.Where(p => p.IsActive && !p.InventoryRecords.Any());
+        return await GroupOfProductsAsync(query);
+    }
+
+    private async Task<PendingGroup<ProductRefDto>> GroupOfProductsAsync(IQueryable<Marvi.Domain.Catalog.Product> query)
+    {
         var items = await query
             .OrderBy(p => p.Name).ThenBy(p => p.Id)
             .Take(MaxItemsPerGroup)
-            .Select(p => new UnpricedProductDto(p.Id, p.Sku, p.Name))
+            .Select(p => new ProductRefDto(p.Id, p.Sku, p.Name))
             .ToListAsync();
-        return new PendingGroup<UnpricedProductDto>(await query.CountAsync(), items);
+        return new PendingGroup<ProductRefDto>(await query.CountAsync(), items);
     }
 }

@@ -32,7 +32,8 @@ export interface LowStock {
   reorderPoint: number;
 }
 
-export interface UnpricedProduct {
+/** A product that needs attention: an active product with no price a visitor can see, or with no stock record at all. */
+export interface ProductRef {
   productId: string;
   sku: string;
   name: string;
@@ -44,7 +45,8 @@ export interface PendingActions {
   customers: PendingGroup<PendingCustomer>;
   quotes: PendingGroup<PendingQuote>;
   lowStock: PendingGroup<LowStock>;
-  unpricedProducts: PendingGroup<UnpricedProduct>;
+  unpricedProducts: PendingGroup<ProductRef>;
+  unstockedProducts: PendingGroup<ProductRef>;
 }
 
 /**
@@ -60,7 +62,13 @@ export class PendingActionsService {
   /** How many things are waiting, or null until it is known. */
   readonly total = computed(() => this.pending.data()?.total ?? null);
 
-  refresh(): void {
-    this.pending.load();
+  /**
+   * Asks again. While a request is already on its way a plain refresh adds nothing (the screen and the navigation both ask when
+   * an admin page opens), so it is skipped; after a change the admin has just made, `force` makes sure the answer is newer than it.
+   */
+  refresh(force = false): void {
+    if (force || !this.pending.loading()) {
+      this.pending.load();
+    }
   }
 }
