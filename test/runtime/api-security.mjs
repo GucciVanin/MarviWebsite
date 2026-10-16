@@ -302,6 +302,19 @@ ok('5 simultaneous suspensions: exactly one succeeds, the rest are 409, none is 
 ok('...and the suspension is audited exactly once, with the previous status', sql(`select count(*) from audit_log_entries where entity_id='${racer.id}' and action='Suspend'`) === '1');
 ok('a suspended customer can be approved again (204)', (await call('PUT', `/api/admin/clients/${racer.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204);
 
+section('PENDING ACTIONS: the admin inbox lists everything waiting on someone (on real Postgres)');
+const waiting = await registerClient('Esperando Ltda', 'esperando@fila.test', { approve: false });
+const inbox = (await call('GET', '/api/admin/pending-actions', { token: admin })).json;
+ok('a customer who has just registered is waiting for approval, with the date they registered', inbox.customers.items.some((c) => c.id === waiting.id && c.companyName === 'Esperando Ltda' && registeredRecently(c.createdAt)));
+ok('...oldest first', inbox.customers.items.every((c, i) => i === 0 || Date.parse(inbox.customers.items[i - 1].createdAt) <= Date.parse(c.createdAt)));
+ok('a product that is out of stock is below its reorder point (low stock)', inbox.lowStock.items.some((i) => i.productId === prod.oos.id && i.available <= i.reorderPoint && i.warehouseName));
+ok('an active product with no price is listed as unpriced, a priced one is not', inbox.unpricedProducts.items.some((p) => p.productId === prod.nopr.id) && !inbox.unpricedProducts.items.some((p) => p.productId === prod.cola.id));
+ok('a quote nobody has priced is waiting, with the company that asked', inbox.quotes.count === inbox.quotes.items.length && inbox.quotes.items.every((q) => q.companyName && q.lineCount >= 1));
+ok('the total is the sum of the groups, and each group lists at most 50', inbox.total === inbox.customers.count + inbox.quotes.count + inbox.lowStock.count + inbox.unpricedProducts.count
+  && [inbox.customers, inbox.quotes, inbox.lowStock, inbox.unpricedProducts].every((g) => g.items.length <= 50 && g.items.length <= g.count));
+await call('PUT', `/api/admin/clients/${waiting.id}/suspend`, { token: admin });
+ok('once an admin has decided, the customer leaves the inbox', !(await call('GET', '/api/admin/pending-actions', { token: admin })).json.customers.items.some((c) => c.id === waiting.id));
+
 section('UPDATE TIER: an admin moves a customer to another pricing tier without touching the status (on real Postgres)');
 const clientD = await registerClient('Adega do Dedé', 'dede@adega.test');
 const upd = await call('PUT', `/api/admin/clients/${clientD.id}/pricing-tier`, { token: admin, body: { pricingTierId: wholesale.id } });
@@ -598,6 +611,7 @@ const endpoints = [
   ['PUT', `/api/admin/clients/${ID}/pricing-tier`, { pricingTierId: ID }, ['admin']],
   ['POST', '/api/admin/products/import', undefined, ['admin']],
   ['GET', '/api/employee/clients', undefined, ['employee', 'admin']],
+  ['GET', '/api/admin/pending-actions', undefined, ['admin']],
   ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
 ];
 let matrixBad = [];

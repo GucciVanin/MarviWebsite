@@ -11,6 +11,9 @@ public static class StockAvailability
 
     public static bool InStock(IEnumerable<InventoryRecord> records) => Available(records) > 0;
 
+    /// <summary>A stock record has run down to its reorder point (MRV-6.2): what is available there is at or below it. Out of stock counts.</summary>
+    public static bool NeedsReorder(InventoryRecord record) => record.QtyOnHand - record.QtyReserved <= record.ReorderPoint;
+
     /// <summary>Available units per product for many products at once; a product with no records is simply absent (0).</summary>
     public static IReadOnlyDictionary<Guid, int> AvailableByProduct(IEnumerable<InventoryRecord> records) =>
         records.GroupBy(r => r.ProductId).ToDictionary(g => g.Key, g => Available(g));
