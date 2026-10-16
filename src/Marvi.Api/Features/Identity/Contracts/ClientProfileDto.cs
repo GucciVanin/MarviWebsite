@@ -9,7 +9,6 @@ public record ClientProfileDto(
     string CompanyName,
     string BillingAddress,
     List<string> ShippingAddresses,
-    decimal CreditLimit,
     string? PricingTierName,
     ClientAccountStatus Status,
     List<QuoteDto> Quotes,

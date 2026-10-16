@@ -7,5 +7,4 @@ export interface ClientSummary {
   status: ClientAccountStatus;
   pricingTierId: string | null;
   pricingTierName: string | null;
-  creditLimit: number;
 }

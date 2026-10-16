@@ -28,14 +28,13 @@ export interface ProductImportReport {
   errors: ProductImportError[];
 }
 
-export interface UpdateClientCreditRequest {
+export interface UpdateClientTierRequest {
   pricingTierId: string;
-  creditLimit: number;
 }
 
+/** Approving is the admin's explicit choice of the customer's pricing tier: nobody is approved by default. */
 export interface ApproveClientRequest {
   pricingTierId: string;
-  creditLimit: number;
 }
 
 export interface ProductAdmin {
@@ -201,8 +200,8 @@ export class AdminService {
     return this.http.put<void>(`/api/admin/clients/${id}/approve`, request);
   }
 
-  updateClientCredit(id: string, request: UpdateClientCreditRequest): Observable<void> {
-    return this.http.put<void>(`/api/admin/clients/${id}/update-credit`, request);
+  updateClientTier(id: string, request: UpdateClientTierRequest): Observable<void> {
+    return this.http.put<void>(`/api/admin/clients/${id}/pricing-tier`, request);
   }
 
   /** The customer directory (`GET /api/employee/clients`, which admins may use too), one page. */

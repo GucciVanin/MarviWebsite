@@ -79,7 +79,6 @@ export interface ClientProfile {
   companyName: string;
   billingAddress: string;
   shippingAddresses: string[];
-  creditLimit: number;
   pricingTierName: string | null;
   status: ClientAccountStatus;
   quotes: Quote[];

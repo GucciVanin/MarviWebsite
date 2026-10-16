@@ -3,14 +3,14 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AdminCustomers } from './admin-customers';
 
-const customer = (id: string, companyName: string, status = 'Approved', tierId: string | null = 't-std', credit = 1000) => ({
-  id, companyName, status, pricingTierId: tierId, pricingTierName: tierId === 't-gold' ? 'Ouro' : 'Standard', creditLimit: credit,
+const customer = (id: string, companyName: string, status = 'Approved', tierId: string | null = 't-std') => ({
+  id, companyName, status, pricingTierId: tierId, pricingTierName: tierId === 't-gold' ? 'Ouro' : 'Standard',
 });
 const page = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 20, totalCount });
 const tiers = [{ id: 't-std', name: 'Standard', isDefault: true }, { id: 't-gold', name: 'Ouro', isDefault: false }];
 
 describe('AdminCustomers', () => {
-  function setup(items: object[] = [customer('c1', 'Bar do Zé'), customer('c2', 'Mercado Sol', 'Suspended', 't-gold', 250)], total?: number) {
+  function setup(items: object[] = [customer('c1', 'Bar do Zé'), customer('c2', 'Mercado Sol', 'Suspended', 't-gold')], total?: number) {
     TestBed.configureTestingModule({ imports: [AdminCustomers], providers: [provideHttpClient(), provideHttpClientTesting()] });
     const fixture = TestBed.createComponent(AdminCustomers);
     fixture.detectChanges();
@@ -37,13 +37,13 @@ describe('AdminCustomers', () => {
   }
   const text = (root: HTMLElement) => (root.textContent ?? '').replace(/\s+/g, ' ');
 
-  it('lists the customers with status, pricing tier and credit', async () => {
+  it('lists the customers with status and pricing tier, and no credit anywhere', async () => {
     const { root, settle, row } = setup();
     await settle();
 
     expect(row('Bar do Zé').textContent).toContain('Aprovado');
     expect(row('Bar do Zé').textContent).toContain('Standard');
-    expect(row('Bar do Zé').textContent).toContain('1.000,00');
+    expect(text(root)).not.toMatch(/crédito|limite/i);
     expect(row('Mercado Sol').textContent).toContain('Suspenso');
     expect(row('Mercado Sol').textContent).toContain('Ouro');
     expect(text(root)).not.toContain('Refine a busca');
@@ -73,47 +73,27 @@ describe('AdminCustomers', () => {
     expect(text(root)).toContain('Refine a busca');
   });
 
-  it('changes a customer\'s credit limit and pricing tier, then shows the new values', async () => {
+  it('moves a customer to another pricing tier, then shows the new tier', async () => {
     const { fixture, http, root, settle, button, row, set, reload } = setup();
     await settle();
 
     button('Editar', row('Bar do Zé')).click();
     await settle();
     expect(root.querySelector<HTMLSelectElement>('select[name="tier"]')!.value).toBe('t-std');
-    expect(root.querySelector<HTMLInputElement>('input[name="credit"]')!.value).toBe('1000');
+    expect(root.querySelector('input[name="credit"]')).toBeNull();
     await set('select[name="tier"]', 't-gold', 'change');
-    await set('input[name="credit"]', '2500');
     button('Salvar').click();
     fixture.detectChanges();
 
-    const request = http.expectOne('/api/admin/clients/c1/update-credit');
+    const request = http.expectOne('/api/admin/clients/c1/pricing-tier');
     expect(request.request.method).toBe('PUT');
-    expect(request.request.body).toEqual({ pricingTierId: 't-gold', creditLimit: 2500 });
+    expect(request.request.body).toEqual({ pricingTierId: 't-gold' });
     request.flush(null, { status: 204, statusText: 'No Content' });
-    reload([customer('c1', 'Bar do Zé', 'Approved', 't-gold', 2500), customer('c2', 'Mercado Sol', 'Suspended', 't-gold', 250)]);
+    reload([customer('c1', 'Bar do Zé', 'Approved', 't-gold'), customer('c2', 'Mercado Sol', 'Suspended', 't-gold')]);
     await settle();
 
     expect(text(root)).toContain('Dados salvos');
-    expect(row('Bar do Zé').textContent).toContain('2.500,00');
     expect(row('Bar do Zé').textContent).toContain('Ouro');
-  });
-
-  it('does not offer to save a credit limit that is empty or negative', async () => {
-    const { root, settle, button, row, set } = setup();
-    await settle();
-    button('Editar', row('Bar do Zé')).click();
-    await settle();
-    const save = () => button('Salvar');
-
-    await set('input[name="credit"]', '-5');
-    expect(save().disabled).toBe(true);
-    expect(text(root)).toContain('0 ou mais');
-
-    await set('input[name="credit"]', '');
-    expect(save().disabled).toBe(true);
-
-    await set('input[name="credit"]', '0');
-    expect(save().disabled).toBe(false);
   });
 
   it('suspends an approved customer only after a confirming click', async () => {
@@ -128,7 +108,7 @@ describe('AdminCustomers', () => {
     button('Confirmar suspensão').click();
     fixture.detectChanges();
     http.expectOne('/api/admin/clients/c1/suspend').flush(null, { status: 204, statusText: 'No Content' });
-    reload([customer('c1', 'Bar do Zé', 'Suspended'), customer('c2', 'Mercado Sol', 'Suspended', 't-gold', 250)]);
+    reload([customer('c1', 'Bar do Zé', 'Suspended'), customer('c2', 'Mercado Sol', 'Suspended', 't-gold')]);
     await settle();
 
     expect(text(root)).toContain('Cliente suspenso');
@@ -165,7 +145,7 @@ describe('AdminCustomers', () => {
     await settle();
     button('Salvar').click();
     fixture.detectChanges();
-    http.expectOne('/api/admin/clients/c1/update-credit').flush('Unknown pricing tier.', { status: 400, statusText: 'Bad Request' });
+    http.expectOne('/api/admin/clients/c1/pricing-tier').flush('Unknown pricing tier.', { status: 400, statusText: 'Bad Request' });
     await settle();
     expect(root.querySelector('[role="alert"]')).not.toBeNull();
 
@@ -175,7 +155,7 @@ describe('AdminCustomers', () => {
     expect(root.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it('approves a suspended customer again, keeping their tier and credit', async () => {
+  it('approves a suspended customer again, keeping their tier', async () => {
     const { fixture, http, root, settle, button, row, reload } = setup();
     await settle();
 
@@ -183,9 +163,9 @@ describe('AdminCustomers', () => {
     fixture.detectChanges();
 
     const request = http.expectOne('/api/admin/clients/c2/approve');
-    expect(request.request.body).toEqual({ pricingTierId: 't-gold', creditLimit: 250 });
+    expect(request.request.body).toEqual({ pricingTierId: 't-gold' });
     request.flush(null, { status: 204, statusText: 'No Content' });
-    reload([customer('c1', 'Bar do Zé'), customer('c2', 'Mercado Sol', 'Approved', 't-gold', 250)]);
+    reload([customer('c1', 'Bar do Zé'), customer('c2', 'Mercado Sol', 'Approved', 't-gold')]);
     await settle();
 
     expect(text(root)).toContain('Cliente aprovado');
@@ -200,7 +180,7 @@ describe('AdminCustomers', () => {
 
     button('Salvar').click();
     fixture.detectChanges();
-    http.expectOne('/api/admin/clients/c1/update-credit').flush('Unknown pricing tier.', { status: 400, statusText: 'Bad Request' });
+    http.expectOne('/api/admin/clients/c1/pricing-tier').flush('Unknown pricing tier.', { status: 400, statusText: 'Bad Request' });
     await settle();
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('dados enviados são inválidos');

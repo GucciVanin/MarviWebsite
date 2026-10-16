@@ -3,7 +3,6 @@ import { FormsModule } from '@angular/forms';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
-import { BrlPipe } from '../../../shared/format/brl.pipe';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
@@ -13,12 +12,12 @@ import { AdminService, PricingTier } from '../api/admin.service';
 const PAGE_SIZE = 20;
 
 /**
- * Customers for admins (MRV-2.4b.4): find a customer by company name, change their credit limit and pricing tier, suspend
+ * Customers for admins (MRV-2.4b.4): find a customer by company name, change their pricing tier, suspend
  * them (after a confirming click) and approve them again. The admin sees every refusal in pt-BR with the server's reason.
  */
 @Component({
   selector: 'app-admin-customers',
-  imports: [FormsModule, ErrorAlert, LoadState, BrlPipe],
+  imports: [FormsModule, ErrorAlert, LoadState],
   templateUrl: './admin-customers.html',
 })
 export class AdminCustomers implements OnInit {
@@ -37,17 +36,11 @@ export class AdminCustomers implements OnInit {
 
   protected readonly editingId = signal<string | null>(null);
   protected readonly editTierId = signal('');
-  protected readonly editCredit = signal<number | string | null>(null);
   protected readonly confirmingSuspendId = signal<string | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly saveAction = action();
 
-  /** A credit limit is a number of 0 or more. */
-  protected readonly creditValid = computed(() => {
-    const value = this.editCredit();
-    return value !== null && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
-  });
-  protected readonly canSave = computed(() => this.editTierId() !== '' && this.creditValid() && !this.saveAction.busy());
+  protected readonly canSave = computed(() => this.editTierId() !== '' && !this.saveAction.busy());
 
   ngOnInit(): void {
     this.customers.load();
@@ -69,7 +62,6 @@ export class AdminCustomers implements OnInit {
     this.confirmingSuspendId.set(null);
     this.editingId.set(customer.id);
     this.editTierId.set(customer.pricingTierId ?? '');
-    this.editCredit.set(customer.creditLimit);
   }
 
   protected stopEditing(): void {
@@ -83,7 +75,7 @@ export class AdminCustomers implements OnInit {
     }
     this.message.set(null);
     this.saveAction.run(
-      this.admin.updateClientCredit(customer.id, { pricingTierId: this.editTierId(), creditLimit: Number(this.editCredit()) }),
+      this.admin.updateClientTier(customer.id, { pricingTierId: this.editTierId() }),
       () => this.done(this.t.saved),
     );
   }
@@ -107,7 +99,7 @@ export class AdminCustomers implements OnInit {
       return;
     }
     this.message.set(null);
-    this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId: tierId, creditLimit: customer.creditLimit }), () => this.done(this.t.approved));
+    this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId: tierId }), () => this.done(this.t.approved));
   }
 
   /** The tier a reactivated customer keeps, or the default tier when they have none; null until it is known. */

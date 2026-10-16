@@ -79,20 +79,18 @@ public class IdentityValidationTests : IClassFixture<MarviApiFactory>
     }
 
     [Fact]
-    public async Task ApprovingAClient_NeedsARealTier_AndANonNegativeCreditLimit()
+    public async Task ApprovingAClient_NeedsARealTier()
     {
         var admin = await _factory.AdminAsync();
         var (_, accountId) = await _factory.RegisterClientAsync();
         var tier = (await admin.PostAsJsonAsync("/api/admin/pricing-tiers", new UpsertPricingTierRequest($"T-{Guid.NewGuid():N}", false)))
             .Content.ReadFromJsonAsync<PricingTierDto>().Result!;
 
-        var unknownTier = await admin.PutAsJsonAsync($"/api/admin/clients/{accountId}/approve", new ApproveClientRequest(Guid.NewGuid(), 100));
-        var negative = await admin.PutAsJsonAsync($"/api/admin/clients/{accountId}/approve", new ApproveClientRequest(tier.Id, -1));
-        var good = await admin.PutAsJsonAsync($"/api/admin/clients/{accountId}/approve", new ApproveClientRequest(tier.Id, 2500));
-        var unknownClient = await admin.PutAsJsonAsync($"/api/admin/clients/{Guid.NewGuid()}/approve", new ApproveClientRequest(tier.Id, 1));
+        var unknownTier = await admin.PutAsJsonAsync($"/api/admin/clients/{accountId}/approve", new ApproveClientRequest(Guid.NewGuid()));
+        var good = await admin.PutAsJsonAsync($"/api/admin/clients/{accountId}/approve", new ApproveClientRequest(tier.Id));
+        var unknownClient = await admin.PutAsJsonAsync($"/api/admin/clients/{Guid.NewGuid()}/approve", new ApproveClientRequest(tier.Id));
 
         Assert.Equal(HttpStatusCode.BadRequest, unknownTier.StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, negative.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, good.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, unknownClient.StatusCode);
     }

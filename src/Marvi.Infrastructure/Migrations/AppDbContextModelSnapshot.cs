@@ -327,10 +327,6 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("company_name");
 
-                    b.Property<decimal>("CreditLimit")
-                        .HasColumnType("numeric")
-                        .HasColumnName("credit_limit");
-
                     b.Property<Guid?>("PricingTierId")
                         .HasColumnType("uuid")
                         .HasColumnName("pricing_tier_id");

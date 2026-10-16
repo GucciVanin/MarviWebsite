@@ -234,7 +234,6 @@ export const PT = {
     company: 'Empresa',
     status: 'Situação',
     pricingTier: 'Faixa de preço',
-    creditLimit: 'Limite de crédito',
     clientStatus: { Approved: 'Aprovado', Pending: 'Pendente', Suspended: 'Suspenso' } as Record<string, string>,
     notEligible: 'Este cliente não está aprovado e não pode receber pedidos.',
     newOrderTitle: 'Novo pedido',
@@ -318,7 +317,6 @@ export const PT = {
     company: 'Empresa',
     status: 'Situação',
     tier: 'Faixa de preço',
-    credit: 'Limite de crédito',
     actions: 'Ações',
     edit: 'Editar',
     save: 'Salvar',
@@ -329,7 +327,6 @@ export const PT = {
     saved: 'Dados salvos.',
     suspended: 'Cliente suspenso.',
     approved: 'Cliente aprovado.',
-    creditInvalid: 'O limite deve ser um número de 0 ou mais.',
   },
   adminCatalog: {
     title: 'Catálogo',
