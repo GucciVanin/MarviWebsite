@@ -1,9 +1,11 @@
+using Marvi.Api.Configuration;
 using Marvi.Api.Features.Coverage.Contracts;
 using Marvi.Domain.Coverage;
 using Marvi.Infrastructure.Data;
 using Marvi.Infrastructure.Geocoding;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marvi.Api.Features.Coverage;
@@ -24,6 +26,7 @@ public class CoverageController : ControllerBase
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimiting.CoveragePolicy)]
     [HttpPost("check")]
     public async Task<ActionResult<CoverageCheckResultDto>> Check(CoverageCheckRequest request)
     {

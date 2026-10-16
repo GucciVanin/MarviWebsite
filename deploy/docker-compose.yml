@@ -30,6 +30,11 @@ services:
       # The API image is Production by default and refuses example secrets there (MRV-3.3a); this says, loudly, that here it is fine.
       # A real deployment must NOT set it (see docs/operations.md).
       Deployment__AllowExampleSecrets: "true"
+      # Rate limits (MRV-3.3b) are tight by default; development and the runtime suite sign in and register far faster than a person.
+      RateLimiting__Auth__PermitLimit: "100000"
+      RateLimiting__Coverage__PermitLimit: "100000"
+      # The nginx proxy in front of the API forwards the real client address; trust it (the API is only meant to be reached through it).
+      ForwardedHeaders__Enabled: "true"
     ports:
       - "8080:8080"
     depends_on:

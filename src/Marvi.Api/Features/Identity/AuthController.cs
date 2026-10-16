@@ -1,3 +1,4 @@
+using Marvi.Api.Configuration;
 using Marvi.Api.Features.Identity.Contracts;
 using Marvi.Api.Features.Catalog;
 using Marvi.Domain.Identity;
@@ -5,6 +6,7 @@ using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marvi.Api.Features.Identity;
@@ -12,6 +14,7 @@ namespace Marvi.Api.Features.Identity;
 [ApiController]
 [Route("api/auth")]
 [AllowAnonymous]
+[EnableRateLimiting(RateLimiting.AuthPolicy)]
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;

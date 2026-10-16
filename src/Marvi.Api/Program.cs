@@ -21,6 +21,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter()));
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<InvalidTextExceptionHandler>();
+builder.Services.AddMarviRateLimiting(builder.Configuration);
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -54,8 +55,10 @@ if (app.Environment.IsDevelopment())
 
 // First, so it wraps everything: unknown failures become a generic 500 (no stack trace), bad input text a 400.
 app.UseExceptionHandler();
+app.UseForwardedClientAddress();
 app.UseHttpsRedirection();
 app.UseCors("SpaClient");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
