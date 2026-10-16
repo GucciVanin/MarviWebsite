@@ -161,7 +161,7 @@ use `AuditLogger`; all features share `AppDbContext`.
    `AddAuditingFeature` (`AuditLogger`, `IHttpContextAccessor`). Controllers are discovered by
    convention, so they need no registration.
 3. CORS policy `SpaClient` (origin `Cors:AllowedOrigin`, default `http://localhost:4200`).
-4. Pipeline: HTTPS redirection → CORS → authentication → authorization → controllers.
+4. Pipeline: exception handler → forwarded headers (only when `ForwardedHeaders:Enabled`) → HTTPS redirection → CORS → rate limiter → authentication → authorization → controllers. Before everything, `ProductionConfigurationGuard.EnsureSafe` (MRV-3.3a) refuses to start in Production on example/weak secrets unless `Deployment:AllowExampleSecrets=true` (set only in the dev/runtime compose file). `Configuration/RateLimiting.cs` (MRV-3.3b) defines the `auth` (register/login, 10 per 60 s) and `coverage` (public check, 30 per 60 s) per-client fixed-window policies, configurable under `RateLimiting:*`; 429 with `Retry-After`. Operations guidance lives in `docs/operations.md`.
 5. Outside the `Testing` environment on startup: apply migrations, `IdentityModule.SeedRolesAsync` (creates `Client`,
    `Employee`, `Admin`), `IdentityModule.SeedAdminAsync` (first admin from config), and
    `DefaultPricingTier.GetOrCreateAsync` (ensures one default tier, "Standard"). `DefaultPricingTier` (Api/Features/Catalog, MRV-4.9) is the single owner of the default-tier rule: find (alphabetical fallback for legacy data), get-or-create and promote, `ShouldBeDefaultAsync` (the first tier ever is the default) and `MakeDefaultAsync` (un-flag and flush the old default, then flag the new one) and `ApplyRequestedDefaultAsync` (the update rules: the only default cannot be unset, asking for the default switches it); startup, registration, the catalog and the pricing-tier admin controller all use it. Tests run the same seeding via `MarviApiFactory`.
@@ -528,6 +528,7 @@ flowchart LR
 - The Postgres password reaches the API as `PGPASSWORD`, not inside the connection string, so `;`, `=` or quotes in it are safe.
 - Only the SPA (:4200) and API (:8080) are published; Postgres is reachable only inside the compose network. The API runs as the non-root `app` user and exposes `GET /health`; the `client` waits for it to be healthy.
 - `.dockerignore` (root, for the API image) and `client/.dockerignore` keep host `bin/obj` and `node_modules` out of build contexts.
+- `nginx.conf` sends the security headers and a Content-Security-Policy (MRV-3.3c); the Angular production build does not inline critical CSS, because its `onload` stylesheet swap is an inline handler the CSP forbids. TLS/HSTS are terminated in front of the containers (`docs/operations.md`).
 - Migrations run automatically at API startup. The compose stack is verified end to end (MRV-3.1). Configuration (`Jwt:Key`, geocoding key, DB credentials) must be overridden for production.
 
 ## 10. Conventions
