@@ -37,7 +37,12 @@ Defaults: 10 requests per 60 s for `/api/auth`, 30 per 60 s for the coverage che
 
 The limits are keyed on the caller's address. Behind a reverse proxy (the bundled nginx, or your load balancer) the API sees the
 proxy's address unless it reads `X-Forwarded-For`; set `ForwardedHeaders__Enabled=true` **only if the API port is reachable
-exclusively through your proxy**, otherwise a caller could pick their own address and sidestep the limits. The development compose
+exclusively through your proxy**, otherwise a caller could pick their own address and sidestep the limits. Every hop in front of the API appends an address to `X-Forwarded-For`, and the API takes the one `ForwardedHeaders__ForwardLimit`
+hops from the end (default 1: the bundled nginx). With a load balancer or ingress in front of nginx, set it to **2**; left at 1 the API
+would see the balancer's address for every visitor, and they would all share one bucket (and without `ForwardedHeaders__Enabled`,
+they share nginx's address). Check after deploying: sign in wrongly 11 times from one machine, then from another one.
+
+The development compose
 file sets this and raises the limits so the test suites can sign in at machine speed; **do not copy those two lines to production.**
 
 ## 3. HTTPS and security headers (MRV-3.3c)

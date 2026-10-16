@@ -83,6 +83,24 @@ public class ProductionConfigurationGuardTests
     }
 
     [Theory]
+    [InlineData("Host=db;Pwd=marvi")]
+    [InlineData("Host=db;PSW=marvi")]
+    public void TheConnectionStringPasswordSynonyms_AreChecked(string connectionString)
+    {
+        var withStrongEnvironment = Good().Append(("ConnectionStrings:AppDb", connectionString)).ToArray();
+
+        Assert.Single(ProductionConfigurationGuard.Problems(Config(withStrongEnvironment)), p => p.Contains("database password"));
+    }
+
+    [Fact]
+    public void AQuotedConnectionStringPassword_WithSemicolons_IsNotMisread()
+    {
+        var quoted = Good().Where(v => v.Item1 != "PGPASSWORD").Append(("ConnectionStrings:AppDb", "Host=db;Password=\"Str0ng;Pass#word99\"")).ToArray();
+
+        Assert.Empty(ProductionConfigurationGuard.Problems(Config(quoted)));
+    }
+
+    [Theory]
     [InlineData("http://localhost:4200")]
     [InlineData("http://loja.marvi.example")]
     public void ThePublicOrigin_MustBeHttps(string origin)

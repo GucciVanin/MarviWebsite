@@ -71,7 +71,12 @@ public static class RateLimiting
             return;
         }
 
-        var options = new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto };
+        var options = new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+            // One trusted hop (the bundled nginx) by default; with a load balancer in front of nginx that is two.
+            ForwardLimit = Math.Max(1, app.Configuration.GetValue("ForwardedHeaders:ForwardLimit", 1)),
+        };
         options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
         app.UseForwardedHeaders(options);

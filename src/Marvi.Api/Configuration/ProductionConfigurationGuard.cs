@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
@@ -72,9 +73,8 @@ public static class ProductionConfigurationGuard
             problems.Add($"Seed:AdminPassword is an example value or shorter than {MinPasswordLength} characters.");
         }
 
-        var databasePassword = DatabasePassword(configuration);
-        if (databasePassword is not null
-            && (WeakDatabasePasswords.Contains(databasePassword, StringComparer.OrdinalIgnoreCase) || databasePassword.Length < MinPasswordLength))
+        // Both sources are checked: Npgsql prefers a Password in the connection string over PGPASSWORD, so either one may be the one in use.
+        if (DatabasePasswords(configuration).Any(p => WeakDatabasePasswords.Contains(p, StringComparer.OrdinalIgnoreCase) || p.Length < MinPasswordLength))
         {
             problems.Add($"The database password is an example value or shorter than {MinPasswordLength} characters.");
         }
@@ -91,21 +91,37 @@ public static class ProductionConfigurationGuard
     private static bool HoldsAnExample(string value) =>
         ExampleMarkers.Any(marker => value.Contains(marker, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>The database password: PGPASSWORD (what compose passes) or the Password= part of the connection string; null when neither is set.</summary>
-    private static string? DatabasePassword(IConfiguration configuration)
+    /// <summary>The database passwords in play: PGPASSWORD (what compose passes) and the password of the connection string (Password, Pwd or PSW, quotes honoured).</summary>
+    private static IEnumerable<string> DatabasePasswords(IConfiguration configuration)
     {
         var fromEnvironment = configuration["PGPASSWORD"];
         if (!string.IsNullOrEmpty(fromEnvironment))
         {
-            return fromEnvironment;
+            yield return fromEnvironment;
         }
 
         var connectionString = configuration["ConnectionStrings:AppDb"];
-        return connectionString?
-            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(part => part.Split('=', 2))
-            .Where(pair => pair.Length == 2 && pair[0].Equals("Password", StringComparison.OrdinalIgnoreCase))
-            .Select(pair => pair[1])
-            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            yield break;
+        }
+
+        var builder = new DbConnectionStringBuilder();
+        try
+        {
+            builder.ConnectionString = connectionString;
+        }
+        catch (ArgumentException)
+        {
+            yield break;
+        }
+
+        foreach (var key in new[] { "Password", "Pwd", "PSW" })
+        {
+            if (builder.TryGetValue(key, out var value) && value is string password && password.Length > 0)
+            {
+                yield return password;
+            }
+        }
     }
 }
