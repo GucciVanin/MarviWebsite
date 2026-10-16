@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import type { Quote, QuoteStatus } from '../../../shared/models/quote.model';
 import type { Order } from '../../../shared/models/order.model';
+import type { PagedResult } from '../../../shared/models/paged.model';
 
 export interface PriceQuoteLineRequest {
   lineItemId: string;
@@ -29,12 +30,55 @@ export interface InventoryRecord {
   productId: string;
   productName: string;
   warehouseId: string;
+  warehouseName: string;
   qtyOnHand: number;
   qtyReserved: number;
   reorderPoint: number;
 }
 
 export type ClientAccountStatus = 'Pending' | 'Approved' | 'Suspended';
+
+/** One line of the customer directory (`GET /api/employee/clients`). */
+export interface ClientSummary {
+  id: string;
+  companyName: string;
+  status: ClientAccountStatus;
+  pricingTierName: string | null;
+  creditLimit: number;
+}
+
+export const CLIENT_SEARCH_PAGE_SIZE = 10;
+
+/** A quote in the history: the quote plus the company it is for. */
+export interface QuoteHistoryItem extends Quote {
+  companyName: string;
+}
+
+/** An order in the history: the order plus the company it is for. */
+export interface OrderHistoryItem extends Order {
+  companyName: string;
+}
+
+/** The filters and page of a history request; `from` is inclusive, `to` exclusive, both ISO instants. */
+export interface HistoryQuery {
+  clientId?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  page: number;
+  pageSize: number;
+}
+
+function historyParams(query: HistoryQuery): Record<string, string> {
+  const params: Record<string, string> = { page: String(query.page), pageSize: String(query.pageSize) };
+  for (const key of ['clientId', 'status', 'from', 'to'] as const) {
+    const value = query[key];
+    if (value) {
+      params[key] = value;
+    }
+  }
+  return params;
+}
 
 export interface ClientProfile {
   id: string;
@@ -74,6 +118,19 @@ export class EmployeeService {
       params['warehouseId'] = warehouseId;
     }
     return this.http.get<InventoryRecord[]>('/api/employee/inventory', { params });
+  }
+
+  /** Customers whose company name contains the text (an empty text lists everyone), the first page only. */
+  searchClients(search: string): Observable<PagedResult<ClientSummary>> {
+    return this.http.get<PagedResult<ClientSummary>>('/api/employee/clients', { params: { search, pageSize: CLIENT_SEARCH_PAGE_SIZE } });
+  }
+
+  getQuoteHistory(query: HistoryQuery): Observable<PagedResult<QuoteHistoryItem>> {
+    return this.http.get<PagedResult<QuoteHistoryItem>>('/api/employee/quotes/history', { params: historyParams(query) });
+  }
+
+  getOrderHistory(query: HistoryQuery): Observable<PagedResult<OrderHistoryItem>> {
+    return this.http.get<PagedResult<OrderHistoryItem>>('/api/employee/orders/history', { params: historyParams(query) });
   }
 
   getClient(id: string): Observable<ClientProfile> {

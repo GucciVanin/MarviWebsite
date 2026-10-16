@@ -14,9 +14,6 @@ namespace Marvi.Api.Features.Identity;
 [AllowAnonymous]
 public class AuthController : ControllerBase
 {
-    private const int MaxCompanyNameLength = 200;
-    private const int MaxAddressLength = 500;
-
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly AppDbContext _dbContext;
     private readonly JwtTokenService _tokenService;
@@ -36,16 +33,10 @@ public class AuthController : ControllerBase
             return BadRequest(new[] { "Invalid email address." });
         }
 
-        var companyName = request.CompanyName?.Trim();
-        var billingAddress = request.BillingAddress?.Trim();
-        if (string.IsNullOrWhiteSpace(companyName) || string.IsNullOrWhiteSpace(billingAddress))
+        var (profile, problem) = ClientProfileRules.Check(request.CompanyName, request.BillingAddress);
+        if (profile is null)
         {
-            return BadRequest(new[] { "Company name and billing address are required." });
-        }
-
-        if (companyName.Length > MaxCompanyNameLength || billingAddress.Length > MaxAddressLength)
-        {
-            return BadRequest(new[] { $"Company name is limited to {MaxCompanyNameLength} characters and the address to {MaxAddressLength}." });
+            return BadRequest(new[] { problem });
         }
 
         var defaultTier = await DefaultPricingTier.GetOrCreateAsync(_dbContext);
@@ -68,8 +59,8 @@ public class AuthController : ControllerBase
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            CompanyName = companyName,
-            BillingAddress = billingAddress,
+            CompanyName = profile.CompanyName,
+            BillingAddress = profile.BillingAddress,
             PricingTierId = defaultTier.Id,
             // Clients get access immediately; admins can suspend them afterwards.
             Status = ClientAccountStatus.Approved

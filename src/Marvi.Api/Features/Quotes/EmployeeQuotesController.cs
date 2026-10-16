@@ -42,7 +42,7 @@ public class EmployeeQuotesController : ControllerBase
     /// (`from` inclusive, `to` exclusive, read as UTC); paged.
     /// </summary>
     [HttpGet("history")]
-    public async Task<ActionResult<PagedResult<QuoteDto>>> GetHistory(
+    public async Task<ActionResult<PagedResult<QuoteHistoryItemDto>>> GetHistory(
         [FromQuery] Guid? clientId,
         [FromQuery] QuoteStatus? status,
         [FromQuery] DateTime? from,
@@ -83,13 +83,14 @@ public class EmployeeQuotesController : ControllerBase
         var total = await query.CountAsync();
         var (size, skip) = Paging.Resolve(page, pageSize);
         var quotes = await query
+            .Include(q => q.ClientAccount)
             .Include(q => q.LineItems).ThenInclude(li => li.Product)
             .OrderByDescending(q => q.CreatedAt).ThenBy(q => q.Id)
             .Skip(skip)
             .Take(size)
             .ToListAsync();
 
-        return Ok(new PagedResult<QuoteDto>(quotes.Select(ToDto).ToList(), page, size, total));
+        return Ok(new PagedResult<QuoteHistoryItemDto>(quotes.Select(QuoteHistoryItemDto.From).ToList(), page, size, total));
     }
 
     [HttpPut("{id:guid}/price")]

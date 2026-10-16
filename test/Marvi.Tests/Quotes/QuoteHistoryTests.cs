@@ -34,11 +34,11 @@ public class QuoteHistoryTests : IClassFixture<MarviApiFactory>
         await db.SaveChangesAsync();
     }
 
-    private static async Task<PagedResult<QuoteDto>> HistoryAsync(HttpClient employee, string query)
+    private static async Task<PagedResult<QuoteHistoryItemDto>> HistoryAsync(HttpClient employee, string query)
     {
         var response = await employee.GetAsync($"/api/employee/quotes/history{query}");
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<PagedResult<QuoteDto>>())!;
+        return (await response.Content.ReadFromJsonAsync<PagedResult<QuoteHistoryItemDto>>())!;
     }
 
     [Fact]
@@ -65,6 +65,8 @@ public class QuoteHistoryTests : IClassFixture<MarviApiFactory>
         Assert.Equal([second.Id, first.Id], history.Items.Select(q => q.Id));
         Assert.Equal([QuoteStatus.Submitted, QuoteStatus.Rejected], history.Items.Select(q => q.Status));
         Assert.All(history.Items, q => Assert.Equal(aliceId, q.ClientAccountId));
+        // The screen says who a quote is for: the company name, not just an id.
+        Assert.All(history.Items, q => Assert.Equal("Acme Co", q.CompanyName));
     }
 
     [Fact]

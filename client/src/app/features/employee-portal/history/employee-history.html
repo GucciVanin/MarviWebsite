@@ -1,0 +1,144 @@
+<div class="container page stack">
+  <header class="toolbar">
+    <h1>{{ t.title }}</h1>
+    <a class="btn btn--outline btn--small" routerLink="/employee">{{ t.back }}</a>
+  </header>
+
+  <div class="toolbar" role="group" [attr.aria-label]="t.kindLabel">
+    <button type="button" class="btn btn--small" [class.btn--primary]="kind() === 'quotes'" [class.btn--outline]="kind() !== 'quotes'" [attr.aria-pressed]="kind() === 'quotes'" (click)="setKind('quotes')">{{ t.quotes }}</button>
+    <button type="button" class="btn btn--small" [class.btn--primary]="kind() === 'orders'" [class.btn--outline]="kind() !== 'orders'" [attr.aria-pressed]="kind() === 'orders'" (click)="setKind('orders')">{{ t.orders }}</button>
+  </div>
+
+  <section class="card" aria-labelledby="filters-title">
+    <h2 id="filters-title">{{ t.filters }}</h2>
+    <form class="stack" data-testid="filters" (ngSubmit)="apply()">
+      <div class="toolbar">
+        <div class="field">
+          <label for="history-client-search">{{ portal.clientSearch }}</label>
+          <input id="history-client-search" name="clientSearch" type="search" autocomplete="off" [ngModel]="clientSearch()" (ngModelChange)="clientSearch.set($event)" (keydown.enter)="$event.preventDefault(); searchClients()" />
+        </div>
+        <button type="button" class="btn btn--outline btn--small" [disabled]="searchAction.busy()" (click)="searchClients()">{{ portal.lookup }}</button>
+        @if (draft().client; as picked) {
+          <span class="badge">{{ t.customer }}: {{ picked.companyName }}</span>
+          <button type="button" class="btn btn--outline btn--small" (click)="setDraft({ client: null })">{{ t.removeCustomer }}</button>
+        }
+      </div>
+      <app-error-alert [error]="searchAction.error()" />
+      @if (clientMatches(); as matches) {
+        @if (matches.length === 0) {
+          <p>{{ portal.noClientsFound }}</p>
+        }
+        <ul class="stack">
+          @for (match of matches; track match.id) {
+            <li class="toolbar">
+              <strong>{{ match.companyName }}</strong>
+              <button type="button" class="btn btn--outline btn--small" (click)="pickClient(match)">{{ portal.select }}</button>
+            </li>
+          }
+        </ul>
+      }
+
+      <div class="toolbar">
+        <div class="field">
+          <label for="history-status">{{ t.status }}</label>
+          <select id="history-status" name="status" [ngModel]="draft().status" (ngModelChange)="setDraft({ status: $event })">
+            <option value="">{{ t.anyStatus }}</option>
+            @for (option of statusOptions(); track option) {
+              <option [value]="option">{{ statusLabels()[option] ?? option }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="history-from">{{ t.from }}</label>
+          <input id="history-from" name="from" type="date" [ngModel]="draft().from" (ngModelChange)="setDraft({ from: $event })" />
+        </div>
+        <div class="field">
+          <label for="history-to">{{ t.to }}</label>
+          <input id="history-to" name="to" type="date" [ngModel]="draft().to" (ngModelChange)="setDraft({ to: $event })" />
+        </div>
+      </div>
+      <div class="toolbar">
+        <button type="submit" class="btn btn--primary btn--small">{{ t.apply }}</button>
+        <button type="button" class="btn btn--outline btn--small" (click)="clear()">{{ t.clear }}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="results-title">
+    <h2 id="results-title">{{ kind() === 'quotes' ? t.quotes : t.orders }}</h2>
+    <app-load-state [state]="current()" />
+    @if (isEmpty()) {
+      <p>{{ t.nothingFound }}</p>
+    }
+
+    @if (kind() === 'quotes') {
+      @for (item of quotes.data().items; track item.id) {
+        <article class="card" data-testid="history-item">
+          <header class="toolbar">
+            <strong>{{ item.companyName }}</strong>
+            <span class="muted">{{ t.sentOn }} {{ item.createdAt | ptDate }}</span>
+            <span class="badge" [class.badge--ok]="item.status === 'Accepted'" [class.badge--warn]="item.status === 'Priced'">{{ statuses.quote[item.status] ?? item.status }}</span>
+          </header>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ portal.product }}</th>
+                <th class="num">{{ portal.quantity }}</th>
+                <th class="num">{{ portal.suggestedPrice }}</th>
+                <th class="num">{{ portal.finalPrice }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of item.lineItems; track line.id) {
+                <tr>
+                  <td>{{ line.productName }}</td>
+                  <td class="num">{{ line.qty }}</td>
+                  <td class="num">{{ line.suggestedUnitPrice === null ? '—' : (line.suggestedUnitPrice | brl) }}</td>
+                  <td class="num">{{ line.finalUnitPrice === null ? '—' : (line.finalUnitPrice | brl) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </article>
+      }
+    } @else {
+      @for (item of orders.data().items; track item.id) {
+        <article class="card" data-testid="history-item">
+          <header class="toolbar">
+            <strong>{{ item.companyName }}</strong>
+            <span class="muted">{{ t.placedOn }} {{ item.placedAt | ptDate }}</span>
+            <span class="badge badge--ok">{{ statuses.order[item.status] ?? item.status }}</span>
+          </header>
+          <p class="muted">{{ item.deliveryAddress || t.noAddress }}</p>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ portal.product }}</th>
+                <th class="num">{{ portal.quantity }}</th>
+                <th class="num">{{ t.unitPrice }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of item.lineItems; track line.id) {
+                <tr>
+                  <td>{{ line.productName }}</td>
+                  <td class="num">{{ line.qty }}</td>
+                  <td class="num">{{ line.unitPrice | brl }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <p><strong>{{ t.total }}: {{ item.totalAmount | brl }}</strong></p>
+        </article>
+      }
+    }
+
+    @if (current().data().totalCount > 0) {
+      <nav class="toolbar" [attr.aria-label]="t.pager">
+        <button type="button" class="btn btn--outline btn--small" [disabled]="page() <= 1 || current().loading()" (click)="go(-1)">{{ t.previous }}</button>
+        <span>{{ t.page }} {{ page() }} {{ t.of }} {{ totalPages() }}</span>
+        <button type="button" class="btn btn--outline btn--small" [disabled]="page() >= totalPages() || current().loading()" (click)="go(1)">{{ t.next }}</button>
+      </nav>
+    }
+  </section>
+</div>

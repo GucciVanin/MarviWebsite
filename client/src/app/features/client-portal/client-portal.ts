@@ -11,6 +11,7 @@ import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import { QuotesService, Quote } from './api/quotes.service';
 import { OrdersService, Order } from './api/orders.service';
+import { ClientProfileCard } from './profile/client-profile';
 
 interface BasketLine {
   productId: string;
@@ -20,7 +21,7 @@ interface BasketLine {
 
 @Component({
   selector: 'app-client-portal',
-  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe],
+  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe, ClientProfileCard],
   templateUrl: './client-portal.html',
 })
 export class ClientPortal implements OnInit {

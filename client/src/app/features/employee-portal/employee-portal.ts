@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
@@ -11,7 +12,8 @@ import type { Quote } from '../../shared/models/quote.model';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import { ProductPicker } from '../../shared/ui/product-picker/product-picker';
-import { ClientProfile, EmployeeService, InventoryRecord } from './api/employee.service';
+import type { PagedResult } from '../../shared/models/paged.model';
+import { ClientProfile, ClientSummary, EmployeeService, InventoryRecord } from './api/employee.service';
 
 interface OrderLine {
   productId: string;
@@ -21,7 +23,7 @@ interface OrderLine {
 
 @Component({
   selector: 'app-employee-portal',
-  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe],
+  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe],
   templateUrl: './employee-portal.html',
 })
 export class EmployeePortal implements OnInit {
@@ -40,7 +42,9 @@ export class EmployeePortal implements OnInit {
   protected readonly pricesSent = signal(false);
 
   // Customer and new order.
-  protected readonly clientId = signal('');
+  protected readonly clientSearch = signal('');
+  protected readonly clientMatches = signal<PagedResult<ClientSummary> | null>(null);
+  protected readonly searchAction = action();
   protected readonly clientProfile = signal<ClientProfile | null>(null);
   protected readonly lookupAction = action();
   protected readonly deliveryAddress = signal('');
@@ -90,16 +94,13 @@ export class EmployeePortal implements OnInit {
 
   // ---- customer and order
 
-  useCustomer(id: string): void {
-    this.clientId.set(id);
-    this.lookupClient();
+  /** Finds customers by company name; the employee then picks one of the matches. */
+  searchClients(): void {
+    this.searchAction.run(this.employeeService.searchClients(this.clientSearch().trim()), (page) => this.clientMatches.set(page));
   }
 
-  lookupClient(): void {
-    const id = this.clientId().trim();
-    if (!id) {
-      return;
-    }
+  /** Opens a customer: from a search match, or from a queued quote's "Consultar cliente". */
+  useCustomer(id: string): void {
     this.placedOrder.set(null);
     this.clientProfile.set(null);
     this.orderLines.set([]);

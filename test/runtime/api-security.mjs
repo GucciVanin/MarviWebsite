@@ -279,6 +279,36 @@ ok('a negative credit, an unknown tier and an unknown customer are refused (400/
   && (await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } })).status === 400
   && (await call('PUT', `/api/admin/clients/${crypto.randomUUID()}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 1 } })).status === 404);
 
+section('CLIENT PROFILE: a customer edits their own company details (on real Postgres)');
+const ownProfile = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
+ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.shippingAddresses.length === 0);
+const putProfile = await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: '  Adega do Dedé Ltda ', billingAddress: 'Rua Nova, 10', shippingAddresses: ['Av. Brasil, 100', ' ', 'av. brasil, 100', 'Rua do Porto, 5 — loja 2'] } });
+ok('...edits them: trimmed, blank and repeated shipping lines dropped (200)', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda'
+  && JSON.stringify(putProfile.json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
+ok('...the shipping list is stored as a list in the database and staff see the same', sql(`select cardinality(shipping_addresses) from client_accounts where id='${clientD.id}'`) === '2'
+  && JSON.stringify((await call('GET', `/api/employee/clients/${clientD.id}`, { token: emp })).json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
+ok('...the list is replaced as a whole (an empty list clears it)', (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: [] } })).json.shippingAddresses.length === 0);
+ok('a missing company name, too many addresses and an over-long address are refused (400) and change nothing',
+  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: ' ', billingAddress: 'x', shippingAddresses: [] } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: Array.from({ length: 11 }, (_, i) => `Rua ${i}`) } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: ['y'.repeat(501)] } })).status === 400
+  && (await call('GET', '/api/client/profile', { token: clientD.token })).json.companyName === 'Adega');
+ok('leaving the shipping list out is refused (400), not treated as clearing it; a NUL character is a 400, not a 500',
+  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10' } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: ['x\u0000y'] } })).status === 400);
+ok('it is always the caller\'s own account: another customer\'s details are untouched', (await call('GET', '/api/client/profile', { token: clientA.token })).json.companyName === 'Bar do Zé');
+
+section('CLIENT DIRECTORY: staff find a customer by company name (on real Postgres)');
+const dirSearch = (q, token = emp) => call('GET', `/api/employee/clients${q}`, { token });
+const dirZe = (await dirSearch('?search=' + encodeURIComponent('BAR DO Z'))).json;
+ok('a partial, upper-case company name finds the customer, with status, tier and credit', dirZe.items.some((c) => c.id === clientA.id && c.status === 'Approved' && typeof c.creditLimit === 'number' && c.pricingTierName));
+ok('...an accented search finds accented names', (await dirSearch('?search=' + encodeURIComponent('zé'))).json.items.some((c) => c.id === clientA.id));
+ok('a percent sign or underscore is text to find, not a wildcard', (await dirSearch('?search=%25')).json.totalCount === 0 && (await dirSearch('?search=_')).json.totalCount === 0);
+const dirAll = (await dirSearch('?pageSize=200')).json;
+ok('without a search everyone is listed A to Z, with the total', dirAll.totalCount >= 5 && dirAll.items.every((c, i) => i === 0 || dirAll.items[i - 1].companyName.toLowerCase() <= c.companyName.toLowerCase()));
+ok('...paged', (await dirSearch('?page=2&pageSize=2')).json.items.length === 2 && (await dirSearch('?page=0')).status === 400);
+ok('admins may use it too; customers may not (403)', (await dirSearch('', admin)).status === 200 && (await dirSearch('', clientA.token)).status === 403);
+
 section('CSV IMPORT: an admin imports products from a file (on real Postgres)');
 const importCsv = (csv, query = '', token = admin) => {
   const form = new FormData();
@@ -326,6 +356,7 @@ const histA = (await call('GET', `/api/employee/quotes/history?clientId=${client
 ok('history of one customer: its quotes only, in every status, with the total', histA.totalCount >= 4 && histA.items.length === 2 && histA.items.every((q) => q.clientAccountId === clientA.id)
   && histA.pageSize === 2 && histA.page === 1);
 ok('...newest first', histA.items[0].createdAt >= histA.items[1].createdAt);
+ok('...each quote carries the company it is for', histA.items.every((q) => q.companyName === 'Bar do Zé'));
 const histAll = (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&pageSize=200`, { token: emp })).json.items;
 ok('...includes accepted, rejected and priced quotes', ['Accepted', 'Rejected', 'Priced'].every((s) => histAll.some((q) => q.status === s)));
 ok('...a rejected quote is no longer in the pricing queue but stays in the history',
@@ -344,6 +375,7 @@ const ordA = (await call('GET', `/api/employee/orders/history?clientId=${clientA
 const ordAMine = (await call('GET', '/api/orders/mine', { token: clientA.token })).json;
 ok('history of one customer: all and only its orders, with the total', ordA.totalCount === ordAMine.length && ordA.items.every((o) => o.clientAccountId === clientA.id));
 ok('...every order carries a placement time that is recent and in the past', ordA.items.every((o) => Date.parse(o.placedAt) > Date.now() - 3600_000 && Date.parse(o.placedAt) <= Date.now() + 5000));
+ok('...each order carries the company it is for', ordA.items.every((o) => o.companyName === 'Bar do Zé'));
 ok('...newest first', ordA.items.every((o, i) => i === 0 || Date.parse(ordA.items[i - 1].placedAt) >= Date.parse(o.placedAt)));
 ok('...the customer sees the same time on their own orders', ordAMine.every((o) => o.placedAt && ordA.items.some((h) => h.id === o.id && h.placedAt === o.placedAt)));
 ok('...paged with the total', (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&page=1&pageSize=1`, { token: emp })).json.items.length === 1);
@@ -428,6 +460,10 @@ ok('stats and categories are cacheable for a short time (Cache-Control public, m
   /public/.test(stats.headers.get('cache-control') ?? '') && /max-age=60/.test(stats.headers.get('cache-control') ?? '')
   && /max-age=60/.test((await call('GET', '/api/categories')).headers.get('cache-control') ?? ''));
 ok('stats contain no price or customer data', !/price|email|company|client/i.test(stats.text));
+
+section('STOCK NAMES: the employee stock list names the warehouse, not only its id');
+const stockList = (await call('GET', '/api/employee/inventory', { token: emp })).json;
+ok('every record carries its warehouse\'s name', stockList.length > 0 && stockList.every((r) => r.warehouseName === (r.warehouseId === wh1.id ? wh1.name : r.warehouseId === wh2.id ? wh2.name : null)));
 
 section('STOCK: in stock = on hand minus reserved, summed over warehouses; list and detail agree');
 const stockProduct = (await call('POST', '/api/admin/products', { token: admin, body: { sku: `STK-${crypto.randomUUID().slice(0, 8)}`, name: 'Stock product', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).json;
@@ -518,6 +554,8 @@ const endpoints = [
   ['GET', '/api/employee/orders/history', undefined, ['employee', 'admin']],
   ['PUT', `/api/admin/clients/${ID}/update-credit`, { pricingTierId: ID, creditLimit: 1 }, ['admin']],
   ['POST', '/api/admin/products/import', undefined, ['admin']],
+  ['GET', '/api/employee/clients', undefined, ['employee', 'admin']],
+  ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {

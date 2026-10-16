@@ -7,4 +7,9 @@ export const EMPLOYEE_PORTAL_ROUTES: Routes = [
     canActivate: [employeeGuard],
     loadComponent: () => import('./employee-portal').then((m) => m.EmployeePortal),
   },
+  {
+    path: 'historico',
+    canActivate: [employeeGuard],
+    loadComponent: () => import('./history/employee-history').then((m) => m.EmployeeHistory),
+  },
 ];

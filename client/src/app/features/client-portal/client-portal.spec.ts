@@ -52,6 +52,7 @@ describe('ClientPortal', () => {
     http.expectOne('/api/categories').flush(data.categories ?? []);
     http.expectOne('/api/quotes/mine').flush(data.quotes ?? []);
     http.expectOne('/api/orders/mine').flush(data.orders ?? []);
+    http.expectOne('/api/client/profile').flush({ id: 'c1', companyName: 'Bar do Zé', billingAddress: 'Rua A, 1', shippingAddresses: [], status: 'Approved' });
     const root = fixture.nativeElement as HTMLElement;
     const settle = async () => {
       await fixture.whenStable();
