@@ -2,8 +2,8 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { PT } from '../../../core/i18n/pt-br';
-import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
+import { confirmedDelete, formFeedback } from '../../../shared/crud/admin-crud';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { AdminService, CategoryAdmin, ProductAdmin } from '../api/admin.service';
@@ -49,11 +49,8 @@ export class AdminCatalog implements OnInit {
   protected readonly categoryName = signal('');
   protected readonly categorySort = signal(1);
   protected readonly categoryActive = signal(true);
-  protected readonly categoryProblem = signal<string | null>(null);
-  protected readonly categorySaved = signal(false);
-  protected readonly categoryAction = action();
-  protected readonly categoryDeleteAction = action();
-  protected readonly confirmingCategoryId = signal<string | null>(null);
+  protected readonly categoryForm = formFeedback();
+  protected readonly categoryDelete = confirmedDelete();
 
   // ---- product form
   protected readonly editingProductId = signal<string | null>(null);
@@ -64,11 +61,8 @@ export class AdminCatalog implements OnInit {
   protected readonly productImage = signal('');
   protected readonly productActive = signal(true);
   protected readonly productAttributes = signal('');
-  protected readonly productProblem = signal<string | null>(null);
-  protected readonly productSaved = signal(false);
-  protected readonly productAction = action();
-  protected readonly productDeleteAction = action();
-  protected readonly confirmingProductId = signal<string | null>(null);
+  protected readonly productForm = formFeedback();
+  protected readonly productDelete = confirmedDelete();
 
   ngOnInit(): void {
     this.categories.load();
@@ -82,8 +76,7 @@ export class AdminCatalog implements OnInit {
   // ---- categories
 
   editCategory(category: CategoryAdmin): void {
-    this.categorySaved.set(false);
-    this.categoryProblem.set(null);
+    this.categoryForm.clear();
     this.editingCategoryId.set(category.id);
     this.categoryName.set(category.name);
     this.categorySort.set(category.sortOrder);
@@ -95,41 +88,37 @@ export class AdminCatalog implements OnInit {
     this.categoryName.set('');
     this.categorySort.set(1);
     this.categoryActive.set(true);
-    this.categoryProblem.set(null);
+    this.categoryForm.problem.set(null);
   }
 
   saveCategory(): void {
-    this.categorySaved.set(false);
-    this.categoryProblem.set(null);
+    this.categoryForm.clear();
     const name = this.categoryName().trim();
     if (!name) {
-      this.categoryProblem.set(this.t.categoryNameRequired);
+      this.categoryForm.refuse(this.t.categoryNameRequired);
       return;
     }
     const request = { name, sortOrder: Number(this.categorySort()) || 0, isActive: this.categoryActive() };
     const id = this.editingCategoryId();
     const call = id ? this.admin.updateCategory(id, request) : this.admin.createCategory(request);
-    this.categoryAction.run(call, () => {
+    this.categoryForm.send(call, () => {
       this.resetCategoryForm();
-      this.categorySaved.set(true);
       this.categories.load();
     });
   }
 
   askDeleteCategory(id: string): void {
-    this.confirmingCategoryId.set(id);
+    this.categoryDelete.ask(id);
   }
 
   deleteCategory(id: string): void {
-    this.confirmingCategoryId.set(null);
-    this.categoryDeleteAction.run(this.admin.deleteCategory(id), () => this.categories.load());
+    this.categoryDelete.run(this.admin.deleteCategory(id), () => this.categories.load());
   }
 
   // ---- products
 
   editProduct(product: ProductAdmin): void {
-    this.productSaved.set(false);
-    this.productProblem.set(null);
+    this.productForm.clear();
     this.editingProductId.set(product.id);
     this.productSku.set(product.sku);
     this.productName.set(product.name);
@@ -149,21 +138,20 @@ export class AdminCatalog implements OnInit {
     this.productImage.set('');
     this.productActive.set(true);
     this.productAttributes.set('');
-    this.productProblem.set(null);
+    this.productForm.problem.set(null);
   }
 
   saveProduct(): void {
-    this.productSaved.set(false);
-    this.productProblem.set(null);
+    this.productForm.clear();
     const sku = this.productSku().trim();
     const name = this.productName().trim();
     if (!sku || !name) {
-      this.productProblem.set(this.t.productRequired);
+      this.productForm.refuse(this.t.productRequired);
       return;
     }
     const attributes = parseAttributes(this.productAttributes());
     if (attributes === null) {
-      this.productProblem.set(this.t.attributeFormat);
+      this.productForm.refuse(this.t.attributeFormat);
       return;
     }
     const request = {
@@ -177,21 +165,19 @@ export class AdminCatalog implements OnInit {
     };
     const id = this.editingProductId();
     const call: Observable<unknown> = id ? this.admin.updateProduct(id, request) : this.admin.createProduct(request);
-    this.productAction.run(call, () => {
+    this.productForm.send(call, () => {
       this.resetProductForm();
-      this.productSaved.set(true);
       this.products.load();
       this.categories.load(); // the product counts changed
     });
   }
 
   askDeleteProduct(id: string): void {
-    this.confirmingProductId.set(id);
+    this.productDelete.ask(id);
   }
 
   deleteProduct(id: string): void {
-    this.confirmingProductId.set(null);
-    this.productDeleteAction.run(this.admin.deleteProduct(id), () => {
+    this.productDelete.run(this.admin.deleteProduct(id), () => {
       this.products.load();
       this.categories.load();
     });

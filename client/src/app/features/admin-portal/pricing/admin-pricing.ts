@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { PT } from '../../../core/i18n/pt-br';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
+import { confirmedDelete, formFeedback } from '../../../shared/crud/admin-crud';
 import { BrlPipe } from '../../../shared/format/brl.pipe';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
@@ -27,9 +28,7 @@ export class AdminPricing implements OnInit {
   protected readonly editingTierIsDefault = signal(false);
   protected readonly tierName = signal('');
   protected readonly tierDefault = signal(false);
-  protected readonly tierProblem = signal<string | null>(null);
-  protected readonly tierSaved = signal(false);
-  protected readonly tierAction = action();
+  protected readonly tierForm = formFeedback();
   protected readonly tierListAction = action();
 
   // ---- price form
@@ -38,11 +37,8 @@ export class AdminPricing implements OnInit {
   protected readonly priceTier = signal('');
   protected readonly priceMinQty = signal<number | string>(1);
   protected readonly priceUnit = signal<number | string | null>(null);
-  protected readonly priceProblem = signal<string | null>(null);
-  protected readonly priceSaved = signal(false);
-  protected readonly priceAction = action();
-  protected readonly priceDeleteAction = action();
-  protected readonly confirmingPrice = signal<string | null>(null);
+  protected readonly priceForm = formFeedback();
+  protected readonly priceDelete = confirmedDelete();
 
   ngOnInit(): void {
     this.tiers.load();
@@ -52,8 +48,7 @@ export class AdminPricing implements OnInit {
   // ---- tiers
 
   editTier(tier: PricingTier): void {
-    this.tierSaved.set(false);
-    this.tierProblem.set(null);
+    this.tierForm.clear();
     this.editingTierId.set(tier.id);
     this.editingTierIsDefault.set(tier.isDefault);
     this.tierName.set(tier.name);
@@ -65,22 +60,20 @@ export class AdminPricing implements OnInit {
     this.editingTierIsDefault.set(false);
     this.tierName.set('');
     this.tierDefault.set(false);
-    this.tierProblem.set(null);
+    this.tierForm.problem.set(null);
   }
 
   saveTier(): void {
-    this.tierSaved.set(false);
-    this.tierProblem.set(null);
+    this.tierForm.clear();
     const name = this.tierName().trim();
     if (!name) {
-      this.tierProblem.set(this.t.tierNameRequired);
+      this.tierForm.refuse(this.t.tierNameRequired);
       return;
     }
     const request = { name, isDefault: this.tierDefault() };
     const id = this.editingTierId();
-    this.tierAction.run(id ? this.admin.updatePricingTier(id, request) : this.admin.createPricingTier(request), () => {
+    this.tierForm.send(id ? this.admin.updatePricingTier(id, request) : this.admin.createPricingTier(request), () => {
       this.resetTierForm();
-      this.tierSaved.set(true);
       this.tiers.load();
     });
   }
@@ -93,15 +86,14 @@ export class AdminPricing implements OnInit {
 
   onProductChosen(): void {
     this.resetPriceForm();
-    this.priceSaved.set(false);
+    this.priceForm.saved.set(false);
     if (this.selectedProductId()) {
       this.prices.load();
     }
   }
 
   editPrice(price: ProductPrice): void {
-    this.priceSaved.set(false);
-    this.priceProblem.set(null);
+    this.priceForm.clear();
     this.editingPrice.set(true);
     this.priceTier.set(price.pricingTierId);
     this.priceMinQty.set(price.minQty);
@@ -113,12 +105,11 @@ export class AdminPricing implements OnInit {
     this.priceTier.set('');
     this.priceMinQty.set(1);
     this.priceUnit.set(null);
-    this.priceProblem.set(null);
+    this.priceForm.problem.set(null);
   }
 
   savePrice(): void {
-    this.priceSaved.set(false);
-    this.priceProblem.set(null);
+    this.priceForm.clear();
     const productId = this.selectedProductId();
     if (!productId) {
       return;
@@ -127,20 +118,19 @@ export class AdminPricing implements OnInit {
     const unitPrice = unit === null || unit === '' ? NaN : Number(unit);
     const minQty = Number(this.priceMinQty());
     if (!this.priceTier()) {
-      this.priceProblem.set(this.t.tierRequired);
+      this.priceForm.refuse(this.t.tierRequired);
       return;
     }
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      this.priceProblem.set(this.t.priceInvalid);
+      this.priceForm.refuse(this.t.priceInvalid);
       return;
     }
     if (!Number.isInteger(minQty) || minQty < 1) {
-      this.priceProblem.set(this.t.minQtyInvalid);
+      this.priceForm.refuse(this.t.minQtyInvalid);
       return;
     }
-    this.priceAction.run(this.admin.upsertProductPrice(productId, { pricingTierId: this.priceTier(), unitPrice, minQty }), () => {
+    this.priceForm.send(this.admin.upsertProductPrice(productId, { pricingTierId: this.priceTier(), unitPrice, minQty }), () => {
       this.resetPriceForm();
-      this.priceSaved.set(true);
       this.prices.load();
     });
   }
@@ -150,14 +140,10 @@ export class AdminPricing implements OnInit {
   }
 
   askRemovePrice(price: ProductPrice): void {
-    this.confirmingPrice.set(this.priceKey(price));
+    this.priceDelete.ask(this.priceKey(price));
   }
 
   removePrice(price: ProductPrice): void {
-    this.confirmingPrice.set(null);
-    this.priceDeleteAction.run(
-      this.admin.deleteProductPrice(this.selectedProductId(), price.pricingTierId, price.minQty),
-      () => this.prices.load(),
-    );
+    this.priceDelete.run(this.admin.deleteProductPrice(this.selectedProductId(), price.pricingTierId, price.minQty), () => this.prices.load());
   }
 }

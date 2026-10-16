@@ -2,8 +2,8 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { PT } from '../../../core/i18n/pt-br';
-import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
+import { confirmedDelete, formFeedback } from '../../../shared/crud/admin-crud';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { AdminService, CoverageArea, CoverageAreaType, ProductAdmin, StockRecord, Warehouse } from '../api/admin.service';
@@ -38,11 +38,8 @@ export class AdminOperations implements OnInit {
   protected readonly warehouseAddress = signal('');
   protected readonly warehouseLat = signal<number | string | null>(null);
   protected readonly warehouseLng = signal<number | string | null>(null);
-  protected readonly warehouseProblem = signal<string | null>(null);
-  protected readonly warehouseSaved = signal(false);
-  protected readonly warehouseAction = action();
-  protected readonly warehouseDeleteAction = action();
-  protected readonly confirmingWarehouseId = signal<string | null>(null);
+  protected readonly warehouseForm = formFeedback();
+  protected readonly warehouseDelete = confirmedDelete();
 
   // ---- coverage area form
   protected readonly editingAreaId = signal<string | null>(null);
@@ -50,11 +47,8 @@ export class AdminOperations implements OnInit {
   protected readonly areaType = signal<CoverageAreaType>('Radius');
   protected readonly areaRadius = signal<number | string | null>(null);
   protected readonly areaPolygon = signal('');
-  protected readonly areaProblem = signal<string | null>(null);
-  protected readonly areaSaved = signal(false);
-  protected readonly areaAction = action();
-  protected readonly areaDeleteAction = action();
-  protected readonly confirmingAreaId = signal<string | null>(null);
+  protected readonly areaForm = formFeedback();
+  protected readonly areaDelete = confirmedDelete();
 
   // ---- stock form
   protected readonly editingStock = signal(false);
@@ -62,9 +56,7 @@ export class AdminOperations implements OnInit {
   protected readonly stockWarehouse = signal('');
   protected readonly stockOnHand = signal<number | string | null>(null);
   protected readonly stockReorder = signal<number | string | null>(null);
-  protected readonly stockProblem = signal<string | null>(null);
-  protected readonly stockSaved = signal(false);
-  protected readonly stockAction = action();
+  protected readonly stockForm = formFeedback();
 
   ngOnInit(): void {
     this.warehouses.load();
@@ -80,8 +72,7 @@ export class AdminOperations implements OnInit {
   // ---- warehouses
 
   editWarehouse(warehouse: Warehouse): void {
-    this.warehouseSaved.set(false);
-    this.warehouseProblem.set(null);
+    this.warehouseForm.clear();
     this.editingWarehouseId.set(warehouse.id);
     this.warehouseName.set(warehouse.name);
     this.warehouseAddress.set(warehouse.address);
@@ -95,41 +86,38 @@ export class AdminOperations implements OnInit {
     this.warehouseAddress.set('');
     this.warehouseLat.set(null);
     this.warehouseLng.set(null);
-    this.warehouseProblem.set(null);
+    this.warehouseForm.problem.set(null);
   }
 
   saveWarehouse(): void {
-    this.warehouseSaved.set(false);
-    this.warehouseProblem.set(null);
+    this.warehouseForm.clear();
     const name = this.warehouseName().trim();
     const address = this.warehouseAddress().trim();
     if (!name || !address) {
-      this.warehouseProblem.set(this.t.warehouseRequired);
+      this.warehouseForm.refuse(this.t.warehouseRequired);
       return;
     }
     const latitude = Number(this.warehouseLat());
     const longitude = Number(this.warehouseLng());
     if (this.warehouseLat() === null || this.warehouseLat() === '' || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-      this.warehouseProblem.set(this.t.latitudeInvalid);
+      this.warehouseForm.refuse(this.t.latitudeInvalid);
       return;
     }
     if (this.warehouseLng() === null || this.warehouseLng() === '' || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-      this.warehouseProblem.set(this.t.longitudeInvalid);
+      this.warehouseForm.refuse(this.t.longitudeInvalid);
       return;
     }
     const request = { name, address, latitude, longitude };
     const id = this.editingWarehouseId();
     const call: Observable<unknown> = id ? this.admin.updateWarehouse(id, request) : this.admin.createWarehouse(request);
-    this.warehouseAction.run(call, () => {
+    this.warehouseForm.send(call, () => {
       this.resetWarehouseForm();
-      this.warehouseSaved.set(true);
       this.warehouses.load();
     });
   }
 
   deleteWarehouse(id: string): void {
-    this.confirmingWarehouseId.set(null);
-    this.warehouseDeleteAction.run(this.admin.deleteWarehouse(id), () => {
+    this.warehouseDelete.run(this.admin.deleteWarehouse(id), () => {
       this.warehouses.load();
       this.areas.load(); // a warehouse's coverage areas go with it
       this.stock.load();
@@ -139,8 +127,7 @@ export class AdminOperations implements OnInit {
   // ---- coverage areas
 
   editArea(area: CoverageArea): void {
-    this.areaSaved.set(false);
-    this.areaProblem.set(null);
+    this.areaForm.clear();
     this.editingAreaId.set(area.id);
     this.areaWarehouse.set(area.warehouseId);
     this.areaType.set(area.type);
@@ -154,14 +141,13 @@ export class AdminOperations implements OnInit {
     this.areaType.set('Radius');
     this.areaRadius.set(null);
     this.areaPolygon.set('');
-    this.areaProblem.set(null);
+    this.areaForm.problem.set(null);
   }
 
   saveArea(): void {
-    this.areaSaved.set(false);
-    this.areaProblem.set(null);
+    this.areaForm.clear();
     if (!this.areaWarehouse()) {
-      this.areaProblem.set(this.t.warehouseChoose);
+      this.areaForm.refuse(this.t.warehouseChoose);
       return;
     }
     let radiusMiles: number | null = null;
@@ -169,18 +155,18 @@ export class AdminOperations implements OnInit {
     if (this.areaType() === 'Radius') {
       const radius = this.areaRadius() === null || this.areaRadius() === '' ? NaN : Number(this.areaRadius());
       if (!Number.isFinite(radius) || radius <= 0) {
-        this.areaProblem.set(this.t.radiusInvalid);
+        this.areaForm.refuse(this.t.radiusInvalid);
         return;
       }
       if (radius > 20000) {
-        this.areaProblem.set(this.t.radiusTooBig);
+        this.areaForm.refuse(this.t.radiusTooBig);
         return;
       }
       radiusMiles = radius;
     } else {
       const polygon = this.areaPolygon().trim();
       if (!isJsonObject(polygon)) {
-        this.areaProblem.set(this.t.polygonInvalid);
+        this.areaForm.refuse(this.t.polygonInvalid);
         return;
       }
       polygonGeoJson = polygon;
@@ -188,23 +174,20 @@ export class AdminOperations implements OnInit {
     const request = { warehouseId: this.areaWarehouse(), type: this.areaType(), radiusMiles, polygonGeoJson };
     const id = this.editingAreaId();
     const call: Observable<unknown> = id ? this.admin.updateCoverageArea(id, request) : this.admin.createCoverageArea(request);
-    this.areaAction.run(call, () => {
+    this.areaForm.send(call, () => {
       this.resetAreaForm();
-      this.areaSaved.set(true);
       this.areas.load();
     });
   }
 
   deleteArea(id: string): void {
-    this.confirmingAreaId.set(null);
-    this.areaDeleteAction.run(this.admin.deleteCoverageArea(id), () => this.areas.load());
+    this.areaDelete.run(this.admin.deleteCoverageArea(id), () => this.areas.load());
   }
 
   // ---- stock
 
   editStock(record: StockRecord): void {
-    this.stockSaved.set(false);
-    this.stockProblem.set(null);
+    this.stockForm.clear();
     this.editingStock.set(true);
     this.stockProduct.set(record.productId);
     this.stockWarehouse.set(record.warehouseId);
@@ -218,28 +201,26 @@ export class AdminOperations implements OnInit {
     this.stockWarehouse.set('');
     this.stockOnHand.set(null);
     this.stockReorder.set(null);
-    this.stockProblem.set(null);
+    this.stockForm.problem.set(null);
   }
 
   saveStock(): void {
-    this.stockSaved.set(false);
-    this.stockProblem.set(null);
+    this.stockForm.clear();
     if (!this.stockProduct() || !this.stockWarehouse()) {
-      this.stockProblem.set(this.t.stockChoose);
+      this.stockForm.refuse(this.t.stockChoose);
       return;
     }
     const empty = (value: number | string | null) => value === null || value === '';
     const qtyOnHand = empty(this.stockOnHand()) ? NaN : Number(this.stockOnHand());
     const reorderPoint = empty(this.stockReorder()) ? 0 : Number(this.stockReorder());
     if (!Number.isInteger(qtyOnHand) || qtyOnHand < 0 || !Number.isInteger(reorderPoint) || reorderPoint < 0) {
-      this.stockProblem.set(this.t.stockInvalid);
+      this.stockForm.refuse(this.t.stockInvalid);
       return;
     }
-    this.stockAction.run(
+    this.stockForm.send(
       this.admin.upsertStock({ productId: this.stockProduct(), warehouseId: this.stockWarehouse(), qtyOnHand, reorderPoint }),
       () => {
         this.resetStockForm();
-        this.stockSaved.set(true);
         this.stock.load();
       },
     );

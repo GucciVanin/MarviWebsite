@@ -455,6 +455,7 @@ src/app/
   core/catalog/             CatalogService: the public product list (search, category) and categories, shared by every screen that picks products
   core/i18n/                pt-br.ts (all copy), identity-errors.ts
   shared/ui/                app-header, app-footer, load-state, error-alert, count-up (a number that counts up once when first seen; shows the real number from the start and with reduced motion), product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
+  shared/crud/              admin-crud: `formFeedback()` (problem, "saved" notice, request in flight for an admin form) and `confirmedDelete()` (the two-step delete) used by the admin catalog, pricing and operations screens (MRV-2.4b.7)
   shared/format/            brl (R$ 1.234,50) and ptDate (dd/mm/aaaa hh:mm) pipes
   shared/models/            types used by more than one feature (quote, order, catalog)
   features/

@@ -2,7 +2,7 @@
   <section class="card" data-testid="categories-section" aria-labelledby="categories-title">
     <h2 id="categories-title">{{ t.categoriesTitle }}</h2>
     <app-load-state [state]="categories" [emptyText]="t.noCategories" />
-    <app-error-alert [error]="categoryDeleteAction.error()" />
+    <app-error-alert [error]="categoryDelete.action.error()" />
     @if (categories.data().length) {
       <table class="table" data-testid="categories">
         <thead>
@@ -26,9 +26,9 @@
                 </span>
               </td>
               <td>
-                @if (confirmingCategoryId() === category.id) {
+                @if (categoryDelete.confirming() === category.id) {
                   <button type="button" class="btn btn--primary btn--small" (click)="deleteCategory(category.id)">{{ t.confirmDelete }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingCategoryId.set(null)">{{ t.cancel }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="categoryDelete.cancel()">{{ t.cancel }}</button>
                 } @else {
                   <button type="button" class="btn btn--outline btn--small" (click)="editCategory(category)">{{ t.edit }}</button>
                   <button type="button" class="btn btn--outline btn--small" (click)="askDeleteCategory(category.id)">{{ t.delete }}</button>
@@ -58,15 +58,15 @@
           </label>
         </div>
       </div>
-      <button type="submit" class="btn btn--primary" [disabled]="categoryAction.busy()">{{ t.saveCategory }}</button>
+      <button type="submit" class="btn btn--primary" [disabled]="categoryForm.action.busy()">{{ t.saveCategory }}</button>
       @if (editingCategoryId()) {
         <button type="button" class="btn btn--outline" (click)="resetCategoryForm()">{{ t.cancel }}</button>
       }
-      @if (categoryProblem(); as problem) {
+      @if (categoryForm.problem(); as problem) {
         <p class="alert alert--error" role="alert">{{ problem }}</p>
       }
-      <app-error-alert [error]="categoryAction.error()" />
-      @if (categorySaved()) {
+      <app-error-alert [error]="categoryForm.action.error()" />
+      @if (categoryForm.saved()) {
         <p class="alert alert--success" role="status">{{ t.categorySaved }}</p>
       }
     </form>
@@ -75,7 +75,7 @@
   <section class="card" data-testid="products-section" aria-labelledby="products-title">
     <h2 id="products-title">{{ t.productsTitle }}</h2>
     <app-load-state [state]="products" [emptyText]="t.noProducts" />
-    <app-error-alert [error]="productDeleteAction.error()" />
+    <app-error-alert [error]="productDelete.action.error()" />
     @if (products.data().length) {
       <table class="table" data-testid="products">
         <thead>
@@ -99,9 +99,9 @@
                 </span>
               </td>
               <td>
-                @if (confirmingProductId() === product.id) {
+                @if (productDelete.confirming() === product.id) {
                   <button type="button" class="btn btn--primary btn--small" (click)="deleteProduct(product.id)">{{ t.confirmDelete }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingProductId.set(null)">{{ t.cancel }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="productDelete.cancel()">{{ t.cancel }}</button>
                 } @else {
                   <button type="button" class="btn btn--outline btn--small" (click)="editProduct(product)">{{ t.edit }}</button>
                   <button type="button" class="btn btn--outline btn--small" (click)="askDeleteProduct(product.id)">{{ t.delete }}</button>
@@ -152,15 +152,15 @@
           {{ t.productActive }}
         </label>
       </div>
-      <button type="submit" class="btn btn--primary" [disabled]="productAction.busy()">{{ t.saveProduct }}</button>
+      <button type="submit" class="btn btn--primary" [disabled]="productForm.action.busy()">{{ t.saveProduct }}</button>
       @if (editingProductId()) {
         <button type="button" class="btn btn--outline" (click)="resetProductForm()">{{ t.cancel }}</button>
       }
-      @if (productProblem(); as problem) {
+      @if (productForm.problem(); as problem) {
         <p class="alert alert--error" role="alert">{{ problem }}</p>
       }
-      <app-error-alert [error]="productAction.error()" />
-      @if (productSaved()) {
+      <app-error-alert [error]="productForm.action.error()" />
+      @if (productForm.saved()) {
         <p class="alert alert--success" role="status">{{ t.productSaved }}</p>
       }
     </form>
