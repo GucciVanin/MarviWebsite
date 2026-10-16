@@ -461,6 +461,10 @@ ok('stats and categories are cacheable for a short time (Cache-Control public, m
   && /max-age=60/.test((await call('GET', '/api/categories')).headers.get('cache-control') ?? ''));
 ok('stats contain no price or customer data', !/price|email|company|client/i.test(stats.text));
 
+section('STOCK NAMES: the employee stock list names the warehouse, not only its id');
+const stockList = (await call('GET', '/api/employee/inventory', { token: emp })).json;
+ok('every record carries its warehouse\'s name', stockList.length > 0 && stockList.every((r) => r.warehouseName === (r.warehouseId === wh1.id ? wh1.name : r.warehouseId === wh2.id ? wh2.name : null)));
+
 section('STOCK: in stock = on hand minus reserved, summed over warehouses; list and detail agree');
 const stockProduct = (await call('POST', '/api/admin/products', { token: admin, body: { sku: `STK-${crypto.randomUUID().slice(0, 8)}`, name: 'Stock product', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).json;
 const inStockList = async () => (await call('GET', '/api/products')).json.find((p) => p.id === stockProduct.id)?.inStock;

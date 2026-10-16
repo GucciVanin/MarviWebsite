@@ -190,10 +190,13 @@ describe('EmployeePortal', () => {
 
   it('shows the stock and reports a failed inventory load', async () => {
     const { root, settle } = setup({
-      inventory: [{ id: 'i1', productId: 'p1', productName: 'Cola 2L', warehouseId: 'w1', qtyOnHand: 5, qtyReserved: 1, reorderPoint: 2 }],
+      inventory: [{ id: 'i1', productId: 'p1', productName: 'Cola 2L', warehouseId: 'w1', warehouseName: 'CD São Paulo', qtyOnHand: 5, qtyReserved: 1, reorderPoint: 2 }],
     });
     await settle();
     expect(text(root)).toContain('Cola 2L');
+    // The warehouse is named, not shown as an id.
+    expect(text(root)).toContain('CD São Paulo');
+    expect(text(root)).not.toContain('w1');
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ imports: [EmployeePortal], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });

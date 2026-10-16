@@ -37,7 +37,8 @@ public class AdminInventoryController : ControllerBase
             return BadRequest("Product not found.");
         }
 
-        if (!await _dbContext.Warehouses.AnyAsync(w => w.Id == request.WarehouseId))
+        var warehouse = await _dbContext.Warehouses.FirstOrDefaultAsync(w => w.Id == request.WarehouseId);
+        if (warehouse is null)
         {
             return BadRequest("Warehouse not found.");
         }
@@ -62,6 +63,6 @@ public class AdminInventoryController : ControllerBase
             return Conflict(AuditLogger.ConflictMessage);
         }
 
-        return Ok(new InventoryRecordDto(record.Id, record.ProductId, product.Name, record.WarehouseId, record.QtyOnHand, record.QtyReserved, record.ReorderPoint));
+        return Ok(new InventoryRecordDto(record.Id, record.ProductId, product.Name, record.WarehouseId, warehouse.Name, record.QtyOnHand, record.QtyReserved, record.ReorderPoint));
     }
 }

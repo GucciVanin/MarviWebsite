@@ -22,7 +22,7 @@ public class EmployeeInventoryController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<InventoryRecordDto>>> GetInventory([FromQuery] Guid? warehouseId)
     {
-        var query = _dbContext.InventoryRecords.Include(i => i.Product).AsQueryable();
+        var query = _dbContext.InventoryRecords.Include(i => i.Product).Include(i => i.Warehouse).AsQueryable();
         if (warehouseId.HasValue)
         {
             query = query.Where(i => i.WarehouseId == warehouseId.Value);
@@ -35,6 +35,7 @@ public class EmployeeInventoryController : ControllerBase
             i.ProductId,
             i.Product?.Name ?? string.Empty,
             i.WarehouseId,
+            i.Warehouse?.Name ?? string.Empty,
             i.QtyOnHand,
             i.QtyReserved,
             i.ReorderPoint));

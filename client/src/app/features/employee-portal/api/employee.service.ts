@@ -30,6 +30,7 @@ export interface InventoryRecord {
   productId: string;
   productName: string;
   warehouseId: string;
+  warehouseName: string;
   qtyOnHand: number;
   qtyReserved: number;
   reorderPoint: number;
