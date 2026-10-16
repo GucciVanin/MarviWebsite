@@ -32,6 +32,7 @@ public class AuditLogPagingTests : IClassFixture<MarviApiFactory>
         Assert.Equal(2, (await firstPage.Content.ReadFromJsonAsync<List<AuditLogEntryDto>>())!.Count);
         var total = int.Parse(firstPage.Headers.GetValues("X-Total-Count").Single());
         Assert.True(total >= 3);
-        Assert.Equal(everything!.Count, total);
+        // The whole log may hold more than the 200 the cap lets one request fetch, so the total is at least what was fetched.
+        Assert.True(total >= everything!.Count);
     }
 }

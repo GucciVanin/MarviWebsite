@@ -57,7 +57,7 @@ export class EmployeeHistory implements OnInit {
   // The filters being edited (draft) and the ones in force (applied). Signals: the app is zoneless.
   protected readonly clientSearch = signal('');
   protected readonly clientMatches = signal<ClientSummary[] | null>(null);
-  protected readonly searchAction = action();
+  protected readonly searchAction = action({ latestOnly: true });
   protected readonly draft = signal<AppliedFilters>(NO_FILTERS);
   private readonly applied = signal<AppliedFilters>(NO_FILTERS);
   protected readonly page = signal(1);
@@ -68,6 +68,8 @@ export class EmployeeHistory implements OnInit {
   protected readonly current = computed<Loadable<PagedResult<unknown>>>(() => (this.kind() === 'quotes' ? this.quotes : this.orders));
   protected readonly statusOptions = computed(() => (this.kind() === 'quotes' ? QUOTE_STATUSES : ORDER_STATUSES));
   protected readonly statusLabels = computed(() => (this.kind() === 'quotes' ? this.statuses.quote : this.statuses.order));
+  /** The page being shown: the one the server answered with, so a failed page change does not make the pager lie. */
+  protected readonly shownPage = computed(() => this.current().data().page);
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.current().data().totalCount / PAGE_SIZE)));
   protected readonly isEmpty = computed(() => this.current().loaded() && this.current().data().items.length === 0);
 
@@ -116,7 +118,7 @@ export class EmployeeHistory implements OnInit {
   }
 
   protected go(delta: number): void {
-    const next = this.page() + delta;
+    const next = this.shownPage() + delta;
     if (next < 1 || next > this.totalPages()) {
       return;
     }

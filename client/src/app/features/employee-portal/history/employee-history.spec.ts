@@ -128,6 +128,19 @@ describe('EmployeeHistory', () => {
     expect(button('Próxima').disabled).toBe(true);
   });
 
+  it('keeps the pager honest when a page change fails: it still says which page is on screen', async () => {
+    const { root, settle, button, quotes } = setup();
+    quotes().flush(page([quote('q1', 'Bar', 'Priced')], 45));
+    await settle();
+
+    button('Próxima').click();
+    quotes().flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+
+    expect(text(root)).toContain('Página 1 de 3');
+    expect(root.querySelector('[role="alert"]')).not.toBeNull();
+  });
+
   it('says so when nothing matches, and shows a failure with a retry instead of an empty list', async () => {
     const { root, settle, quotes } = setup();
     quotes().flush(page([]));

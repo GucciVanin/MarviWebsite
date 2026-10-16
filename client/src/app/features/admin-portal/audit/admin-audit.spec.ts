@@ -63,6 +63,28 @@ describe('AdminAudit', () => {
     expect(button('Próxima').disabled).toBe(true);
   });
 
+  it('keeps the pager honest when a page change fails: it still says which page is on screen', async () => {
+    const { root, settle, button, log } = setup();
+    log().flush([entry('a1', 'Create', 'Product')], { headers: { 'X-Total-Count': '60' } });
+    await settle();
+
+    button('Próxima').click();
+    log().flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+
+    expect(text(root)).toContain('Página 1 de 3');
+    expect(root.querySelector('[role="alert"]')).not.toBeNull();
+  });
+
+  it('still offers the next page when the API does not report the total (a full page means there may be more)', async () => {
+    const { root, settle, button, log } = setup();
+    log().flush(Array.from({ length: 25 }, (_, i) => entry(`a${i}`, 'Create', 'Product')));
+    await settle();
+
+    expect(button('Próxima').disabled).toBe(false);
+    expect(text(root)).toContain('Página 1 de 2');
+  });
+
   it('says so when there is nothing in the log', async () => {
     const { root, settle, log } = setup();
     log().flush([], { headers: { 'X-Total-Count': '0' } });

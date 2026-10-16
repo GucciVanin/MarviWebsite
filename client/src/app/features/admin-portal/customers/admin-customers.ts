@@ -56,12 +56,16 @@ export class AdminCustomers implements OnInit {
 
   protected find(): void {
     this.appliedSearch.set(this.search().trim());
+    this.message.set(null);
+    this.confirmingSuspendId.set(null);
+    this.saveAction.reset();
     this.stopEditing();
     this.customers.load();
   }
 
   protected edit(customer: ClientSummary): void {
     this.message.set(null);
+    this.saveAction.reset();
     this.confirmingSuspendId.set(null);
     this.editingId.set(customer.id);
     this.editTierId.set(customer.pricingTierId ?? '');
@@ -69,6 +73,7 @@ export class AdminCustomers implements OnInit {
   }
 
   protected stopEditing(): void {
+    this.saveAction.reset();
     this.editingId.set(null);
   }
 
@@ -85,6 +90,7 @@ export class AdminCustomers implements OnInit {
 
   protected askToSuspend(customer: ClientSummary): void {
     this.message.set(null);
+    this.saveAction.reset();
     this.editingId.set(null);
     this.confirmingSuspendId.set(customer.id);
   }
@@ -94,14 +100,19 @@ export class AdminCustomers implements OnInit {
     this.saveAction.run(this.admin.suspendClient(customer.id), () => this.done(this.t.suspended));
   }
 
-  /** Approving needs a tier and a limit: the customer keeps the ones they have. */
+  /** Reactivates a suspended customer. Approving needs a tier and a limit: they keep the ones they have. */
   protected approve(customer: ClientSummary): void {
-    const tierId = customer.pricingTierId ?? this.tiers.data().find((tier) => tier.isDefault)?.id;
+    const tierId = this.approvalTierId(customer);
     if (!tierId) {
       return;
     }
     this.message.set(null);
     this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId: tierId, creditLimit: customer.creditLimit }), () => this.done(this.t.approved));
+  }
+
+  /** The tier a reactivated customer keeps, or the default tier when they have none; null until it is known. */
+  protected approvalTierId(customer: ClientSummary): string | null {
+    return customer.pricingTierId ?? this.tiers.data().find((tier) => tier.isDefault)?.id ?? null;
   }
 
   private done(message: string): void {

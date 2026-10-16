@@ -126,6 +126,41 @@ describe('AdminImport', () => {
     expect(root.querySelector('[data-testid="import-error"]')).toBeNull();
   });
 
+  it('forgets a dry-run report when the warehouse changes, because stock would go somewhere else', async () => {
+    const { fixture, root, settle, button, chooseFile, importRequest } = setup();
+    await settle();
+    await chooseFile();
+    button('Verificar arquivo').click();
+    fixture.detectChanges();
+    importRequest('dryRun=true').flush(report({ dryRun: true, applied: false }));
+    await settle();
+    expect(text(root)).toContain('Nada foi alterado');
+
+    const select = root.querySelector<HTMLSelectElement>('select[name="warehouse"]')!;
+    select.value = 'w2';
+    select.dispatchEvent(new Event('change'));
+    await settle();
+
+    expect(text(root)).not.toContain('Nada foi alterado');
+  });
+
+  it('does not let the file or the warehouse change while a request is running', async () => {
+    const { fixture, http, root, settle, button, chooseFile, importRequest } = setup();
+    await settle();
+    await chooseFile();
+
+    button('Importar').click();
+    fixture.detectChanges();
+    await settle(); // ngModel applies a disabled select a moment later
+
+    expect(root.querySelector<HTMLInputElement>('input[type="file"]')!.disabled).toBe(true);
+    expect(root.querySelector<HTMLSelectElement>('select[name="warehouse"]')!.disabled).toBe(true);
+    importRequest('').flush(report());
+    await settle();
+    expect(root.querySelector<HTMLInputElement>('input[type="file"]')!.disabled).toBe(false);
+    http.verify();
+  });
+
   it('forgets the previous report when another file is chosen', async () => {
     const { fixture, root, settle, button, chooseFile, importRequest } = setup();
     await settle();

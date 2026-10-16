@@ -49,8 +49,8 @@
                   <button type="button" class="btn btn--outline btn--small" (click)="edit(customer)">{{ t.edit }}</button>
                   @if (customer.status === 'Approved') {
                     <button type="button" class="btn btn--outline btn--small" (click)="askToSuspend(customer)">{{ t.suspend }}</button>
-                  } @else {
-                    <button type="button" class="btn btn--outline btn--small" [disabled]="saveAction.busy()" (click)="approve(customer)">{{ t.approve }}</button>
+                  } @else if (customer.status === 'Suspended') {
+                    <button type="button" class="btn btn--outline btn--small" [disabled]="saveAction.busy() || !approvalTierId(customer)" (click)="approve(customer)">{{ t.approve }}</button>
                   }
                 }
               </td>

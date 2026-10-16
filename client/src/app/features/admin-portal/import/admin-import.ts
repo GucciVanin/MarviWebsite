@@ -35,6 +35,12 @@ export class AdminImport implements OnInit {
     this.warehouses.load();
   }
 
+  protected chooseWarehouse(id: string): void {
+    this.warehouseId.set(id);
+    // A checked file's report was for the previous warehouse (stock goes there): it no longer applies.
+    this.report.set(null);
+  }
+
   protected chooseFile(event: Event): void {
     this.file.set((event.target as HTMLInputElement).files?.[0] ?? null);
     this.report.set(null);

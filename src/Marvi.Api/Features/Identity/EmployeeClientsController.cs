@@ -43,7 +43,7 @@ public class EmployeeClientsController : ControllerBase
         var query = _dbContext.ClientAccounts.AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLower();
+            var term = search.Trim().ToLowerInvariant();
             query = query.Where(c => c.CompanyName.ToLower().Contains(term));
         }
 

@@ -185,6 +185,8 @@ export interface AuditLogEntry {
 export interface AuditPage {
   entries: AuditLogEntry[];
   totalCount: number;
+  /** The page these entries are (as asked for). */
+  page: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -368,8 +370,11 @@ export class AdminService {
     return this.http.get<AuditLogEntry[]>('/api/admin/audit-log', { params: { page, pageSize }, observe: 'response' }).pipe(
       map((response) => {
         const entries = response.body ?? [];
-        const total = Number(response.headers.get('X-Total-Count'));
-        return { entries, totalCount: Number.isFinite(total) && total >= 0 && response.headers.has('X-Total-Count') ? total : entries.length };
+        const header = response.headers.get('X-Total-Count');
+        const reported = header === null ? NaN : Number(header);
+        // Without the header (a proxy that strips it) the size is unknown: a full page means there may be more, so offer the next one.
+        const total = Number.isFinite(reported) && reported >= 0 ? reported : (page - 1) * pageSize + entries.length + (entries.length >= pageSize ? 1 : 0);
+        return { entries, totalCount: total, page };
       }),
     );
   }

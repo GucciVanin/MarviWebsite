@@ -44,7 +44,7 @@ export class EmployeePortal implements OnInit {
   // Customer and new order.
   protected readonly clientSearch = signal('');
   protected readonly clientMatches = signal<PagedResult<ClientSummary> | null>(null);
-  protected readonly searchAction = action();
+  protected readonly searchAction = action({ latestOnly: true });
   protected readonly clientProfile = signal<ClientProfile | null>(null);
   protected readonly lookupAction = action();
   protected readonly deliveryAddress = signal('');

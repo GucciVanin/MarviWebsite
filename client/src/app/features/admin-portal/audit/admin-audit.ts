@@ -19,8 +19,10 @@ export class AdminAudit implements OnInit {
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
   protected readonly page = signal(1);
-  protected readonly log = loadable(() => this.admin.getAuditPage(this.page(), PAGE_SIZE), { entries: [], totalCount: 0 } as AuditPage);
+  protected readonly log = loadable(() => this.admin.getAuditPage(this.page(), PAGE_SIZE), { entries: [], totalCount: 0, page: 1 } as AuditPage);
 
+  /** The page being shown: the one the server answered with, so a failed page change does not make the pager lie. */
+  protected readonly shownPage = computed(() => this.log.data().page);
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.log.data().totalCount / PAGE_SIZE)));
   protected readonly isEmpty = computed(() => this.log.loaded() && this.log.data().totalCount === 0);
 
@@ -29,7 +31,7 @@ export class AdminAudit implements OnInit {
   }
 
   protected go(delta: number): void {
-    const next = this.page() + delta;
+    const next = this.shownPage() + delta;
     if (next < 1 || next > this.totalPages()) {
       return;
     }

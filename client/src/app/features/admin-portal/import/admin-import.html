@@ -6,11 +6,11 @@
     <form class="stack" (submit)="$event.preventDefault()">
       <div class="field">
         <label for="import-file">{{ t.file }}</label>
-        <input id="import-file" name="file" type="file" accept=".csv,text/csv" (change)="chooseFile($event)" />
+        <input id="import-file" name="file" type="file" accept=".csv,text/csv" [disabled]="runAction.busy()" (change)="chooseFile($event)" />
       </div>
       <div class="field">
         <label for="import-warehouse">{{ t.warehouse }}</label>
-        <select id="import-warehouse" name="warehouse" [ngModel]="warehouseId()" (ngModelChange)="warehouseId.set($event)">
+        <select id="import-warehouse" name="warehouse" [disabled]="runAction.busy()" [ngModel]="warehouseId()" (ngModelChange)="chooseWarehouse($event)">
           <option value="">{{ t.warehouseAuto }}</option>
           @for (warehouse of warehouses.data(); track warehouse.id) {
             <option [value]="warehouse.id">{{ warehouse.name }}</option>
