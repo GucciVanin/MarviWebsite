@@ -1,6 +1,7 @@
 using Marvi.Api.Features.Catalog.Contracts;
 using Marvi.Api.Features.Identity;
 using Marvi.Domain.Catalog;
+using Marvi.Domain.Identity;
 using Marvi.Domain.Inventory;
 using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -81,7 +82,8 @@ public class ProductsController : ControllerBase
         return Ok(new ProductDetailDto(product.Id, product.Sku, product.Name, product.Description, product.ImageUrl, product.Attributes, price, dealName, inStock));
     }
 
-    // Clients use their own tier; anonymous and tierless callers get the default (list-price) tier.
+    // Only an Approved customer gets their own tier's prices (least privilege): anonymous visitors, Pending and Suspended
+    // customers, and tierless callers all get the default (list-price) tier.
     private async Task<PricingTier?> ResolveTierAsync()
     {
         if (User.ClientId() is { } clientId)
@@ -90,7 +92,7 @@ public class ProductsController : ControllerBase
                 .Include(c => c.PricingTier)
                 .FirstOrDefaultAsync(c => c.Id == clientId);
 
-            if (clientAccount?.PricingTier is not null)
+            if (clientAccount?.PricingTier is not null && CustomerEligibility.IsEligible(clientAccount.Status))
             {
                 return clientAccount.PricingTier;
             }

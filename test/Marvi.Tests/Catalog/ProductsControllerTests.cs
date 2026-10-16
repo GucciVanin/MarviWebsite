@@ -58,6 +58,7 @@ public class ProductsControllerTests : IClassFixture<MarviApiFactory>
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var clientAccount = await db.ClientAccounts.SingleAsync(c => c.Id == clientAccountId);
             clientAccount.PricingTierId = wholesaleTierId;
+            clientAccount.Status = Marvi.Domain.Identity.ClientAccountStatus.Approved; // only an approved customer gets their own tier
             await db.SaveChangesAsync();
         }
 

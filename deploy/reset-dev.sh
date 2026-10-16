@@ -14,7 +14,16 @@ if [ "${1:-}" != "--yes" ]; then
 fi
 
 cd "$(dirname "$0")/.."
-compose=(docker compose -f deploy/docker-compose.yml)
+# Pinned to the dev project: a COMPOSE_PROJECT_NAME left in the environment must not point this at another stack.
+compose=(docker compose -p deploy -f deploy/docker-compose.yml)
+
+# Stop the dev stack first (keeping its data) and make sure nothing else holds the API port, BEFORE anything is deleted:
+# otherwise the wipe could succeed and the rebuild then fail on a busy port.
+"${compose[@]}" down
+if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || true)" != "000" ]; then
+  echo "Port 8080 is in use by something other than the dev stack (a leftover runtime-suite stack?). Nothing was deleted." >&2
+  exit 1
+fi
 
 "${compose[@]}" down -v
 "${compose[@]}" up -d --build

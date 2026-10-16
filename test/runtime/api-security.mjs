@@ -284,6 +284,9 @@ ok('an admin approves with a chosen tier (204)', (await call('PUT', `/api/admin/
 const approvedNewcomer = (await call('GET', `/api/employee/clients/${newcomer.id}`, { token: emp })).json;
 ok('...the customer is Approved on the tier the admin chose, and can now request a quote (201)', approvedNewcomer.status === 'Approved' && approvedNewcomer.pricingTierName === 'Wholesale'
   && (await call('POST', '/api/quotes', { token: newcomer.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 201);
+const colaFor = async (token) => (await call('GET', '/api/products', { token })).json.find((p) => p.id === prod.cola.id)?.price;
+ok('once approved on Wholesale the customer sees the Wholesale price (cola 4.00), not the visitor price (5.00)', near(await colaFor(newcomer.token), 4) && near(await colaFor(undefined), 5));
+ok('...and a suspended customer is back to what a visitor sees (cola 5.00): only an Approved customer gets their own tier', (await call('PUT', `/api/admin/clients/${newcomer.id}/suspend`, { token: admin })).status === 204 && near(await colaFor(newcomer.token), 5));
 ok('the approval is in the audit log with the previous status', (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.entityId === newcomer.id && e.action === 'Approve' && e.details.data.includes('Pending')));
 
 section('UPDATE TIER: an admin moves a customer to another pricing tier without touching the status (on real Postgres)');
@@ -626,7 +629,7 @@ const evilTok = await login(evilEmail, 'Evil-1234!');
 const evilClaims = JSON.parse(Buffer.from(evilTok.split('.')[1], 'base64url').toString());
 ok('mass assignment: extra fields cannot make a registrant an Admin', evilClaims[ROLE] === 'Client', JSON.stringify(evilClaims[ROLE]));
 const evilProfile = (await call('GET', `/api/employee/clients/${evil.json?.id}`, { token: emp })).json;
-ok('mass assignment: the tier stays the default', evilProfile?.pricingTierName === standard.name, JSON.stringify({ t: evilProfile?.pricingTierName }));
+ok('mass assignment: the tier stays the default and the status stays Pending (an extra status: Approved in the body is ignored)', evilProfile?.pricingTierName === standard.name && evilProfile?.status === 'Pending', JSON.stringify({ t: evilProfile?.pricingTierName, s: evilProfile?.status }));
 ok('registered client cannot reach admin API', (await call('GET', '/api/admin/categories', { token: evilTok })).status === 403);
 ok('duplicate email refused (400)', (await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x' } })).status === 400);
 ok('duplicate email differing only by case refused', (await call('POST', '/api/auth/register', { body: { email: evilEmail.toUpperCase(), password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x' } })).status === 400);

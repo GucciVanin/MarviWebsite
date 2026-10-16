@@ -64,6 +64,7 @@ export class AdminCustomers implements OnInit {
   protected edit(customer: ClientSummary): void {
     this.message.set(null);
     this.saveAction.reset();
+    this.approvingId.set(null);
     this.confirmingSuspendId.set(null);
     this.editingId.set(customer.id);
     this.editTierId.set(customer.pricingTierId ?? '');
@@ -88,6 +89,7 @@ export class AdminCustomers implements OnInit {
   protected askToSuspend(customer: ClientSummary): void {
     this.message.set(null);
     this.saveAction.reset();
+    this.approvingId.set(null);
     this.editingId.set(null);
     this.confirmingSuspendId.set(customer.id);
   }
@@ -108,7 +110,9 @@ export class AdminCustomers implements OnInit {
     this.editingId.set(null);
     this.confirmingSuspendId.set(null);
     this.approvingId.set(customer.id);
-    this.approveTierId.set(customer.status === 'Suspended' ? customer.pricingTierId ?? '' : '');
+    // Only a tier the list actually offers can be suggested (it may not have loaded, or may have been deleted).
+    const suggested = customer.status === 'Suspended' ? customer.pricingTierId : null;
+    this.approveTierId.set(suggested && this.tiers.data().some((tier) => tier.id === suggested) ? suggested : '');
   }
 
   protected cancelApproval(): void {

@@ -1,6 +1,6 @@
 // Demo data for trying the portals on the LOCAL dev stack only (http://localhost:8080), created through the real API.
 // Run from the project root:  node deploy/seed-demo.mjs   (the stack must be up and its database EMPTY: see deploy/reset-dev.sh).
-// The admin comes from deploy/.env.example. All accounts below are throwaway dev values.
+// The admin comes from deploy/.env (or deploy/.env.example). All accounts below are throwaway dev values.
 //
 //   admin     admin@marvi.local               (see deploy/.env.example)
 //   employee  funcionario@demo.marvi.test     / Demo-Func-1!
@@ -16,7 +16,14 @@
 import { readFileSync } from 'node:fs';
 
 const API = 'http://localhost:8080';
-const env = (name, fallback) => new RegExp(`^${name}=(.*)$`, 'm').exec(readFileSync(new URL('./.env.example', import.meta.url), 'utf8'))?.[1] ?? fallback;
+// The stack uses deploy/.env when it exists (that is where the admin the API really seeds comes from), else the example values.
+const envText = (() => {
+  for (const file of ['./.env', './.env.example']) {
+    try { return readFileSync(new URL(file, import.meta.url), 'utf8'); } catch { /* try the next one */ }
+  }
+  return '';
+})();
+const env = (name, fallback) => new RegExp(`^${name}=(.*)$`, 'm').exec(envText)?.[1]?.trim() ?? fallback;
 const ADMIN = { email: env('SEED_ADMIN_EMAIL', 'admin@marvi.local'), password: env('SEED_ADMIN_PASSWORD', '') };
 const CUSTOMER_PASSWORD = 'Demo-Cliente-1!';
 const EMPLOYEE = { email: 'funcionario@demo.marvi.test', password: 'Demo-Func-1!' };

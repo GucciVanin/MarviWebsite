@@ -87,6 +87,23 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
     }
 
     [Fact]
+    public async Task ASuspendedCustomer_LosesTheirNegotiatedPrices_AndSeesWhatAVisitorSees()
+    {
+        var admin = await _factory.AdminAsync();
+        var (customer, id) = await _factory.RegisterClientAsync();
+        var product = await admin.CreatePricedProductAsync(10m);
+        var gold = await CreateTierAsync(admin);
+        (await admin.PutAsJsonAsync($"/api/admin/products/{product}/pricing", new UpsertProductPricingRequest(gold, 6m, 1))).EnsureSuccessStatusCode();
+        (await ApproveAsync(admin, id, gold)).EnsureSuccessStatusCode();
+        Assert.Equal(6m, (await customer.GetFromJsonAsync<List<ProductListItemDto>>("/api/products"))!.Single(p => p.Id == product).Price);
+
+        (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).EnsureSuccessStatusCode();
+
+        Assert.Equal(10m, (await customer.GetFromJsonAsync<List<ProductListItemDto>>("/api/products"))!.Single(p => p.Id == product).Price);
+        Assert.Equal(10m, (await customer.GetFromJsonAsync<ProductDetailDto>($"/api/products/{product}"))!.Price);
+    }
+
+    [Fact]
     public async Task Approving_NeedsAnExplicitTier_NobodyIsApprovedByDefault()
     {
         var admin = await _factory.AdminAsync();

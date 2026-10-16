@@ -202,6 +202,31 @@ describe('AdminCustomers', () => {
     expect(row('Mercado Sol').textContent).toContain('Aprovado');
   });
 
+  it('keeps one form open at a time: starting to edit or suspend closes the approval form', async () => {
+    const { root, settle, button, row } = setup([customer('c3', 'Loja Nova', 'Pending')]);
+    await settle();
+    button('Aprovar', row('Loja Nova')).click();
+    await settle();
+    expect(root.querySelector('select[name="approve-tier"]')).not.toBeNull();
+
+    button('Editar', row('Loja Nova')).click();
+    await settle();
+
+    expect(root.querySelector('select[name="approve-tier"]')).toBeNull();
+    expect(root.querySelector('select[name="tier"]')).not.toBeNull();
+  });
+
+  it('only suggests a tier the list offers: a missing tier leaves the choice empty and the confirmation off', async () => {
+    const { root, settle, button, row } = setup([customer('c9', 'Loja Antiga', 'Suspended', 't-gone')]);
+    await settle();
+
+    button('Aprovar', row('Loja Antiga')).click();
+    await settle();
+
+    expect(root.querySelector<HTMLSelectElement>('select[name="approve-tier"]')!.value).toBe('');
+    expect(button('Confirmar aprovação').disabled).toBe(true);
+  });
+
   it('lets the admin back out of an approval without sending anything', async () => {
     const { fixture, http, root, settle, button, row } = setup([customer('c3', 'Loja Nova', 'Pending')]);
     await settle();
