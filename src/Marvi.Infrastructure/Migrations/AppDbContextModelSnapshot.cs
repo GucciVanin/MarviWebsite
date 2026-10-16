@@ -341,6 +341,7 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnName("shipping_addresses");
 
                     b.Property<int>("Status")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer")
                         .HasColumnName("status");
 

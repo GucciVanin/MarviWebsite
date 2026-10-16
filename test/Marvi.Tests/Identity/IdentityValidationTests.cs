@@ -82,7 +82,7 @@ public class IdentityValidationTests : IClassFixture<MarviApiFactory>
     public async Task ApprovingAClient_NeedsARealTier()
     {
         var admin = await _factory.AdminAsync();
-        var (_, accountId) = await _factory.RegisterClientAsync();
+        var (_, accountId) = await _factory.RegisterPendingClientAsync();
         var tier = (await admin.PostAsJsonAsync("/api/admin/pricing-tiers", new UpsertPricingTierRequest($"T-{Guid.NewGuid():N}", false)))
             .Content.ReadFromJsonAsync<PricingTierDto>().Result!;
 

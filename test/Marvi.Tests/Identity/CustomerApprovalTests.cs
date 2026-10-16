@@ -90,7 +90,7 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
     public async Task ASuspendedCustomer_LosesTheirNegotiatedPrices_AndSeesWhatAVisitorSees()
     {
         var admin = await _factory.AdminAsync();
-        var (customer, id) = await _factory.RegisterClientAsync();
+        var (customer, id) = await _factory.RegisterPendingClientAsync();
         var product = await admin.CreatePricedProductAsync(10m);
         var gold = await CreateTierAsync(admin);
         (await admin.PutAsJsonAsync($"/api/admin/products/{product}/pricing", new UpsertProductPricingRequest(gold, 6m, 1))).EnsureSuccessStatusCode();
@@ -148,6 +148,51 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
         (await ApproveAsync(admin, id, tier)).EnsureSuccessStatusCode();
 
         Assert.Equal(HttpStatusCode.Created, (await customer.PostAsJsonAsync("/api/quotes", new CreateQuoteRequest([new QuoteLineItemRequest(product, 1)]))).StatusCode);
+    }
+
+    [Fact]
+    public async Task ADecisionIsTakenOnce_ApprovingAnApprovedCustomer_OrSuspendingASuspendedOne_IsAConflict()
+    {
+        var admin = await _factory.AdminAsync();
+        var (_, id) = await _factory.RegisterPendingClientAsync();
+        var tier = await CreateTierAsync(admin);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await ApproveAsync(admin, id, tier)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await ApproveAsync(admin, id, tier)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task APendingCustomer_CanBeSuspended_AndThenApprovedAgain()
+    {
+        var admin = await _factory.AdminAsync();
+        var (customer, id) = await _factory.RegisterPendingClientAsync();
+        var tier = await CreateTierAsync(admin);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).StatusCode);
+        Assert.Equal(ClientAccountStatus.Suspended, (await customer.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!.Status);
+        Assert.Equal(HttpStatusCode.NoContent, (await ApproveAsync(admin, id, tier)).StatusCode);
+        Assert.Equal(ClientAccountStatus.Approved, (await customer.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!.Status);
+    }
+
+    [Fact]
+    public async Task WhenSeveralAdminsApproveTheSameCustomerAtOnce_ExactlyOneDecisionWins()
+    {
+        var admin = await _factory.AdminAsync();
+        var (_, id) = await _factory.RegisterPendingClientAsync();
+        var tiers = new List<Guid>();
+        for (var i = 0; i < 6; i++)
+        {
+            tiers.Add(await CreateTierAsync(admin));
+        }
+
+        var results = await Task.WhenAll(tiers.Select(tier => ApproveAsync(admin, id, tier)));
+
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        Assert.Equal(5, results.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+        // (That the losers leave no audit entry is checked on real Postgres, where a failed save rolls back: see the runtime suite.)
     }
 
     [Fact]

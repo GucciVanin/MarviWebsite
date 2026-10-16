@@ -82,6 +82,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<QuoteLineItem>().HasOne(l => l.Product).WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<Order>().HasOne(o => o.ClientAccount).WithMany(c => c.Orders).HasForeignKey(o => o.ClientAccountId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<Quote>().HasOne(q => q.ClientAccount).WithMany(c => c.Quotes).HasForeignKey(q => q.ClientAccountId).OnDelete(DeleteBehavior.Restrict);
+        // The status is a concurrency token (MRV-6.1): a decision about a customer applies only if their status is still the one it was
+        // read with, so two admins deciding at once cannot overwrite each other (the second gets a 409).
+        builder.Entity<ClientAccount>().Property(c => c.Status).IsConcurrencyToken();
         // Stock records are deleted deliberately, never as a side effect of deleting the warehouse.
         builder.Entity<InventoryRecord>().HasOne(i => i.Warehouse).WithMany(w => w.InventoryRecords).HasForeignKey(i => i.WarehouseId).OnDelete(DeleteBehavior.Restrict);
 

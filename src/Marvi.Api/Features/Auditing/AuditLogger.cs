@@ -56,6 +56,11 @@ public class AuditLogger
             await SaveAsync(action, entityName, entityId, details);
             return true;
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Someone else changed the same row first (for example another admin decided the same customer): nothing is saved.
+            return false;
+        }
         catch (DbUpdateException exception) when (exception.IsConstraintViolation())
         {
             return false;
