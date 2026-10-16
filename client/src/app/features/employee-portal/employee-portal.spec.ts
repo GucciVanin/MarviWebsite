@@ -21,6 +21,9 @@ const quote = (id: string, lines: object[], clientAccountId = 'c-123') => ({
   lineItems: lines,
 });
 
+const summary = (id: string, companyName: string, status: string) => ({ id, companyName, status, pricingTierName: 'Atacado', creditLimit: 5000 });
+const clientPage = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 10, totalCount });
+
 const profile = (status: string) => ({
   id: 'c-123',
   companyName: 'Bar do Zé',
@@ -61,7 +64,19 @@ describe('EmployeePortal', () => {
       input.dispatchEvent(new Event('input'));
       await settle();
     };
-    return { fixture, http, root, settle, button, type };
+    /** Finds the customer by company name and opens them, the way an employee does (search, then pick). */
+    const openCustomer = async (id: string, status: string) => {
+      await type(root.querySelector<HTMLInputElement>('input[name="clientSearch"]')!, 'bar');
+      button('Buscar cliente').click();
+      fixture.detectChanges();
+      http.expectOne((r) => r.url === '/api/employee/clients').flush(clientPage([summary(id, 'Bar do Zé', status)]));
+      await settle();
+      button('Selecionar').click();
+      fixture.detectChanges();
+      http.expectOne((r) => r.url.includes(`/clients/${id}`)).flush(profile(status));
+      await settle();
+    };
+    return { fixture, http, root, settle, button, type, openCustomer };
   }
 
   const text = (root: HTMLElement) => (root.textContent ?? '').replace(/\s+/g, ' ');
@@ -193,12 +208,26 @@ describe('EmployeePortal', () => {
 
   // ---- the customer and a new order
 
-  it('looks a customer up by ID and shows who they are', async () => {
+  it('finds customers by company name, lists who matched, and opens the one picked', async () => {
     const { fixture, http, root, settle, button, type } = setup();
     await settle();
-    await type(root.querySelector<HTMLInputElement>('input[name="clientId"]')!, 'c-123');
+    await type(root.querySelector<HTMLInputElement>('input[name="clientSearch"]')!, '  zé ');
 
     button('Buscar cliente').click();
+    fixture.detectChanges();
+    const search = http.expectOne((r) => r.url === '/api/employee/clients');
+    expect(search.request.params.get('search')).toBe('zé');
+    expect(search.request.params.get('pageSize')).toBe('10');
+    search.flush(clientPage([summary('c-123', 'Bar do Zé', 'Approved'), summary('c-456', 'Zé Mercado', 'Suspended')]));
+    await settle();
+
+    const rows = root.querySelectorAll('[data-testid="client-match"]');
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toContain('Bar do Zé');
+    expect(rows[1].textContent).toContain('Zé Mercado');
+    expect(rows[1].textContent).toContain('Suspenso');
+
+    button('Selecionar', rows[0]).click();
     fixture.detectChanges();
     http.expectOne((r) => r.url.includes('/clients/c-123')).flush(profile('Approved'));
     await settle();
@@ -210,14 +239,57 @@ describe('EmployeePortal', () => {
     expect(card.textContent).toContain('5.000,00');
   });
 
-  it('explains a customer lookup that finds nothing (404)', async () => {
+  it('says so when no customer matches the company name', async () => {
     const { fixture, http, root, settle, button, type } = setup();
     await settle();
-    await type(root.querySelector<HTMLInputElement>('input[name="clientId"]')!, 'missing');
+    await type(root.querySelector<HTMLInputElement>('input[name="clientSearch"]')!, 'nada');
 
     button('Buscar cliente').click();
     fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/missing')).flush('Not found', { status: 404, statusText: 'Not Found' });
+    http.expectOne((r) => r.url === '/api/employee/clients').flush(clientPage([]));
+    await settle();
+
+    expect(text(root)).toContain('Nenhum cliente encontrado');
+  });
+
+  it('tells the employee when there are more matches than shown, and to narrow the search', async () => {
+    const { fixture, http, root, settle, button } = setup();
+    await settle();
+
+    button('Buscar cliente').click();
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/employee/clients').flush(clientPage([summary('c-1', 'Bar 1', 'Approved')], 37));
+    await settle();
+
+    expect(text(root)).toContain('Mostrando 1 de 37');
+    expect(text(root)).toContain('Refine a busca');
+  });
+
+  it('explains a failed search in pt-BR', async () => {
+    const { fixture, http, root, settle, button } = setup();
+    await settle();
+
+    button('Buscar cliente').click();
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/employee/clients').flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('Erro no servidor');
+    expect(root.querySelector('[data-testid="client-match"]')).toBeNull();
+  });
+
+  it('explains a picked customer that no longer exists (404)', async () => {
+    const { fixture, http, root, settle, button, type } = setup();
+    await settle();
+    await type(root.querySelector<HTMLInputElement>('input[name="clientSearch"]')!, 'bar');
+    button('Buscar cliente').click();
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/employee/clients').flush(clientPage([summary('gone', 'Bar Fantasma', 'Approved')]));
+    await settle();
+
+    button('Selecionar').click();
+    fixture.detectChanges();
+    http.expectOne((r) => r.url.includes('/clients/gone')).flush('Not found', { status: 404, statusText: 'Not Found' });
     await settle();
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('Não encontramos');
@@ -236,13 +308,9 @@ describe('EmployeePortal', () => {
   });
 
   it('offers no order form for a customer who is not approved', async () => {
-    const { fixture, http, root, settle, button, type } = setup();
+    const { root, settle, openCustomer } = setup();
     await settle();
-    await type(root.querySelector<HTMLInputElement>('input[name="clientId"]')!, 'c-123');
-    button('Buscar cliente').click();
-    fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/c-123')).flush(profile('Suspended'));
-    await settle();
+    await openCustomer('c-123', 'Suspended');
 
     expect(text(root)).toContain('Suspenso');
     expect(text(root)).toContain('não está aprovado');
@@ -250,13 +318,9 @@ describe('EmployeePortal', () => {
   });
 
   async function openOrderForm(env: ReturnType<typeof setup>) {
-    const { fixture, http, root, settle, button, type } = env;
+    const { http, settle, openCustomer } = env;
     await settle();
-    await type(root.querySelector<HTMLInputElement>('input[name="clientId"]')!, 'c-123');
-    button('Buscar cliente').click();
-    fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/c-123')).flush(profile('Approved'));
-    await settle();
+    await openCustomer('c-123', 'Approved');
     http.expectOne((r) => r.url === '/api/products').flush([product('1', 'Cola 2L'), product('2', 'Água')]);
     http.expectOne('/api/categories').flush([]);
     await settle();

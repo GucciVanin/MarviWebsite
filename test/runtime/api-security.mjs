@@ -298,6 +298,17 @@ ok('leaving the shipping list out is refused (400), not treated as clearing it; 
   && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: ['x\u0000y'] } })).status === 400);
 ok('it is always the caller\'s own account: another customer\'s details are untouched', (await call('GET', '/api/client/profile', { token: clientA.token })).json.companyName === 'Bar do Zé');
 
+section('CLIENT DIRECTORY: staff find a customer by company name (on real Postgres)');
+const dirSearch = (q, token = emp) => call('GET', `/api/employee/clients${q}`, { token });
+const dirZe = (await dirSearch('?search=' + encodeURIComponent('BAR DO Z'))).json;
+ok('a partial, upper-case company name finds the customer, with status, tier and credit', dirZe.items.some((c) => c.id === clientA.id && c.status === 'Approved' && typeof c.creditLimit === 'number' && c.pricingTierName));
+ok('...an accented search finds accented names', (await dirSearch('?search=' + encodeURIComponent('zé'))).json.items.some((c) => c.id === clientA.id));
+ok('a percent sign or underscore is text to find, not a wildcard', (await dirSearch('?search=%25')).json.totalCount === 0 && (await dirSearch('?search=_')).json.totalCount === 0);
+const dirAll = (await dirSearch('?pageSize=200')).json;
+ok('without a search everyone is listed A to Z, with the total', dirAll.totalCount >= 5 && dirAll.items.every((c, i) => i === 0 || dirAll.items[i - 1].companyName.toLowerCase() <= c.companyName.toLowerCase()));
+ok('...paged', (await dirSearch('?page=2&pageSize=2')).json.items.length === 2 && (await dirSearch('?page=0')).status === 400);
+ok('admins may use it too; customers may not (403)', (await dirSearch('', admin)).status === 200 && (await dirSearch('', clientA.token)).status === 403);
+
 section('CSV IMPORT: an admin imports products from a file (on real Postgres)');
 const importCsv = (csv, query = '', token = admin) => {
   const form = new FormData();
@@ -537,6 +548,7 @@ const endpoints = [
   ['GET', '/api/employee/orders/history', undefined, ['employee', 'admin']],
   ['PUT', `/api/admin/clients/${ID}/update-credit`, { pricingTierId: ID, creditLimit: 1 }, ['admin']],
   ['POST', '/api/admin/products/import', undefined, ['admin']],
+  ['GET', '/api/employee/clients', undefined, ['employee', 'admin']],
   ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
 ];
 let matrixBad = [];

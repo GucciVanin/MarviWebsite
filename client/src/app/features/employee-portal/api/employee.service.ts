@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import type { Quote, QuoteStatus } from '../../../shared/models/quote.model';
 import type { Order } from '../../../shared/models/order.model';
+import type { PagedResult } from '../../../shared/models/paged.model';
 
 export interface PriceQuoteLineRequest {
   lineItemId: string;
@@ -35,6 +36,17 @@ export interface InventoryRecord {
 }
 
 export type ClientAccountStatus = 'Pending' | 'Approved' | 'Suspended';
+
+/** One line of the customer directory (`GET /api/employee/clients`). */
+export interface ClientSummary {
+  id: string;
+  companyName: string;
+  status: ClientAccountStatus;
+  pricingTierName: string | null;
+  creditLimit: number;
+}
+
+export const CLIENT_SEARCH_PAGE_SIZE = 10;
 
 export interface ClientProfile {
   id: string;
@@ -74,6 +86,11 @@ export class EmployeeService {
       params['warehouseId'] = warehouseId;
     }
     return this.http.get<InventoryRecord[]>('/api/employee/inventory', { params });
+  }
+
+  /** Customers whose company name contains the text (an empty text lists everyone), the first page only. */
+  searchClients(search: string): Observable<PagedResult<ClientSummary>> {
+    return this.http.get<PagedResult<ClientSummary>>('/api/employee/clients', { params: { search, pageSize: CLIENT_SEARCH_PAGE_SIZE } });
   }
 
   getClient(id: string): Observable<ClientProfile> {

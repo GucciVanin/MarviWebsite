@@ -56,13 +56,34 @@
 
   <section class="card" aria-labelledby="customer-title">
     <h2 id="customer-title">{{ t.customerTitle }}</h2>
-    <form class="toolbar" (ngSubmit)="lookupClient()">
+    <form class="toolbar" (ngSubmit)="searchClients()">
       <div class="field">
-        <label for="clientId">{{ t.clientId }}</label>
-        <input id="clientId" name="clientId" type="text" [(ngModel)]="clientId" autocomplete="off" />
+        <label for="clientSearch">{{ t.clientSearch }}</label>
+        <input id="clientSearch" name="clientSearch" type="search" [(ngModel)]="clientSearch" autocomplete="off" />
       </div>
-      <button type="submit" class="btn btn--outline btn--small" [disabled]="lookupAction.busy()">{{ t.lookup }}</button>
+      <button type="submit" class="btn btn--outline btn--small" [disabled]="searchAction.busy()">{{ t.lookup }}</button>
     </form>
+    <app-error-alert [error]="searchAction.error()" />
+    @if (clientMatches(); as matches) {
+      @if (matches.items.length === 0) {
+        <p>{{ t.noClientsFound }}</p>
+      } @else {
+        <ul class="stack" data-testid="client-matches">
+          @for (match of matches.items; track match.id) {
+            <li class="toolbar" data-testid="client-match">
+              <strong>{{ match.companyName }}</strong>
+              <span class="badge" [class.badge--ok]="match.status === 'Approved'" [class.badge--bad]="match.status !== 'Approved'">
+                {{ t.clientStatus[match.status] ?? match.status }}
+              </span>
+              <button type="button" class="btn btn--outline btn--small" [disabled]="lookupAction.busy()" (click)="useCustomer(match.id)">{{ t.select }}</button>
+            </li>
+          }
+        </ul>
+        @if (matches.totalCount > matches.items.length) {
+          <p class="muted">{{ t.showing }} {{ matches.items.length }} {{ t.of }} {{ matches.totalCount }}. {{ t.refineSearch }}</p>
+        }
+      }
+    }
     <app-error-alert [error]="lookupAction.error()" />
 
     @if (clientProfile(); as profile) {
