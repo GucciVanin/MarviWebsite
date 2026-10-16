@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
+import { ApprovalForm } from '../shared/approval-form';
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
@@ -18,7 +19,7 @@ const PAGE_SIZE = 20;
  */
 @Component({
   selector: 'app-admin-customers',
-  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe],
+  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe, ApprovalForm],
   templateUrl: './admin-customers.html',
 })
 export class AdminCustomers implements OnInit {
@@ -40,12 +41,12 @@ export class AdminCustomers implements OnInit {
   protected readonly confirmingSuspendId = signal<string | null>(null);
   /** The customer whose approval is being decided, and the tier the admin has chosen for them. */
   protected readonly approvingId = signal<string | null>(null);
-  protected readonly approveTierId = signal('');
+  /** The tier proposed in the approval form: a suspended customer's own (a pending one has none: nothing is preselected). */
+  protected readonly suggestedTierId = signal<string | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly saveAction = action();
 
   protected readonly canSave = computed(() => this.editTierId() !== '' && !this.saveAction.busy());
-  protected readonly canApprove = computed(() => this.approveTierId() !== '' && !this.saveAction.busy());
 
   ngOnInit(): void {
     this.customers.load();
@@ -110,21 +111,16 @@ export class AdminCustomers implements OnInit {
     this.editingId.set(null);
     this.confirmingSuspendId.set(null);
     this.approvingId.set(customer.id);
-    // Only a tier the list actually offers can be suggested (it may not have loaded, or may have been deleted).
-    const suggested = customer.status === 'Suspended' ? customer.pricingTierId : null;
-    this.approveTierId.set(suggested && this.tiers.data().some((tier) => tier.id === suggested) ? suggested : '');
+    this.suggestedTierId.set(customer.status === 'Suspended' ? customer.pricingTierId : null);
   }
 
   protected cancelApproval(): void {
     this.approvingId.set(null);
   }
 
-  protected approve(customer: ClientSummary): void {
-    if (!this.canApprove()) {
-      return;
-    }
+  protected approve(customer: ClientSummary, pricingTierId: string): void {
     this.message.set(null);
-    this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId: this.approveTierId() }), () => this.done(this.t.approved));
+    this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId }), () => this.done(this.t.approved));
   }
 
   private done(message: string): void {
