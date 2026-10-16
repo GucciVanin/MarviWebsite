@@ -46,12 +46,27 @@ public class ClientProfileController : ControllerBase
             return BadRequest(problem);
         }
 
-        account.CompanyName = profile.CompanyName;
-        account.BillingAddress = profile.BillingAddress;
-        account.ShippingAddresses = profile.ShippingAddresses.ToList();
-        await _dbContext.SaveChangesAsync();
-
-        return Ok(ToDto(account));
+        // The customer's status is a concurrency token (MRV-6.1), so an admin deciding this customer at the same moment makes
+        // this save fail once. Their decision does not touch these fields: read the row again and apply the edit on top of it.
+        for (var attempt = 0; ; attempt++)
+        {
+            account.CompanyName = profile.CompanyName;
+            account.BillingAddress = profile.BillingAddress;
+            account.ShippingAddresses = profile.ShippingAddresses.ToList();
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+                return Ok(ToDto(account));
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 2)
+            {
+                await _dbContext.Entry(account).ReloadAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict("Your account was changed at the same moment. Reload and try again.");
+            }
+        }
     }
 
     private async Task<ClientAccount?> FindOwnAccountAsync()

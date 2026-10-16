@@ -36,6 +36,12 @@ public class AdminClientsController : ControllerBase
             return BadRequest("Unknown pricing tier.");
         }
 
+        // A decision is taken once: a customer another admin has just approved is not approved a second time.
+        if (!CustomerDecisions.CanApprove(clientAccount.Status))
+        {
+            return Conflict("This customer is already approved.");
+        }
+
         var previousStatus = clientAccount.Status;
         clientAccount.Status = ClientAccountStatus.Approved;
         clientAccount.PricingTierId = request.PricingTierId;
@@ -85,8 +91,14 @@ public class AdminClientsController : ControllerBase
             return NotFound();
         }
 
+        if (!CustomerDecisions.CanSuspend(clientAccount.Status))
+        {
+            return Conflict("This customer is already suspended.");
+        }
+
+        var previousStatus = clientAccount.Status;
         clientAccount.Status = ClientAccountStatus.Suspended;
-        if (!await _auditLogger.TrySaveAsync(AuditActions.Suspend, nameof(ClientAccount), id))
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Suspend, nameof(ClientAccount), id, new { PreviousStatus = previousStatus }))
         {
             return Conflict(AuditLogger.ConflictMessage);
         }

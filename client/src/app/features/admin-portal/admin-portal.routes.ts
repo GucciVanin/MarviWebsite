@@ -8,7 +8,8 @@ export const ADMIN_PORTAL_ROUTES: Routes = [
     canActivate: [adminGuard],
     loadComponent: () => import('./admin-shell').then((m) => m.AdminShell),
     children: [
-      { path: '', loadComponent: () => import('./admin-portal').then((m) => m.AdminPortal) },
+      { path: '', loadComponent: () => import('./inbox/admin-inbox').then((m) => m.AdminInbox) },
+      { path: 'visao-geral', loadComponent: () => import('./admin-portal').then((m) => m.AdminPortal) },
       { path: 'catalogo', loadComponent: () => import('./catalog/admin-catalog').then((m) => m.AdminCatalog) },
       { path: 'precos', loadComponent: () => import('./pricing/admin-pricing').then((m) => m.AdminPricing) },
       { path: 'operacao', loadComponent: () => import('./operations/admin-operations').then((m) => m.AdminOperations) },

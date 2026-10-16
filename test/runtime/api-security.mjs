@@ -122,7 +122,7 @@ const clientA = await registerClient('Bar do Zé', 'ze@bar.test');
 const clientB = await registerClient('Mercado Grande', 'compras@mercado.test');
 const clientC = await registerClient('Loja Suspensa', 'loja@suspensa.test');
 ok('three clients registered', !!(clientA.id && clientB.id && clientC.id));
-const approve = await call('PUT', `/api/admin/clients/${clientB.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } });
+const approve = await call('PUT', `/api/admin/clients/${clientB.id}/pricing-tier`, { token: admin, body: { pricingTierId: wholesale.id } });
 ok('admin moves client B to Wholesale tier (204)', approve.status === 204, String(approve.status));
 ok('admin suspends client C (204)', (await call('PUT', `/api/admin/clients/${clientC.id}/suspend`, { token: admin })).status === 204);
 
@@ -289,6 +289,40 @@ ok('once approved on Wholesale the customer sees the Wholesale price (cola 4.00)
 ok('...and a suspended customer is back to what a visitor sees (cola 5.00): only an Approved customer gets their own tier', (await call('PUT', `/api/admin/clients/${newcomer.id}/suspend`, { token: admin })).status === 204 && near(await colaFor(newcomer.token), 5));
 ok('the approval is in the audit log with the previous status', (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.entityId === newcomer.id && e.action === 'Approve' && e.details.data.includes('Pending')));
 
+section('DECISIONS: a customer is decided once, even when several admins act at the same moment (on real Postgres)');
+const racer = await registerClient('Disputado Ltda', 'disputado@race.test', { approve: false });
+const tierChoices = [standard.id, wholesale.id, vip.id, standard.id, wholesale.id, vip.id, standard.id, wholesale.id];
+const approvals = await Promise.all(tierChoices.map((pricingTierId) => call('PUT', `/api/admin/clients/${racer.id}/approve`, { token: admin, body: { pricingTierId } })));
+const wins = approvals.filter((r) => r.status === 204).length;
+ok('8 simultaneous approvals of one pending customer: exactly one succeeds, the rest are 409, none is a 500', wins === 1 && approvals.filter((r) => r.status === 409).length === 7, approvals.map((r) => r.status).join(','));
+ok('...and the winner is audited exactly once (the losers left no audit entry)', sql(`select count(*) from audit_log_entries where entity_id='${racer.id}' and action='Approve'`) === '1');
+ok('approving an approved customer again is a 409 ("already decided")', (await call('PUT', `/api/admin/clients/${racer.id}/approve`, { token: admin, body: { pricingTierId: standard.id } })).status === 409);
+const suspensions = await Promise.all([1, 2, 3, 4, 5].map(() => call('PUT', `/api/admin/clients/${racer.id}/suspend`, { token: admin })));
+ok('5 simultaneous suspensions: exactly one succeeds, the rest are 409, none is a 500', suspensions.filter((r) => r.status === 204).length === 1 && suspensions.filter((r) => r.status === 409).length === 4, suspensions.map((r) => r.status).join(','));
+ok('...and the suspension is audited exactly once, with the previous status', sql(`select count(*) from audit_log_entries where entity_id='${racer.id}' and action='Suspend'`) === '1');
+const profileRace = await registerClient('Perfil e Decisão Ltda', 'perfil@corrida.test', { approve: false });
+const raceResults = await Promise.all([
+  call('PUT', `/api/admin/clients/${profileRace.id}/approve`, { token: admin, body: { pricingTierId: standard.id } }),
+  ...[1, 2, 3, 4, 5, 6].map((n) => call('PUT', '/api/client/profile', { token: profileRace.token, body: { companyName: `Perfil ${n}`, billingAddress: `Rua ${n}`, shippingAddresses: [] } })),
+]);
+ok('a customer saving their profile while an admin decides them never gets a 500 (200, or 409 at worst), and the decision still wins', raceResults.every((r) => r.status < 500) && raceResults[0].status === 204
+  && (await call('GET', '/api/client/profile', { token: profileRace.token })).json.status === 'Approved', raceResults.map((r) => r.status).join(','));
+ok('a suspended customer can be approved again (204)', (await call('PUT', `/api/admin/clients/${racer.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204);
+
+section('PENDING ACTIONS: the admin inbox lists everything waiting on someone (on real Postgres)');
+const waiting = await registerClient('Esperando Ltda', 'esperando@fila.test', { approve: false });
+const inbox = (await call('GET', '/api/admin/pending-actions', { token: admin })).json;
+ok('a customer who has just registered is waiting for approval, with the date they registered', inbox.customers.items.some((c) => c.id === waiting.id && c.companyName === 'Esperando Ltda' && registeredRecently(c.createdAt)));
+ok('...oldest first', inbox.customers.items.every((c, i) => i === 0 || Date.parse(inbox.customers.items[i - 1].createdAt) <= Date.parse(c.createdAt)));
+ok('a product that is out of stock is below its reorder point (low stock)', inbox.lowStock.items.some((i) => i.productId === prod.oos.id && i.available <= i.reorderPoint && i.warehouseName));
+ok('an active product with no price is listed as unpriced, a priced one is not', inbox.unpricedProducts.items.some((p) => p.productId === prod.nopr.id) && !inbox.unpricedProducts.items.some((p) => p.productId === prod.cola.id));
+ok('a quote nobody has priced is waiting, with the company that asked', inbox.quotes.count === inbox.quotes.items.length && inbox.quotes.items.every((q) => q.companyName && q.lineCount >= 1));
+ok('an active product that no warehouse has ever held is listed (these fixtures leave mixer and nopr without any stock record), a stocked one is not', inbox.unstockedProducts.items.some((p) => p.productId === prod.nopr.id) && !inbox.unstockedProducts.items.some((p) => p.productId === prod.cola.id));
+const groups = [inbox.customers, inbox.quotes, inbox.lowStock, inbox.unpricedProducts, inbox.unstockedProducts];
+ok('the total is the sum of the groups, and each group lists at most 50', inbox.total === groups.reduce((sum, g) => sum + g.count, 0) && groups.every((g) => g.items.length <= 50 && g.items.length <= g.count));
+await call('PUT', `/api/admin/clients/${waiting.id}/suspend`, { token: admin });
+ok('once an admin has decided, the customer leaves the inbox', !(await call('GET', '/api/admin/pending-actions', { token: admin })).json.customers.items.some((c) => c.id === waiting.id));
+
 section('UPDATE TIER: an admin moves a customer to another pricing tier without touching the status (on real Postgres)');
 const clientD = await registerClient('Adega do Dedé', 'dede@adega.test');
 const upd = await call('PUT', `/api/admin/clients/${clientD.id}/pricing-tier`, { token: admin, body: { pricingTierId: wholesale.id } });
@@ -439,7 +473,8 @@ await auditCase('delete category', () => call('DELETE', `/api/admin/categories/$
 const auditWh = (await auditCase('create warehouse', () => call('POST', '/api/admin/warehouses', { token: admin, body: { name: `CD ${catName}`, address: 'Rua A, 1', latitude: -23.5, longitude: -46.6 } }), 1)).json;
 await auditCase('create coverage area', () => call('POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: auditWh.id, type: 'Radius', radiusMiles: 5 } }), 1);
 await auditCase('delete warehouse (and its areas)', () => call('DELETE', `/api/admin/warehouses/${auditWh.id}`, { token: admin }), 1);
-await auditCase('approve client', () => call('PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } }), 1);
+const auditApprovee = await registerClient('Auditado Aprovação Ltda', 'auditado@aprova.test', { approve: false });
+await auditCase('approve client', () => call('PUT', `/api/admin/clients/${auditApprovee.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } }), 1);
 ok('every audit row has an actor', Number(sql(`select count(*) from audit_log_entries where actor_user_id = '00000000-0000-0000-0000-000000000000'`)) === 0);
 
 section('IDENTITY: each role\'s token carries its own account id and the endpoints honour it');
@@ -584,6 +619,7 @@ const endpoints = [
   ['PUT', `/api/admin/clients/${ID}/pricing-tier`, { pricingTierId: ID }, ['admin']],
   ['POST', '/api/admin/products/import', undefined, ['admin']],
   ['GET', '/api/employee/clients', undefined, ['employee', 'admin']],
+  ['GET', '/api/admin/pending-actions', undefined, ['admin']],
   ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
 ];
 let matrixBad = [];
