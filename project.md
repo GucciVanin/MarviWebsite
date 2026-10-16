@@ -143,6 +143,17 @@ Why first: the API is ahead of the UI, and the owner cannot exercise the product
 | MRV-2.4b.6 | ~~Admin audit log screen~~ **Done (2026-10-16, in the Portal parity PR)** — `/admin/auditoria` (new "Auditoria" tab): every entry newest first with when, what was done (pt-BR: Criação, Alteração, Exclusão, Gravação, Aprovação, Suspensão, Importação), to which entity and the details, paged 25 at a time ("Página 2 de 3"). The API list stays a plain array; its size is in a new `X-Total-Count` response header so existing callers are unaffected. Original criteria: | The audit log as its own admin page with paging (the admin home only shows the latest entries) |
 | MRV-2.4b.7 | ~~Shared helper for the admin screens~~ **Done (2026-10-16, in the Portal parity PR)** — `shared/crud/admin-crud.ts`: `formFeedback()` (the validation problem, the "saved" notice and the request in flight, with `clear`, `refuse` and `send`) and `confirmedDelete()` (the two-step delete: `ask`, `cancel`, `run`), 10 unit tests. The catalog, pricing and operations screens use them for their 7 forms and 5 deletes; **their existing specs pass unchanged** (the only edits are the three components and templates); ~50 lines of repeated signal and step code gone. Original criteria: | Behaviour-preserving refactor: the create / edit / two-step-confirm-delete pattern repeated across the catalog, pricing and operations screens becomes one shared helper in `shared/` (found by the 2.4a review); the existing specs must keep passing unchanged |
 
+**Owner corrections (2026-10-16) — in progress**
+
+From the owner after the Portal parity PR. One PR, one commit per story.
+
+| ID | Story | Acceptance criteria |
+|---|---|---|
+| MRV-5.1 | Remove the credit limit (there is no credit) | `ClientAccount.CreditLimit` dropped (migration); `ApproveClientRequest` takes only the pricing tier; `PUT /api/admin/clients/{id}/update-credit` becomes `PUT /api/admin/clients/{id}/pricing-tier` (tier only, audited with the previous tier); no credit in any DTO, screen, test, runtime check or doc |
+| MRV-5.2 | Customers have a creation date | `ClientAccount.CreatedAt` (UTC) set at registration, migration backfills existing customers; shown in the directory, the admin customers screen and the staff profile |
+| MRV-5.3 | Approval is required: least privilege by default | A new customer registers as **Pending** (no quotes, orders or accepts until approved); "Aprovar" appears for every customer who is not Approved and always needs an explicit pricing tier chosen by the admin (nobody is approved by default); the customer portal tells a Pending or Suspended customer why they cannot request quotes; registration says the account awaits approval; tests, seed and runtime suite follow the new flow |
+| MRV-5.4 | Clean the development database and recreate test data | Owner asked for a clean slate (the dev database holds leftovers: duplicate tiers, a 5-million-character company name, DEMO and verification records). A documented `deploy/reset-dev.sh` wipes the dev volume and recreates one tidy demo data set through the real API (admin, employee, an approved customer, a pending customer, categories, tiers, products, stock, a deal); the rule "never `down -v`" in CLAUDE.md gets its one exception: only when the owner asks |
+
 **Sprint 4 — Make it shippable (Not started)**
 
 | ID | Story | Acceptance criteria |
@@ -202,7 +213,8 @@ permissions.
 ## 8. Open questions (each blocks the stories that cite it)
 
 - **Q1** — *Resolved (2026-10-02):* one flat row per product. Columns `sku, name, description, category, price, stock`, plus `attr_<name>` columns for attributes and optional `tier_<name>` columns for per-tier prices. Upsert by SKU.
-- **Q2** — *Resolved:* clients get immediate access at registration (spec); admins can suspend.
+- **Q2** — *Reversed (2026-10-16, owner):* originally clients got immediate access at registration. Now **a new customer is Pending and an Admin must approve them** ("Aprovar") before they can request quotes or place orders (least privilege: sensitive data, nobody is trusted by default). See MRV-5.3.
+- **Q16** — *Resolved (2026-10-16, owner):* **there is no credit.** Customers have no credit limit; every purchase is a direct transaction (they pay or they do not). The credit limit built in MRV-1.3 is removed (MRV-5.1).
 - **Q3** — *Resolved (2026-10-02):* attributes stay flat string key/value pairs; revisit if numeric filtering is needed.
 - **Q4** — Delivery scheduling workflow (Release 2). *Deferred:* does not block Sprints 2 or 3.
 - **Q5** — *Resolved (2026-10-02):* the owner states they hold permission to use the brand imagery and logos in the mockup. The owner supplies the photos; until they arrive, placeholders fill the image slots.

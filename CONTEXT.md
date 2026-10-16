@@ -12,6 +12,14 @@ _Avoid_: Client (in prose), buyer, account
 Whether a Customer may request a quote, accept one, or have an order placed for them. Only an Approved Customer is eligible; Pending and Suspended Customers are not.
 _Avoid_: Permission, access
 
+**Approval**:
+An Admin's explicit decision to let a Customer transact, choosing their pricing tier. A newly registered Customer is Pending (least privilege: no access to quotes and orders until approved); a Suspended Customer is approved again the same way. Nobody is approved by default.
+_Avoid_: Activation, verification
+
+**No credit**:
+A Customer has no credit limit and no balance owed. Every purchase is a direct transaction: they pay or they do not. There is no credit concept anywhere in the product.
+_Avoid_: Credit limit, credit line, limit
+
 **Basket**:
 A set of products and quantities priced together for one Customer; it becomes either a Quote or an Order.
 _Avoid_: Cart, request, line items (as a whole)
