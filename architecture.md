@@ -463,7 +463,7 @@ src/app/
     storefront/             public catalog (search and category filter kept in the URL: ?category=<id>&q=<text>), deals, delivery check  + api/ (deals, coverage); products and categories come from core/catalog
     client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept or reject (reject asks for a confirming click), see orders, edit own company details (profile/, MRV-2.2)  + api/ (quotes, orders, profile)
     employee-portal/        price queued quotes, find a customer by company name (directory search, MRV-2.4b.1), quotes and orders history at `/employee/historico` (history/, MRV-2.4b.2), place an order for an approved customer, stock  + api/ (employee)
-    admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock), customers (directory search, credit and tier, suspend and approve; MRV-2.4b.4), import (product CSV upload, dry run, error list; MRV-2.4b.5)  + api/ (admin)
+    admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock), customers (directory search, credit and tier, suspend and approve; MRV-2.4b.4), import (product CSV upload, dry run, error list; MRV-2.4b.5), audit (the paged audit log; MRV-2.4b.6)  + api/ (admin)
 ```
 
 ```mermaid

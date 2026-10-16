@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, catchError, of, throwError } from 'rxjs';
+import { Observable, catchError, map, of, throwError } from 'rxjs';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 
@@ -181,6 +181,12 @@ export interface AuditLogEntry {
   details: Record<string, string>;
 }
 
+/** One page of the audit log and the size of the whole log (the API reports it in the `X-Total-Count` header). */
+export interface AuditPage {
+  entries: AuditLogEntry[];
+  totalCount: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly http = inject(HttpClient);
@@ -356,6 +362,16 @@ export class AdminService {
 
   upsertStock(request: UpsertStockRequest): Observable<StockRecord> {
     return this.http.put<StockRecord>('/api/admin/inventory', request);
+  }
+
+  getAuditPage(page: number, pageSize: number): Observable<AuditPage> {
+    return this.http.get<AuditLogEntry[]>('/api/admin/audit-log', { params: { page, pageSize }, observe: 'response' }).pipe(
+      map((response) => {
+        const entries = response.body ?? [];
+        const total = Number(response.headers.get('X-Total-Count'));
+        return { entries, totalCount: Number.isFinite(total) && total >= 0 && response.headers.has('X-Total-Count') ? total : entries.length };
+      }),
+    );
   }
 
   getAuditLog(page = 1, pageSize = 50): Observable<AuditLogEntry[]> {

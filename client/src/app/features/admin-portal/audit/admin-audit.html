@@ -1,0 +1,41 @@
+<div class="stack">
+  <section class="card" aria-labelledby="audit-title">
+    <h2 id="audit-title">{{ t.title }}</h2>
+    <p class="muted">{{ t.hint }}</p>
+    <app-load-state [state]="log" />
+    @if (isEmpty()) {
+      <p>{{ t.empty }}</p>
+    }
+
+    @if (log.data().entries.length) {
+      <table class="table" data-testid="audit">
+        <thead>
+          <tr>
+            <th>{{ t.when }}</th>
+            <th>{{ t.action }}</th>
+            <th>{{ t.entity }}</th>
+            <th>{{ t.details }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of log.data().entries; track entry.id) {
+            <tr data-testid="audit-entry">
+              <td>{{ entry.timestamp | ptDate }}</td>
+              <td>{{ t.actions[entry.action] ?? entry.action }}</td>
+              <td>{{ entry.entityName }}</td>
+              <td class="muted" [attr.title]="detailsOf(entry.details)">{{ detailsOf(entry.details) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    @if (log.data().totalCount > 0) {
+      <nav class="toolbar" [attr.aria-label]="t.pager">
+        <button type="button" class="btn btn--outline btn--small" [disabled]="page() <= 1 || log.loading()" (click)="go(-1)">{{ t.previous }}</button>
+        <span>{{ t.page }} {{ page() }} {{ t.of }} {{ totalPages() }}</span>
+        <button type="button" class="btn btn--outline btn--small" [disabled]="page() >= totalPages() || log.loading()" (click)="go(1)">{{ t.next }}</button>
+      </nav>
+    }
+  </section>
+</div>

@@ -14,6 +14,7 @@ export const ADMIN_PORTAL_ROUTES: Routes = [
       { path: 'operacao', loadComponent: () => import('./operations/admin-operations').then((m) => m.AdminOperations) },
       { path: 'clientes', loadComponent: () => import('./customers/admin-customers').then((m) => m.AdminCustomers) },
       { path: 'importacao', loadComponent: () => import('./import/admin-import').then((m) => m.AdminImport) },
+      { path: 'auditoria', loadComponent: () => import('./audit/admin-audit').then((m) => m.AdminAudit) },
     ],
   },
 ];

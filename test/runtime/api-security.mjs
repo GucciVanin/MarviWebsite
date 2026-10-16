@@ -779,6 +779,8 @@ for (const need of ['Create:Product', 'Create:Category', 'Create:Deal', 'Create:
 const auditDump = JSON.stringify(audit);
 ok('audit log never contains any password', !/Vendas-1234|Client-1234|Evil-1234|Marvi-Dev-Admin|"password"/i.test(auditDump));
 // Compare as times, not strings: Postgres trims trailing zeros from fractional seconds, so '.12345Z' sorts after '.123456Z' as text.
+const auditPage = await call('GET', '/api/admin/audit-log?page=1&pageSize=2', { token: admin });
+ok('the audit log reports its total size in a header, whatever the page size (for the paging screen)', auditPage.json.length === 2 && Number(auditPage.headers.get('x-total-count')) >= audit.length);
 ok('audit entries are newest-first', audit.every((a, i) => i === 0 || Date.parse(audit[i - 1].timestamp) >= Date.parse(a.timestamp)));
 ok('employee/client actions that are not admin mutations are not in the admin audit trail', !audit.some((a) => a.entityName === 'Quote' || a.entityName === 'Order'));
 ok('audit rows exist in the database', Number(q(`select count(*) from audit_log_entries`)) >= audit.length);
