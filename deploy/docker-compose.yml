@@ -26,6 +26,15 @@ services:
       Jwt__Key: ${JWT_KEY:?set JWT_KEY in deploy/.env}
       Seed__AdminEmail: ${SEED_ADMIN_EMAIL:?set SEED_ADMIN_EMAIL in deploy/.env}
       Seed__AdminPassword: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in deploy/.env}
+      # This compose file is for development and the runtime test suite, which run on the example values of deploy/.env.example.
+      # The API image is Production by default and refuses example secrets there (MRV-3.3a); this says, loudly, that here it is fine.
+      # A real deployment must NOT set it (see docs/operations.md).
+      Deployment__AllowExampleSecrets: "true"
+      # Rate limits (MRV-3.3b) are tight by default; development and the runtime suite sign in and register far faster than a person.
+      RateLimiting__Auth__PermitLimit: "100000"
+      RateLimiting__Coverage__PermitLimit: "100000"
+      # The nginx proxy in front of the API forwards the real client address; trust it (the API is only meant to be reached through it).
+      ForwardedHeaders__Enabled: "true"
     ports:
       - "8080:8080"
     depends_on:

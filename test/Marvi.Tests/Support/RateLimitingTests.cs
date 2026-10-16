@@ -1,0 +1,62 @@
+using System.Net;
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+
+namespace Marvi.Tests.Support;
+
+/// <summary>MRV-3.3b: sign-in, registration and the public coverage check are limited per client address and answer 429 with Retry-After.</summary>
+public class RateLimitingTests : IClassFixture<RateLimitingTests.TightLimitsFactory>
+{
+    private readonly TightLimitsFactory _factory;
+
+    public RateLimitingTests(TightLimitsFactory factory) => _factory = factory;
+
+    [Fact]
+    public async Task Login_IsLimitedPerClient_With429AndRetryAfter()
+    {
+        using var client = _factory.CreateClient();
+        var attempt = new { email = "nobody@marvi.test", password = "Wrong-Password-1!" };
+
+        for (var i = 0; i < 3; i++)
+        {
+            var allowed = await client.PostAsJsonAsync("/api/auth/login", attempt);
+            Assert.Equal(HttpStatusCode.Unauthorized, allowed.StatusCode);
+        }
+
+        var limited = await client.PostAsJsonAsync("/api/auth/login", attempt);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task TheCoverageCheck_IsLimited_ButOtherEndpointsAreNot()
+    {
+        using var client = _factory.CreateClient();
+        var request = new { address = "Rua Qualquer 1, Sao Paulo" };
+
+        HttpStatusCode last = default;
+        for (var i = 0; i < 4; i++)
+        {
+            last = (await client.PostAsJsonAsync("/api/coverage/check", request)).StatusCode;
+        }
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, last);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
+    }
+
+    /// <summary>Three requests per minute on each limited endpoint group.</summary>
+    public sealed class TightLimitsFactory : MarviApiFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["RateLimiting:Auth:PermitLimit"] = "3",
+                ["RateLimiting:Coverage:PermitLimit"] = "3",
+            }));
+        }
+    }
+}
