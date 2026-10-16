@@ -43,7 +43,7 @@ public class EmployeeClientsController : ControllerBase
         var query = _dbContext.ClientAccounts.AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLower();
+            var term = search.Trim().ToLowerInvariant();
             query = query.Where(c => c.CompanyName.ToLower().Contains(term));
         }
 
@@ -56,7 +56,7 @@ public class EmployeeClientsController : ControllerBase
             .Take(size)
             .ToListAsync();
 
-        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.CompanyName, c.Status, c.PricingTier?.Name, c.CreditLimit)).ToList();
+        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.CompanyName, c.Status, c.PricingTierId, c.PricingTier?.Name, c.CreditLimit)).ToList();
         return Ok(new PagedResult<ClientSummaryDto>(items, page, size, total));
     }
 

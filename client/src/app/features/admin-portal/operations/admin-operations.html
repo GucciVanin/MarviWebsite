@@ -3,7 +3,7 @@
   <section class="card" data-testid="warehouses-section" aria-labelledby="warehouses-title">
     <h2 id="warehouses-title">{{ t.warehousesTitle }}</h2>
     <app-load-state [state]="warehouses" [emptyText]="t.noWarehouses" />
-    <app-error-alert [error]="warehouseDeleteAction.error()" />
+    <app-error-alert [error]="warehouseDelete.action.error()" />
     @if (warehouses.data().length) {
       <table class="table" data-testid="warehouses">
         <thead>
@@ -23,12 +23,12 @@
               <td class="num">{{ warehouse.latitude }}</td>
               <td class="num">{{ warehouse.longitude }}</td>
               <td>
-                @if (confirmingWarehouseId() === warehouse.id) {
+                @if (warehouseDelete.confirming() === warehouse.id) {
                   <button type="button" class="btn btn--primary btn--small" (click)="deleteWarehouse(warehouse.id)">{{ t.confirmDelete }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingWarehouseId.set(null)">{{ t.cancel }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="warehouseDelete.cancel()">{{ t.cancel }}</button>
                 } @else {
                   <button type="button" class="btn btn--outline btn--small" (click)="editWarehouse(warehouse)">{{ t.edit }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingWarehouseId.set(warehouse.id)">{{ t.delete }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="warehouseDelete.ask(warehouse.id)">{{ t.delete }}</button>
                 }
               </td>
             </tr>
@@ -57,15 +57,15 @@
           <input id="warehouseLng" name="warehouseLng" type="number" step="any" [(ngModel)]="warehouseLng" />
         </div>
       </div>
-      <button type="submit" class="btn btn--primary" [disabled]="warehouseAction.busy()">{{ t.saveWarehouse }}</button>
+      <button type="submit" class="btn btn--primary" [disabled]="warehouseForm.action.busy()">{{ t.saveWarehouse }}</button>
       @if (editingWarehouseId()) {
         <button type="button" class="btn btn--outline" (click)="resetWarehouseForm()">{{ t.cancel }}</button>
       }
-      @if (warehouseProblem(); as problem) {
+      @if (warehouseForm.problem(); as problem) {
         <p class="alert alert--error" role="alert">{{ problem }}</p>
       }
-      <app-error-alert [error]="warehouseAction.error()" />
-      @if (warehouseSaved()) {
+      <app-error-alert [error]="warehouseForm.action.error()" />
+      @if (warehouseForm.saved()) {
         <p class="alert alert--success" role="status">{{ t.warehouseSaved }}</p>
       }
     </form>
@@ -75,7 +75,7 @@
   <section class="card" data-testid="areas-section" aria-labelledby="areas-title">
     <h2 id="areas-title">{{ t.areasTitle }}</h2>
     <app-load-state [state]="areas" [emptyText]="t.noAreas" />
-    <app-error-alert [error]="areaDeleteAction.error()" />
+    <app-error-alert [error]="areaDelete.action.error()" />
     @if (areas.data().length) {
       <table class="table" data-testid="areas">
         <thead>
@@ -98,12 +98,12 @@
               </td>
               <td class="num">{{ area.radiusMiles ?? '—' }}</td>
               <td>
-                @if (confirmingAreaId() === area.id) {
+                @if (areaDelete.confirming() === area.id) {
                   <button type="button" class="btn btn--primary btn--small" (click)="deleteArea(area.id)">{{ t.confirmDelete }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingAreaId.set(null)">{{ t.cancel }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="areaDelete.cancel()">{{ t.cancel }}</button>
                 } @else {
                   <button type="button" class="btn btn--outline btn--small" (click)="editArea(area)">{{ t.edit }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingAreaId.set(area.id)">{{ t.delete }}</button>
+                  <button type="button" class="btn btn--outline btn--small" (click)="areaDelete.ask(area.id)">{{ t.delete }}</button>
                 }
               </td>
             </tr>
@@ -145,15 +145,15 @@
           <textarea id="areaPolygon" name="areaPolygon" rows="4" [(ngModel)]="areaPolygon"></textarea>
         </div>
       }
-      <button type="submit" class="btn btn--primary" [disabled]="areaAction.busy()">{{ t.saveArea }}</button>
+      <button type="submit" class="btn btn--primary" [disabled]="areaForm.action.busy()">{{ t.saveArea }}</button>
       @if (editingAreaId()) {
         <button type="button" class="btn btn--outline" (click)="resetAreaForm()">{{ t.cancel }}</button>
       }
-      @if (areaProblem(); as problem) {
+      @if (areaForm.problem(); as problem) {
         <p class="alert alert--error" role="alert">{{ problem }}</p>
       }
-      <app-error-alert [error]="areaAction.error()" />
-      @if (areaSaved()) {
+      <app-error-alert [error]="areaForm.action.error()" />
+      @if (areaForm.saved()) {
         <p class="alert alert--success" role="status">{{ t.areaSaved }}</p>
       }
     </form>
@@ -220,15 +220,15 @@
           <input id="stockReorder" name="stockReorder" type="number" min="0" step="1" [(ngModel)]="stockReorder" />
         </div>
       </div>
-      <button type="submit" class="btn btn--primary" [disabled]="stockAction.busy()">{{ t.saveStock }}</button>
+      <button type="submit" class="btn btn--primary" [disabled]="stockForm.action.busy()">{{ t.saveStock }}</button>
       @if (editingStock()) {
         <button type="button" class="btn btn--outline" (click)="resetStockForm()">{{ t.cancel }}</button>
       }
-      @if (stockProblem(); as problem) {
+      @if (stockForm.problem(); as problem) {
         <p class="alert alert--error" role="alert">{{ problem }}</p>
       }
-      <app-error-alert [error]="stockAction.error()" />
-      @if (stockSaved()) {
+      <app-error-alert [error]="stockForm.action.error()" />
+      @if (stockForm.saved()) {
         <p class="alert alert--success" role="status">{{ t.stockSaved }}</p>
       }
     </form>

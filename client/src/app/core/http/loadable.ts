@@ -18,6 +18,9 @@ export function loadable<T>(request: () => Observable<T>, initial: T): Loadable<
   const loading = signal(false);
   const loaded = signal(false);
   const error = signal<ApiError | null>(null);
+  // Only the request asked for last may change what is shown: a slow earlier answer (an old filter, a previous page) must not
+  // overwrite a newer one.
+  let latest = 0;
 
   return {
     data: data.asReadonly(),
@@ -25,15 +28,22 @@ export function loadable<T>(request: () => Observable<T>, initial: T): Loadable<
     loaded: loaded.asReadonly(),
     error: error.asReadonly(),
     load() {
+      const mine = ++latest;
       loading.set(true);
       error.set(null);
       request().subscribe({
         next: (value) => {
+          if (mine !== latest) {
+            return;
+          }
           data.set(value);
           loaded.set(true);
           loading.set(false);
         },
         error: (failure: unknown) => {
+          if (mine !== latest) {
+            return;
+          }
           error.set(describeApiError(failure));
           loading.set(false);
         },

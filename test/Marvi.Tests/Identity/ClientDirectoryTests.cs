@@ -62,6 +62,9 @@ public class ClientDirectoryTests : IClassFixture<MarviApiFactory>
 
         Assert.Equal(ClientAccountStatus.Suspended, line.Status);
         Assert.Equal("Standard", line.PricingTierName);
+        // The tier's id too: names are not unique, so a screen that changes a tier needs the id.
+        var tiers = (await admin.GetFromJsonAsync<List<Marvi.Api.Features.Catalog.Contracts.PricingTierDto>>("/api/admin/pricing-tiers"))!;
+        Assert.Equal(tiers.Single(t => t.IsDefault).Id, line.PricingTierId);
         Assert.Equal(0m, line.CreditLimit);
     }
 

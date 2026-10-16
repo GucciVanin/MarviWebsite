@@ -1,0 +1,53 @@
+<div class="stack">
+  <section class="card" aria-labelledby="import-title">
+    <h2 id="import-title">{{ t.title }}</h2>
+    <p class="muted">{{ t.hint }}</p>
+
+    <form class="stack" (submit)="$event.preventDefault()">
+      <div class="field">
+        <label for="import-file">{{ t.file }}</label>
+        <input id="import-file" name="file" type="file" accept=".csv,text/csv" [disabled]="runAction.busy()" (change)="chooseFile($event)" />
+      </div>
+      <div class="field">
+        <label for="import-warehouse">{{ t.warehouse }}</label>
+        <select id="import-warehouse" name="warehouse" [disabled]="runAction.busy()" [ngModel]="warehouseId()" (ngModelChange)="chooseWarehouse($event)">
+          <option value="">{{ t.warehouseAuto }}</option>
+          @for (warehouse of warehouses.data(); track warehouse.id) {
+            <option [value]="warehouse.id">{{ warehouse.name }}</option>
+          }
+        </select>
+      </div>
+      <app-load-state [state]="warehouses" />
+      <div class="toolbar">
+        <button type="button" class="btn btn--outline" [disabled]="!canRun()" (click)="run(true)">{{ t.check }}</button>
+        <button type="button" class="btn btn--primary" [disabled]="!canRun()" (click)="run(false)">{{ t.run }}</button>
+        @if (runAction.busy()) {
+          <span role="status">{{ t.working }}</span>
+        }
+      </div>
+    </form>
+    <app-error-alert [error]="runAction.error()" />
+
+    @if (report(); as result) {
+      @if (hasProblems()) {
+        <div class="alert alert--error" role="alert">
+          <p>{{ t.refused }}</p>
+        </div>
+        <h3>{{ t.problems }}</h3>
+        <ul class="stack">
+          @for (problem of result.errors; track $index) {
+            <li data-testid="import-error"><strong>{{ t.line }} {{ problem.line }}</strong> {{ problem.message }}</li>
+          }
+        </ul>
+      } @else if (result.dryRun) {
+        <p class="alert alert--success" role="status">
+          {{ t.dryRunDone }} {{ t.ifImported }} {{ count(result.created, t.willCreateOne, t.willCreateMany) }} {{ t.and }} {{ count(result.updated, t.willUpdateOne, t.willUpdateMany) }}.
+        </p>
+      } @else {
+        <p class="alert alert--success" role="status">
+          {{ t.done }} {{ count(result.created, t.createdOne, t.createdMany) }} {{ t.and }} {{ count(result.updated, t.updatedOne, t.updatedMany) }}.
+        </p>
+      }
+    }
+  </section>
+</div>

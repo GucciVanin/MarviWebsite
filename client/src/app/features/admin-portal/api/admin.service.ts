@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, catchError, map, of, throwError } from 'rxjs';
+import type { ClientSummary } from '../../../shared/models/client-summary.model';
+import type { PagedResult } from '../../../shared/models/paged.model';
 
 export interface CreateEmployeeRequest {
   email: string;
@@ -8,6 +10,27 @@ export interface CreateEmployeeRequest {
   employeeCode: string;
   department: string | null;
   hireDate: string;
+}
+
+/** One problem in an import file. Line 1 is the header; a row's line is where it starts in the file. */
+export interface ProductImportError {
+  line: number;
+  message: string;
+}
+
+/** What an import did, or would do (`dryRun`). `applied` is false for a dry run and for a file with errors, which imports nothing. */
+export interface ProductImportReport {
+  dryRun: boolean;
+  applied: boolean;
+  rows: number;
+  created: number;
+  updated: number;
+  errors: ProductImportError[];
+}
+
+export interface UpdateClientCreditRequest {
+  pricingTierId: string;
+  creditLimit: number;
 }
 
 export interface ApproveClientRequest {
@@ -158,6 +181,14 @@ export interface AuditLogEntry {
   details: Record<string, string>;
 }
 
+/** One page of the audit log and the size of the whole log (the API reports it in the `X-Total-Count` header). */
+export interface AuditPage {
+  entries: AuditLogEntry[];
+  totalCount: number;
+  /** The page these entries are (as asked for). */
+  page: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly http = inject(HttpClient);
@@ -168,6 +199,38 @@ export class AdminService {
 
   approveClient(id: string, request: ApproveClientRequest): Observable<void> {
     return this.http.put<void>(`/api/admin/clients/${id}/approve`, request);
+  }
+
+  updateClientCredit(id: string, request: UpdateClientCreditRequest): Observable<void> {
+    return this.http.put<void>(`/api/admin/clients/${id}/update-credit`, request);
+  }
+
+  /** The customer directory (`GET /api/employee/clients`, which admins may use too), one page. */
+  searchClients(search: string, pageSize: number): Observable<PagedResult<ClientSummary>> {
+    return this.http.get<PagedResult<ClientSummary>>('/api/employee/clients', { params: { search, pageSize } });
+  }
+
+  /**
+   * Imports (or, with `dryRun`, only checks) a product CSV. A file with problems comes back as a 400 whose body is the report;
+   * that is a result to show, not a failure, so it is returned as the report. Any other failure stays an error.
+   */
+  importProducts(file: File, dryRun: boolean, warehouseId: string): Observable<ProductImportReport> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    const params: Record<string, string> = {};
+    if (dryRun) {
+      params['dryRun'] = 'true';
+    }
+    if (warehouseId) {
+      params['warehouseId'] = warehouseId;
+    }
+    return this.http.post<ProductImportReport>('/api/admin/products/import', body, { params }).pipe(
+      catchError((failure: unknown) =>
+        failure instanceof HttpErrorResponse && failure.status === 400 && Array.isArray(failure.error?.errors)
+          ? of(failure.error as ProductImportReport)
+          : throwError(() => failure),
+      ),
+    );
   }
 
   suspendClient(id: string): Observable<void> {
@@ -301,6 +364,19 @@ export class AdminService {
 
   upsertStock(request: UpsertStockRequest): Observable<StockRecord> {
     return this.http.put<StockRecord>('/api/admin/inventory', request);
+  }
+
+  getAuditPage(page: number, pageSize: number): Observable<AuditPage> {
+    return this.http.get<AuditLogEntry[]>('/api/admin/audit-log', { params: { page, pageSize }, observe: 'response' }).pipe(
+      map((response) => {
+        const entries = response.body ?? [];
+        const header = response.headers.get('X-Total-Count');
+        const reported = header === null ? NaN : Number(header);
+        // Without the header (a proxy that strips it) the size is unknown: a full page means there may be more, so offer the next one.
+        const total = Number.isFinite(reported) && reported >= 0 ? reported : (page - 1) * pageSize + entries.length + (entries.length >= pageSize ? 1 : 0);
+        return { entries, totalCount: total, page };
+      }),
+    );
   }
 
   getAuditLog(page = 1, pageSize = 50): Observable<AuditLogEntry[]> {

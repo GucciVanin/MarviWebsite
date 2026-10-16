@@ -31,6 +31,9 @@ public class AdminAuditLogController : ControllerBase
         // Capped so one request cannot pull the whole table.
         var (size, skip) = Paging.Resolve(page, pageSize);
 
+        // The body stays a plain list (callers rely on it); the size of the whole log is in a header so a screen can page.
+        Response.Headers["X-Total-Count"] = (await _dbContext.AuditLogEntries.CountAsync()).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
         var entries = await _dbContext.AuditLogEntries
             .OrderByDescending(e => e.Timestamp)
             .Skip(skip)

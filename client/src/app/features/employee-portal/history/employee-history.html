@@ -135,9 +135,9 @@
 
     @if (current().data().totalCount > 0) {
       <nav class="toolbar" [attr.aria-label]="t.pager">
-        <button type="button" class="btn btn--outline btn--small" [disabled]="page() <= 1 || current().loading()" (click)="go(-1)">{{ t.previous }}</button>
-        <span>{{ t.page }} {{ page() }} {{ t.of }} {{ totalPages() }}</span>
-        <button type="button" class="btn btn--outline btn--small" [disabled]="page() >= totalPages() || current().loading()" (click)="go(1)">{{ t.next }}</button>
+        <button type="button" class="btn btn--outline btn--small" [disabled]="shownPage() <= 1 || current().loading()" (click)="go(-1)">{{ t.previous }}</button>
+        <span>{{ t.page }} {{ shownPage() }} {{ t.of }} {{ totalPages() }}</span>
+        <button type="button" class="btn btn--outline btn--small" [disabled]="shownPage() >= totalPages() || current().loading()" (click)="go(1)">{{ t.next }}</button>
       </nav>
     }
   </section>
