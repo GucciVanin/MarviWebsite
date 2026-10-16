@@ -28,6 +28,7 @@ const clientPage = (items: object[], totalCount = items.length) => ({ items, pag
 const profile = (status: string) => ({
   id: 'c-123',
   companyName: 'Bar do Zé',
+  createdAt: '2026-10-14T13:42:00Z',
   billingAddress: 'Rua A, 1',
   shippingAddresses: [],
   pricingTierName: 'Atacado',
@@ -239,6 +240,7 @@ describe('EmployeePortal', () => {
     expect(card.textContent).toContain('Bar do Zé');
     expect(card.textContent).toContain('Aprovado');
     expect(card.textContent).toContain('Atacado');
+    expect(card.textContent).toContain('Cliente desde 14/10/2026');
     expect(card.textContent).not.toMatch(/crédito|limite/i);
   });
 

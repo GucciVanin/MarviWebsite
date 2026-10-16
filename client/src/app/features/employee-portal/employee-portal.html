@@ -98,6 +98,7 @@
             {{ t.clientStatus[profile.status] ?? profile.status }}
           </span>
         </p>
+        <p>{{ t.customerSince }} {{ profile.createdAt | ptDate }}</p>
         <p>{{ t.pricingTier }}: {{ profile.pricingTierName ?? '—' }}</p>
       </article>
 

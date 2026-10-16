@@ -167,6 +167,7 @@ export const PT = {
   },
   clientProfile: {
     title: 'Meus dados',
+    since: 'Cliente desde',
     company: 'Nome da empresa',
     billing: 'Endereço de cobrança',
     shipping: 'Endereços de entrega',
@@ -224,6 +225,7 @@ export const PT = {
     useCustomer: 'Consultar cliente',
     customerTitle: 'Cliente e novo pedido',
     historyLink: 'Histórico de cotações e pedidos',
+    customerSince: 'Cliente desde',
     clientSearch: 'Nome da empresa',
     lookup: 'Buscar cliente',
     noClientsFound: 'Nenhum cliente encontrado.',
@@ -313,6 +315,7 @@ export const PT = {
   },
   adminCustomers: {
     title: 'Clientes',
+    since: 'Cadastro em',
     find: 'Buscar',
     company: 'Empresa',
     status: 'Situação',

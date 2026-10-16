@@ -77,6 +77,7 @@ function historyParams(query: HistoryQuery): Record<string, string> {
 export interface ClientProfile {
   id: string;
   companyName: string;
+  createdAt: string;
   billingAddress: string;
   shippingAddresses: string[];
   pricingTierName: string | null;

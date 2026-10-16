@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
+import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
@@ -17,7 +18,7 @@ const PAGE_SIZE = 20;
  */
 @Component({
   selector: 'app-admin-customers',
-  imports: [FormsModule, ErrorAlert, LoadState],
+  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe],
   templateUrl: './admin-customers.html',
 })
 export class AdminCustomers implements OnInit {

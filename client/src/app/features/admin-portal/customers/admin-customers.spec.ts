@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { AdminCustomers } from './admin-customers';
 
 const customer = (id: string, companyName: string, status = 'Approved', tierId: string | null = 't-std') => ({
-  id, companyName, status, pricingTierId: tierId, pricingTierName: tierId === 't-gold' ? 'Ouro' : 'Standard',
+  id, companyName, status, pricingTierId: tierId, pricingTierName: tierId === 't-gold' ? 'Ouro' : 'Standard', createdAt: '2026-10-14T13:42:00Z',
 });
 const page = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 20, totalCount });
 const tiers = [{ id: 't-std', name: 'Standard', isDefault: true }, { id: 't-gold', name: 'Ouro', isDefault: false }];
@@ -43,6 +43,7 @@ describe('AdminCustomers', () => {
 
     expect(row('Bar do Zé').textContent).toContain('Aprovado');
     expect(row('Bar do Zé').textContent).toContain('Standard');
+    expect(row('Bar do Zé').textContent).toContain('14/10/2026');
     expect(text(root)).not.toMatch(/crédito|limite/i);
     expect(row('Mercado Sol').textContent).toContain('Suspenso');
     expect(row('Mercado Sol').textContent).toContain('Ouro');

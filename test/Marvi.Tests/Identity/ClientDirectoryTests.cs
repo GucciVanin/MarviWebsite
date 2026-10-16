@@ -68,6 +68,23 @@ public class ClientDirectoryTests : IClassFixture<MarviApiFactory>
     }
 
     [Fact]
+    public async Task EveryCustomer_HasACreationDate_SetWhenTheyRegister_ShownToStaffAndToTheCustomer()
+    {
+        var admin = await _factory.AdminAsync();
+        var tag = Unique();
+        var before = DateTime.UtcNow.AddSeconds(-5);
+        var id = await RegisterAsync($"{tag} Datada");
+        var after = DateTime.UtcNow.AddSeconds(5);
+
+        var line = Assert.Single((await SearchAsync(admin, $"?search={tag}")).Items);
+        var profile = (await admin.GetFromJsonAsync<ClientProfileDto>($"/api/employee/clients/{id}"))!;
+
+        Assert.InRange(line.CreatedAt, before, after);
+        Assert.Equal(DateTimeKind.Utc, line.CreatedAt.Kind);
+        Assert.Equal(line.CreatedAt, profile.CreatedAt);
+    }
+
+    [Fact]
     public async Task WithoutASearch_ListsEveryone_Paged()
     {
         var admin = await _factory.AdminAsync();

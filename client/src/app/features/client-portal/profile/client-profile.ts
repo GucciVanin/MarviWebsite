@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
+import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { ClientProfile, ProfileService } from '../api/profile.service';
@@ -15,7 +16,7 @@ const MAX_SHIPPING_ADDRESSES = 10;
 /** The customer's own company details (MRV-2.2): company name, billing address and a list of shipping addresses, one per line. */
 @Component({
   selector: 'app-client-profile',
-  imports: [FormsModule, ErrorAlert, LoadState],
+  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe],
   templateUrl: './client-profile.html',
 })
 export class ClientProfileCard implements OnInit {

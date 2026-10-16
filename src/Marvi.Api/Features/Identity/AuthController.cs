@@ -59,6 +59,7 @@ public class AuthController : ControllerBase
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
+            CreatedAt = DateTime.UtcNow,
             CompanyName = profile.CompanyName,
             BillingAddress = profile.BillingAddress,
             PricingTierId = defaultTier.Id,

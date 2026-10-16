@@ -7,4 +7,6 @@ export interface ClientSummary {
   status: ClientAccountStatus;
   pricingTierId: string | null;
   pricingTierName: string | null;
+  /** When the customer registered (UTC). */
+  createdAt: string;
 }

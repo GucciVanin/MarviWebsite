@@ -21,6 +21,7 @@ const ok = (name, cond, detail = '') => {
 const note = (text) => { notes.push(text); console.log(`NOTE  ${text}`); };
 const section = (t) => console.log(`\n== ${t}`);
 const near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 0.0001;
+const registeredRecently = (iso) => Date.parse(iso) > Date.now() - 3600_000 && Date.parse(iso) <= Date.now() + 5000;
 
 async function call(method, path, { token, body, raw, headers = {} } = {}) {
   const h = { ...headers };
@@ -283,6 +284,7 @@ section('CLIENT PROFILE: a customer edits their own company details (on real Pos
 const ownProfile = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
 ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.shippingAddresses.length === 0);
 const putProfile = await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: '  Adega do Dedé Ltda ', billingAddress: 'Rua Nova, 10', shippingAddresses: ['Av. Brasil, 100', ' ', 'av. brasil, 100', 'Rua do Porto, 5 — loja 2'] } });
+ok('...and sees since when they have been registered', registeredRecently(ownProfile.createdAt));
 ok('...edits them: trimmed, blank and repeated shipping lines dropped (200)', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda'
   && JSON.stringify(putProfile.json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
 ok('...the shipping list is stored as a list in the database and staff see the same', sql(`select cardinality(shipping_addresses) from client_accounts where id='${clientD.id}'`) === '2'
@@ -303,6 +305,8 @@ const dirSearch = (q, token = emp) => call('GET', `/api/employee/clients${q}`, {
 const dirZe = (await dirSearch('?search=' + encodeURIComponent('BAR DO Z'))).json;
 ok('a partial, upper-case company name finds the customer, with status and tier', dirZe.items.some((c) => c.id === clientA.id && c.status === 'Approved' && c.pricingTierName && !('creditLimit' in c)));
 ok('...each line carries the tier id (tier names are not unique) as well as its name', dirZe.items.find((c) => c.id === clientA.id)?.pricingTierId === standard.id);
+ok('...each customer has the date they registered (recent, in the past), in the directory and in the staff profile', registeredRecently(dirZe.items.find((c) => c.id === clientA.id)?.createdAt)
+  && registeredRecently((await call('GET', `/api/employee/clients/${clientA.id}`, { token: emp })).json.createdAt));
 ok('...an accented search finds accented names', (await dirSearch('?search=' + encodeURIComponent('zé'))).json.items.some((c) => c.id === clientA.id));
 ok('a percent sign or underscore is text to find, not a wildcard', (await dirSearch('?search=%25')).json.totalCount === 0 && (await dirSearch('?search=_')).json.totalCount === 0);
 const dirAll = (await dirSearch('?pageSize=200')).json;

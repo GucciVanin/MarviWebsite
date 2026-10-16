@@ -327,6 +327,10 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("company_name");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
                     b.Property<Guid?>("PricingTierId")
                         .HasColumnType("uuid")
                         .HasColumnName("pricing_tier_id");

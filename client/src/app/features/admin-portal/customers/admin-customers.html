@@ -26,6 +26,7 @@
             <th>{{ t.company }}</th>
             <th>{{ t.status }}</th>
             <th>{{ t.tier }}</th>
+            <th>{{ t.since }}</th>
             <th>{{ t.actions }}</th>
           </tr>
         </thead>
@@ -39,6 +40,7 @@
                 </span>
               </td>
               <td>{{ customer.pricingTierName ?? '—' }}</td>
+              <td>{{ customer.createdAt | ptDate }}</td>
               <td>
                 @if (confirmingSuspendId() === customer.id) {
                   <button type="button" class="btn btn--primary btn--small" [disabled]="saveAction.busy()" (click)="suspend(customer)">{{ t.confirmSuspend }}</button>
@@ -55,7 +57,7 @@
             </tr>
             @if (editingId() === customer.id) {
               <tr data-testid="customer-editor">
-                <td colspan="4">
+                <td colspan="5">
                   <form class="toolbar" (ngSubmit)="save(customer)">
                     <div class="field">
                       <label for="customer-tier">{{ t.tier }}</label>

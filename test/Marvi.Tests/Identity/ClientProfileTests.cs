@@ -31,6 +31,7 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
         Assert.Equal("123 Main St", profile.BillingAddress);
         Assert.Empty(profile.ShippingAddresses);
         Assert.Equal(ClientAccountStatus.Approved, profile.Status);
+        Assert.InRange(profile.CreatedAt, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddSeconds(5));
     }
 
     [Fact]
