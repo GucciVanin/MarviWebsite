@@ -1,5 +1,8 @@
 <div class="container page stack">
-  <h1>{{ t.title }}</h1>
+  <header class="toolbar">
+    <h1>{{ t.title }}</h1>
+    <a class="btn btn--outline btn--small" routerLink="/employee/historico">{{ t.historyLink }}</a>
+  </header>
 
   <section class="card" aria-labelledby="queue-title">
     <h2 id="queue-title">{{ t.queueTitle }}</h2>

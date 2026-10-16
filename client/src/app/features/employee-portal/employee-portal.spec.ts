@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EmployeePortal } from './employee-portal';
@@ -44,7 +45,7 @@ describe('EmployeePortal', () => {
   function setup(data: { queue?: object[]; inventory?: object[] } = {}) {
     TestBed.configureTestingModule({
       imports: [EmployeePortal],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     });
     const fixture = TestBed.createComponent(EmployeePortal);
     fixture.detectChanges();
@@ -162,7 +163,7 @@ describe('EmployeePortal', () => {
   });
 
   it('tells a failed quote queue from an empty one, and retries only that section', async () => {
-    TestBed.configureTestingModule({ imports: [EmployeePortal], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [EmployeePortal], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
     const fixture = TestBed.createComponent(EmployeePortal);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
@@ -195,7 +196,7 @@ describe('EmployeePortal', () => {
     expect(text(root)).toContain('Cola 2L');
 
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ imports: [EmployeePortal], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [EmployeePortal], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
     const failing = TestBed.createComponent(EmployeePortal);
     failing.detectChanges();
     const http = TestBed.inject(HttpTestingController);

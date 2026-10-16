@@ -101,7 +101,7 @@ public class EmployeeOrdersController : ControllerBase
     /// (`from` inclusive, `to` exclusive, read as UTC); paged.
     /// </summary>
     [HttpGet("history")]
-    public async Task<ActionResult<PagedResult<OrderDto>>> GetHistory(
+    public async Task<ActionResult<PagedResult<OrderHistoryItemDto>>> GetHistory(
         [FromQuery] Guid? clientId,
         [FromQuery] OrderStatus? status,
         [FromQuery] DateTime? from,
@@ -142,13 +142,14 @@ public class EmployeeOrdersController : ControllerBase
         var total = await query.CountAsync();
         var (size, skip) = Paging.Resolve(page, pageSize);
         var orders = await query
+            .Include(o => o.ClientAccount)
             .Include(o => o.LineItems).ThenInclude(li => li.Product)
             .OrderByDescending(o => o.PlacedAt).ThenBy(o => o.Id)
             .Skip(skip)
             .Take(size)
             .ToListAsync();
 
-        return Ok(new PagedResult<OrderDto>(orders.Select(ToDto).ToList(), page, size, total));
+        return Ok(new PagedResult<OrderHistoryItemDto>(orders.Select(OrderHistoryItemDto.From).ToList(), page, size, total));
     }
 
     private async Task<OrderDto> LoadOrderDtoAsync(Guid orderId)

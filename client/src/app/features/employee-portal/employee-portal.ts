@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
@@ -22,7 +23,7 @@ interface OrderLine {
 
 @Component({
   selector: 'app-employee-portal',
-  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe],
+  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe],
   templateUrl: './employee-portal.html',
 })
 export class EmployeePortal implements OnInit {

@@ -356,6 +356,7 @@ const histA = (await call('GET', `/api/employee/quotes/history?clientId=${client
 ok('history of one customer: its quotes only, in every status, with the total', histA.totalCount >= 4 && histA.items.length === 2 && histA.items.every((q) => q.clientAccountId === clientA.id)
   && histA.pageSize === 2 && histA.page === 1);
 ok('...newest first', histA.items[0].createdAt >= histA.items[1].createdAt);
+ok('...each quote carries the company it is for', histA.items.every((q) => q.companyName === 'Bar do Zé'));
 const histAll = (await call('GET', `/api/employee/quotes/history?clientId=${clientA.id}&pageSize=200`, { token: emp })).json.items;
 ok('...includes accepted, rejected and priced quotes', ['Accepted', 'Rejected', 'Priced'].every((s) => histAll.some((q) => q.status === s)));
 ok('...a rejected quote is no longer in the pricing queue but stays in the history',
@@ -374,6 +375,7 @@ const ordA = (await call('GET', `/api/employee/orders/history?clientId=${clientA
 const ordAMine = (await call('GET', '/api/orders/mine', { token: clientA.token })).json;
 ok('history of one customer: all and only its orders, with the total', ordA.totalCount === ordAMine.length && ordA.items.every((o) => o.clientAccountId === clientA.id));
 ok('...every order carries a placement time that is recent and in the past', ordA.items.every((o) => Date.parse(o.placedAt) > Date.now() - 3600_000 && Date.parse(o.placedAt) <= Date.now() + 5000));
+ok('...each order carries the company it is for', ordA.items.every((o) => o.companyName === 'Bar do Zé'));
 ok('...newest first', ordA.items.every((o, i) => i === 0 || Date.parse(ordA.items[i - 1].placedAt) >= Date.parse(o.placedAt)));
 ok('...the customer sees the same time on their own orders', ordAMine.every((o) => o.placedAt && ordA.items.some((h) => h.id === o.id && h.placedAt === o.placedAt)));
 ok('...paged with the total', (await call('GET', `/api/employee/orders/history?clientId=${clientA.id}&page=1&pageSize=1`, { token: emp })).json.items.length === 1);

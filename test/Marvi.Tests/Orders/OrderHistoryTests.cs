@@ -46,11 +46,11 @@ public class OrderHistoryTests : IClassFixture<MarviApiFactory>
         await db.SaveChangesAsync();
     }
 
-    private static async Task<PagedResult<OrderDto>> HistoryAsync(HttpClient employee, string query)
+    private static async Task<PagedResult<OrderHistoryItemDto>> HistoryAsync(HttpClient employee, string query)
     {
         var response = await employee.GetAsync($"/api/employee/orders/history{query}");
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<PagedResult<OrderDto>>())!;
+        return (await response.Content.ReadFromJsonAsync<PagedResult<OrderHistoryItemDto>>())!;
     }
 
     [Fact]
@@ -72,6 +72,7 @@ public class OrderHistoryTests : IClassFixture<MarviApiFactory>
         Assert.Equal([newer.Id, older.Id], history.Items.Select(o => o.Id));
         Assert.Equal(new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), history.Items[0].PlacedAt);
         Assert.Equal(20m, history.Items[0].TotalAmount);
+        Assert.All(history.Items, o => Assert.Equal("Acme Co", o.CompanyName));
         Assert.Single(history.Items[0].LineItems);
     }
 
