@@ -56,7 +56,7 @@ public class EmployeeClientsController : ControllerBase
             .Take(size)
             .ToListAsync();
 
-        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.CompanyName, c.Status, c.PricingTier?.Name, c.CreditLimit)).ToList();
+        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.CompanyName, c.Status, c.PricingTierId, c.PricingTier?.Name, c.CreditLimit)).ToList();
         return Ok(new PagedResult<ClientSummaryDto>(items, page, size, total));
     }
 

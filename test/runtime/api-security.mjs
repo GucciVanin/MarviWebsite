@@ -302,6 +302,7 @@ section('CLIENT DIRECTORY: staff find a customer by company name (on real Postgr
 const dirSearch = (q, token = emp) => call('GET', `/api/employee/clients${q}`, { token });
 const dirZe = (await dirSearch('?search=' + encodeURIComponent('BAR DO Z'))).json;
 ok('a partial, upper-case company name finds the customer, with status, tier and credit', dirZe.items.some((c) => c.id === clientA.id && c.status === 'Approved' && typeof c.creditLimit === 'number' && c.pricingTierName));
+ok('...each line carries the tier id (tier names are not unique) as well as its name', dirZe.items.find((c) => c.id === clientA.id)?.pricingTierId === standard.id);
 ok('...an accented search finds accented names', (await dirSearch('?search=' + encodeURIComponent('zé'))).json.items.some((c) => c.id === clientA.id));
 ok('a percent sign or underscore is text to find, not a wildcard', (await dirSearch('?search=%25')).json.totalCount === 0 && (await dirSearch('?search=_')).json.totalCount === 0);
 const dirAll = (await dirSearch('?pageSize=200')).json;

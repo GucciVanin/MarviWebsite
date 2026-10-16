@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import type { ClientSummary } from '../../../shared/models/client-summary.model';
+import type { PagedResult } from '../../../shared/models/paged.model';
 
 export interface CreateEmployeeRequest {
   email: string;
@@ -8,6 +10,11 @@ export interface CreateEmployeeRequest {
   employeeCode: string;
   department: string | null;
   hireDate: string;
+}
+
+export interface UpdateClientCreditRequest {
+  pricingTierId: string;
+  creditLimit: number;
 }
 
 export interface ApproveClientRequest {
@@ -168,6 +175,15 @@ export class AdminService {
 
   approveClient(id: string, request: ApproveClientRequest): Observable<void> {
     return this.http.put<void>(`/api/admin/clients/${id}/approve`, request);
+  }
+
+  updateClientCredit(id: string, request: UpdateClientCreditRequest): Observable<void> {
+    return this.http.put<void>(`/api/admin/clients/${id}/update-credit`, request);
+  }
+
+  /** The customer directory (`GET /api/employee/clients`, which admins may use too), one page. */
+  searchClients(search: string, pageSize: number): Observable<PagedResult<ClientSummary>> {
+    return this.http.get<PagedResult<ClientSummary>>('/api/employee/clients', { params: { search, pageSize } });
   }
 
   suspendClient(id: string): Observable<void> {
