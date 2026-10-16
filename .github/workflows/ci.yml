@@ -1,0 +1,82 @@
+# Continuous integration (MRV-3.2): every push to dev or main and every pull request to main builds and tests the whole product.
+# Four independent jobs, so a failure points at the layer that broke:
+#   api      dotnet build + the API/Domain test suite (in-memory database)
+#   client   Angular unit tests and the production build
+#   island   the hero ribbons React island: type-check, build, and the 60 KB gzipped size gate
+#   runtime  the data/security runtime suite against a real API + PostgreSQL in docker compose (test/runtime/)
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [main]
+
+# A newer push to the same branch or pull request makes the older run pointless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build Marvi.slnx --configuration Release
+      - run: dotnet test Marvi.slnx --configuration Release --no-build
+
+  client:
+    name: Client tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npx ng test --watch=false
+      - run: npm run build
+
+  island:
+    name: Hero island build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: client/island
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/island/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  runtime:
+    name: Runtime suite (real PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The compose stack reads its secrets from deploy/.env (untracked); CI uses the example values, which are throwaway.
+      - run: cp deploy/.env.example deploy/.env
+      - run: bash test/runtime/run.sh
