@@ -65,7 +65,23 @@ public class ClientDirectoryTests : IClassFixture<MarviApiFactory>
         // The tier's id too: names are not unique, so a screen that changes a tier needs the id.
         var tiers = (await admin.GetFromJsonAsync<List<Marvi.Api.Features.Catalog.Contracts.PricingTierDto>>("/api/admin/pricing-tiers"))!;
         Assert.Equal(tiers.Single(t => t.IsDefault).Id, line.PricingTierId);
-        Assert.Equal(0m, line.CreditLimit);
+    }
+
+    [Fact]
+    public async Task EveryCustomer_HasACreationDate_SetWhenTheyRegister_ShownToStaffAndToTheCustomer()
+    {
+        var admin = await _factory.AdminAsync();
+        var tag = Unique();
+        var before = DateTime.UtcNow.AddSeconds(-5);
+        var id = await RegisterAsync($"{tag} Datada");
+        var after = DateTime.UtcNow.AddSeconds(5);
+
+        var line = Assert.Single((await SearchAsync(admin, $"?search={tag}")).Items);
+        var profile = (await admin.GetFromJsonAsync<ClientProfileDto>($"/api/employee/clients/{id}"))!;
+
+        Assert.InRange(line.CreatedAt, before, after);
+        Assert.Equal(DateTimeKind.Utc, line.CreatedAt.Kind);
+        Assert.Equal(line.CreatedAt, profile.CreatedAt);
     }
 
     [Fact]

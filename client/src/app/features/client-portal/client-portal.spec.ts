@@ -37,6 +37,8 @@ interface Data {
   categories?: object[];
   quotes?: object[];
   orders?: object[];
+  /** The customer's account status; Approved unless a test says otherwise. */
+  status?: string;
 }
 
 describe('ClientPortal', () => {
@@ -48,11 +50,19 @@ describe('ClientPortal', () => {
     const fixture = TestBed.createComponent(ClientPortal);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
-    http.expectOne((r) => r.url === '/api/products').flush(data.products ?? []);
-    http.expectOne('/api/categories').flush(data.categories ?? []);
+    const status = data.status ?? 'Approved';
     http.expectOne('/api/quotes/mine').flush(data.quotes ?? []);
     http.expectOne('/api/orders/mine').flush(data.orders ?? []);
-    http.expectOne('/api/client/profile').flush({ id: 'c1', companyName: 'Bar do Zé', billingAddress: 'Rua A, 1', shippingAddresses: [], status: 'Approved' });
+    // The portal and the details card each ask for the profile.
+    http.match('/api/client/profile').forEach((request) =>
+      request.flush({ id: 'c1', companyName: 'Bar do Zé', billingAddress: 'Rua A, 1', shippingAddresses: [], status, createdAt: '2026-10-14T13:42:00Z' }),
+    );
+    fixture.detectChanges();
+    // Only an approved customer gets the quote builder, so the catalog is asked for only then.
+    if (status === 'Approved') {
+      http.expectOne((r) => r.url === '/api/products').flush(data.products ?? []);
+      http.expectOne('/api/categories').flush(data.categories ?? []);
+    }
     const root = fixture.nativeElement as HTMLElement;
     const settle = async () => {
       await fixture.whenStable();
@@ -65,6 +75,36 @@ describe('ClientPortal', () => {
   }
 
   const text = (root: HTMLElement) => (root.textContent ?? '').replace(/\s+/g, ' ');
+
+  // ---- least privilege: a customer who is not approved cannot build quotes
+
+  it('tells a pending customer their account awaits approval, and offers no way to build a quote', async () => {
+    const { root, settle } = setup({ status: 'Pending' });
+    await settle();
+
+    expect(text(root)).toContain('aguardando a aprovação da Marvi');
+    expect(root.querySelector('app-product-picker')).toBeNull();
+    expect(text(root)).not.toContain('Solicitar cotação');
+    // They can still keep their own details up to date.
+    expect(root.querySelector('#profile-company')).not.toBeNull();
+  });
+
+  it('tells a suspended customer their account is suspended, and offers no way to build a quote', async () => {
+    const { root, settle } = setup({ status: 'Suspended' });
+    await settle();
+
+    expect(text(root)).toContain('Sua conta está suspensa');
+    expect(root.querySelector('app-product-picker')).toBeNull();
+  });
+
+  it('says nothing about approval to an approved customer', async () => {
+    const { root, settle } = setup();
+    await settle();
+
+    expect(text(root)).not.toContain('aguardando a aprovação');
+    expect(text(root)).not.toContain('suspensa');
+    expect(root.querySelector('app-product-picker')).not.toBeNull();
+  });
 
   // ---- picking products
 
@@ -332,10 +372,14 @@ describe('ClientPortal', () => {
     const fixture = TestBed.createComponent(ClientPortal);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
-    http.expectOne((r) => r.url === '/api/products').flush([]);
-    http.expectOne('/api/categories').flush([]);
     http.expectOne('/api/quotes/mine').flush('x', { status: 500, statusText: 'Server Error' });
     http.expectOne('/api/orders/mine').flush([]);
+    http.match('/api/client/profile').forEach((request) =>
+      request.flush({ id: 'c1', companyName: 'Bar', billingAddress: 'Rua A', shippingAddresses: [], status: 'Approved', createdAt: '2026-10-14T13:42:00Z' }),
+    );
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/products').flush([]);
+    http.expectOne('/api/categories').flush([]);
     await fixture.whenStable();
     fixture.detectChanges();
 

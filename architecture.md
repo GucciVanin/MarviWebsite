@@ -201,10 +201,10 @@ stateDiagram-v2
 stateDiagram-v2
     direction LR
     state "ClientAccount" as C {
-        [*] --> Approved: register (default tier assigned)
+        [*] --> Pending: register (default tier assigned, no access to quotes or orders)
+        Pending --> Approved: admin approves, choosing the tier (MRV-5.3)
         Approved --> Suspended: admin suspend
-        Suspended --> Approved: admin approve
-        Pending --> Approved: admin approve (legacy value, unused by registration)
+        Suspended --> Approved: admin approves again, choosing the tier
     }
 ```
 
@@ -243,7 +243,6 @@ erDiagram
         guid UserId
         string CompanyName
         string BillingAddress
-        decimal CreditLimit
         guid PricingTierId
         enum Status
     }
@@ -366,7 +365,7 @@ sequenceDiagram
   (`ClaimTypes.Role` on .NET 10; older frameworks used `xmlsoap.org/2005/...`), not `"role"`. The SPA's `AuthService` decodes it; any new JWT consumer must too.
   The SPA once used the old URI, so `role()` was always null and every portal bounced the user home; `auth.service.spec.ts` now pins a payload copied from a real login.
 - Settings: `Jwt:Key`, `Jwt:Issuer` (`Marvi.Api`), `Jwt:Audience` (`Marvi.Client`). No refresh tokens.
-- `ClientAccountStatus`: registration yields `Approved`. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly. A customer edits their own company name, billing address and shipping addresses through `GET/PUT /api/client/profile` (MRV-2.2); `ClientProfileRules` (Domain/Identity) is the one definition of what those may be, used by registration and by the profile, and the account always comes from the token. An admin changes a customer's credit limit and pricing tier with `PUT /api/admin/clients/{id}/update-credit` (MRV-1.3): the status is untouched, the change is audited with the previous values, and the limit is stored but not yet enforced by any rule.
+- `ClientAccountStatus`: registration yields `Pending` (least privilege, MRV-5.3): nobody is approved by default, and "Aprovar" always needs an explicit pricing tier. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly. There is no credit anywhere (MRV-5.1): customers pay directly. A customer edits their own company name, billing address and shipping addresses through `GET/PUT /api/client/profile` (MRV-2.2); `ClientProfileRules` (Domain/Identity) is the one definition of what those may be, used by registration and by the profile, and the account always comes from the token. An admin moves a customer to another pricing tier with `PUT /api/admin/clients/{id}/pricing-tier` (MRV-1.3, MRV-5.1): the status is untouched and the change is audited with the previous tier. Only an `Approved` customer gets their own tier's prices from the public catalog; anonymous visitors, `Pending` and `Suspended` customers get the default tier.
 - **Admins have no employee account**, so no `employee_id` claim. Employee-area endpoints accept Admin and record a null employee (`Quote.PricedByEmployeeId`, `Order.PlacedByEmployeeId`).
 - **First admin:** created at startup from `Seed:AdminEmail` / `Seed:AdminPassword` (dev values in `appsettings.Development.json` and `deploy/docker-compose.yml`; set your own elsewhere). Without them no Admin exists.
 
@@ -464,7 +463,7 @@ src/app/
     storefront/             public catalog (search and category filter kept in the URL: ?category=<id>&q=<text>), deals, delivery check  + api/ (deals, coverage); products and categories come from core/catalog
     client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept or reject (reject asks for a confirming click), see orders, edit own company details (profile/, MRV-2.2)  + api/ (quotes, orders, profile)
     employee-portal/        price queued quotes, find a customer by company name (directory search, MRV-2.4b.1), quotes and orders history at `/employee/historico` (history/, MRV-2.4b.2), place an order for an approved customer, stock  + api/ (employee)
-    admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock), customers (directory search, credit and tier, suspend and approve; MRV-2.4b.4), import (product CSV upload, dry run, error list; MRV-2.4b.5), audit (the paged audit log; MRV-2.4b.6)  + api/ (admin)
+    admin-portal/           admin shell with sub-pages: overview (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock), customers (directory search, pricing tier, suspend and approve with an explicit tier; MRV-2.4b.4, MRV-5.3), import (product CSV upload, dry run, error list; MRV-2.4b.5), audit (the paged audit log; MRV-2.4b.6)  + api/ (admin)
 ```
 
 ```mermaid
@@ -561,7 +560,7 @@ flowchart LR
 - **Enums go over the API as names** (`"Priced"`, `"Approved"`), via `[JsonConverter(typeof(JsonStringEnumConverter))]` on each exposed enum in the domain; the SPA models are string unions and the database still stores integers. A new exposed enum needs the attribute (`EnumContractTests`).
 - **History is never deleted by a cascade.** Foreign keys from `order_line_items`/`quote_line_items` to products, from `orders`/`quotes` to client accounts and from `inventory_records` to warehouses are `Restrict`. `DELETE /api/admin/products/{id}` and `/warehouses/{id}` return 409 when history or stock exists (deactivate products instead); a warehouse's coverage areas do cascade. This was found when deleting a product silently removed its order lines and left order totals that no longer added up.
 - **SKUs and category names are unique ignoring case** through hand-written expression indexes (`ix_products_sku_lower`, `ix_categories_name_lower`); the controllers pre-check and map the race to 409.
-- **Input rules:** deals (0-100% or non-negative fixed, start < end, min qty >= 1), warehouses (lat/long ranges), coverage areas (real warehouse, radius 0-20000 mi), approvals (existing tier, credit >= 0), products (SKU/name required and bounded) and emails (format) are validated and answered 400/409; nothing here should ever be a 500.
+- **Input rules:** deals (0-100% or non-negative fixed, start < end, min qty >= 1), warehouses (lat/long ranges), coverage areas (real warehouse, radius 0-20000 mi), approvals (an existing tier chosen explicitly), products (SKU/name required and bounded) and emails (format) are validated and answered 400/409; nothing here should ever be a 500.
 - **Dates are read as UTC** (`UtcDateTimeConverter`): a date without a time zone used to reach Npgsql as `Unspecified` and fail with a 500.
 - **Bad text:** characters Postgres cannot store (NUL) become a 400 through `InvalidTextExceptionHandler`; `UseExceptionHandler` returns a generic 500 without internals for anything unexpected. The server header is removed.
 - **Public landing data is counts and categories only** (MRV-2.3b): `GET /api/public/stats` returns product, category and radius-coverage-area counts (anonymous, `Cache-Control: public,max-age=60`, no prices or customer data); `GET /api/categories` is cached the same way. Polygon areas are not counted: the delivery check cannot serve them yet.

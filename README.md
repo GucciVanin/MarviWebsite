@@ -21,7 +21,8 @@ src/Marvi.Infrastructure/  EF Core/Postgres, Identity, geocoding providers, migr
 src/Marvi.Shared/      Empty placeholder project (candidate for removal)
 test/Marvi.Tests/      xUnit unit + integration tests, organised by feature
 test/runtime/          data + security runtime test against the real stack (see its README)
-deploy/seed-demo.mjs  demo data (products, a customer, an employee) to try the portals on the local dev stack: node deploy/seed-demo.mjs
+deploy/seed-demo.mjs  demo data (catalog, stock, a deal, an employee, four customers in the four states, quotes and orders) for the local dev stack: node deploy/seed-demo.mjs
+deploy/reset-dev.sh   wipes the local dev database and recreates the demo data (only when you want a clean slate): bash deploy/reset-dev.sh --yes
 client/                Angular SPA — src/app/{core,shared,features}
 deploy/                Dockerfiles, nginx.conf, docker-compose.yml
 docs/archive/          Superseded planning documents (history only)
@@ -71,7 +72,7 @@ The Angular CLI in `client/` requires Node >= 22.22.3 (or 24.15+/26+).
 The API creates an Admin at startup from `Seed:AdminEmail` / `Seed:AdminPassword`. Development values live in
 `src/Marvi.Api/appsettings.Development.json` and `deploy/.env.example` — change them for anything real. Sign in as that admin to
 create employees, products, per-tier prices (`/api/admin/products/{id}/pricing`), warehouses and stock; clients register themselves at
-`/register` and get access immediately.
+`/register`, then wait as **Pending** until an admin approves them ("Aprovar" in the admin area, choosing their pricing tier); a Pending customer can only manage their own details.
 
 ## Database migrations
 

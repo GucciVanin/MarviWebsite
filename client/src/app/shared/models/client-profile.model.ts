@@ -7,6 +7,8 @@ export interface ClientProfile {
   billingAddress: string;
   shippingAddresses: string[];
   status: ClientAccountStatus;
+  /** When the customer registered (UTC). */
+  createdAt: string;
 }
 
 export interface UpdateClientProfileRequest {

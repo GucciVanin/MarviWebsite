@@ -21,6 +21,7 @@ const ok = (name, cond, detail = '') => {
 const note = (text) => { notes.push(text); console.log(`NOTE  ${text}`); };
 const section = (t) => console.log(`\n== ${t}`);
 const near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 0.0001;
+const registeredRecently = (iso) => Date.parse(iso) > Date.now() - 3600_000 && Date.parse(iso) <= Date.now() + 5000;
 
 async function call(method, path, { token, body, raw, headers = {} } = {}) {
   const h = { ...headers };
@@ -110,15 +111,18 @@ const empResp = await call('POST', '/api/admin/employees', { token: admin, body:
 ok('admin creates employee (201)', empResp.status === 201, String(empResp.status));
 const emp = await login(emp1Email, emp1Pw);
 
-const registerClient = async (name, email) => {
+// A new customer is Pending (least privilege); the runtime fixtures approve the ones that need to transact.
+const registerClient = async (name, email, { approve = true } = {}) => {
   const r = await call('POST', '/api/auth/register', { body: { email, password: 'Client-1234!', companyName: name, billingAddress: `Rua ${name}, 1` } });
-  return { id: r.json?.id, token: await login(email, 'Client-1234!'), email };
+  const id = r.json?.id;
+  if (approve) await call('PUT', `/api/admin/clients/${id}/approve`, { token: admin, body: { pricingTierId: standard.id } });
+  return { id, token: await login(email, 'Client-1234!'), email };
 };
 const clientA = await registerClient('Bar do Zé', 'ze@bar.test');
 const clientB = await registerClient('Mercado Grande', 'compras@mercado.test');
 const clientC = await registerClient('Loja Suspensa', 'loja@suspensa.test');
 ok('three clients registered', !!(clientA.id && clientB.id && clientC.id));
-const approve = await call('PUT', `/api/admin/clients/${clientB.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 5000 } });
+const approve = await call('PUT', `/api/admin/clients/${clientB.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } });
 ok('admin moves client B to Wholesale tier (204)', approve.status === 204, String(approve.status));
 ok('admin suspends client C (204)', (await call('PUT', `/api/admin/clients/${clientC.id}/suspend`, { token: admin })).status === 204);
 
@@ -203,7 +207,7 @@ ok('employee order for unpriced product is refused (400)', (await call('POST', '
 ok('employee order for suspended client is refused (403)', (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientC.id, deliveryAddress: 'x', lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403);
 ok('employee order for unknown client is 400', (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: crypto.randomUUID(), deliveryAddress: 'x', lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 400);
 const prof = (await call('GET', `/api/employee/clients/${clientB.id}`, { token: emp })).json;
-ok('employee client profile: tier, credit, orders accurate', prof?.pricingTierName === 'Wholesale' && near(prof?.creditLimit, 5000) && prof?.orders?.length === 1 && prof?.status === 'Approved', JSON.stringify({ t: prof?.pricingTierName, c: prof?.creditLimit, o: prof?.orders?.length, s: prof?.status }));
+ok('employee client profile: tier, orders accurate', prof?.pricingTierName === 'Wholesale' && prof?.orders?.length === 1 && prof?.status === 'Approved', JSON.stringify({ t: prof?.pricingTierName, o: prof?.orders?.length, s: prof?.status }));
 ok('client profile response never contains a password hash', !/hash|AQAAAA|password/i.test(JSON.stringify(prof)));
 const stock = (await call('GET', '/api/employee/inventory', { token: emp })).json;
 ok('employee inventory: lager rows for both warehouses (100 + 50)', stock.filter((s) => s.productId === prod.lager.id).reduce((a, s) => a + s.qtyOnHand, 0) === 150);
@@ -219,7 +223,7 @@ ok('client B cannot accept client A\'s quote (403/404)', [403, 404].includes((aw
 ok('client B quotes list does not include A\'s quotes', !(await call('GET', '/api/quotes/mine', { token: clientB.token })).json.some((q) => q.id === q2.id));
 
 section('ELIGIBILITY: only an Approved customer may transact (quote, accept, order)');
-// No endpoint produces Pending (registration approves immediately), so set it in the database like a legacy account.
+// Registration now leaves a customer Pending (see APPROVAL below); here we put an already-approved fixture back to Pending in the database to test the eligibility rule in isolation.
 // ClientAccountStatus is stored as an integer: 0 = Pending, 1 = Approved, 2 = Suspended.
 const clientP = await registerClient('Loja Pendente', 'loja@pendente.test');
 const orderLine = { productId: prod.cola.id, qty: 1 };
@@ -264,25 +268,47 @@ ok('...it can no longer be accepted (400) and no order is created', (await call(
 ok('...and rejecting twice is refused (400)', (await call('POST', `/api/quotes/${rejQuote.id}/reject`, { token: clientA.token })).status === 400);
 ok('...an unknown quote is 404', (await call('POST', `/api/quotes/${crypto.randomUUID()}/reject`, { token: clientA.token })).status === 404);
 
-section('UPDATE CREDIT: an admin adjusts credit and tier without touching the status (on real Postgres)');
+section('APPROVAL: a new customer is Pending and can do nothing until an admin approves them with a tier (least privilege)');
+const newcomer = await registerClient('Recém Chegado Ltda', 'novo@chegado.test', { approve: false });
+const newcomerProfile = (await call('GET', '/api/client/profile', { token: newcomer.token })).json;
+ok('registration leaves the customer Pending', newcomerProfile.status === 'Pending', JSON.stringify(newcomerProfile.status));
+ok('a Pending customer is refused quotes (403) and cannot be given an order (403)', (await call('POST', '/api/quotes', { token: newcomer.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403
+  && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: newcomer.id, deliveryAddress: 'x', lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403);
+ok('...but can read and edit their own details', (await call('PUT', '/api/client/profile', { token: newcomer.token, body: { companyName: 'Recém Chegado Ltda', billingAddress: 'Rua Nova, 1', shippingAddresses: [] } })).status === 200);
+ok('...and sees the same prices as an anonymous visitor', JSON.stringify((await call('GET', '/api/products', { token: newcomer.token })).json.map((p) => [p.id, p.price])) === JSON.stringify((await call('GET', '/api/products')).json.map((p) => [p.id, p.price])));
+ok('approving without a tier is refused (400): nobody is approved by default', (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: admin, body: {} })).status === 400
+  && (await call('GET', '/api/client/profile', { token: newcomer.token })).json.status === 'Pending');
+ok('only an admin can approve (403 for the customer, 403 for an employee)', (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: newcomer.token, body: { pricingTierId: standard.id } })).status === 403
+  && (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: emp, body: { pricingTierId: standard.id } })).status === 403);
+ok('an admin approves with a chosen tier (204)', (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204);
+const approvedNewcomer = (await call('GET', `/api/employee/clients/${newcomer.id}`, { token: emp })).json;
+ok('...the customer is Approved on the tier the admin chose, and can now request a quote (201)', approvedNewcomer.status === 'Approved' && approvedNewcomer.pricingTierName === 'Wholesale'
+  && (await call('POST', '/api/quotes', { token: newcomer.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 201);
+const colaFor = async (token) => (await call('GET', '/api/products', { token })).json.find((p) => p.id === prod.cola.id)?.price;
+ok('once approved on Wholesale the customer sees the Wholesale price (cola 4.00), not the visitor price (5.00)', near(await colaFor(newcomer.token), 4) && near(await colaFor(undefined), 5));
+ok('...and a suspended customer is back to what a visitor sees (cola 5.00): only an Approved customer gets their own tier', (await call('PUT', `/api/admin/clients/${newcomer.id}/suspend`, { token: admin })).status === 204 && near(await colaFor(newcomer.token), 5));
+ok('the approval is in the audit log with the previous status', (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.entityId === newcomer.id && e.action === 'Approve' && e.details.data.includes('Pending')));
+
+section('UPDATE TIER: an admin moves a customer to another pricing tier without touching the status (on real Postgres)');
 const clientD = await registerClient('Adega do Dedé', 'dede@adega.test');
-const upd = await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 1234.5 } });
-ok('admin updates credit and tier (204)', upd.status === 204, String(upd.status));
+const upd = await call('PUT', `/api/admin/clients/${clientD.id}/pricing-tier`, { token: admin, body: { pricingTierId: wholesale.id } });
+ok('admin moves a customer to another tier (204)', upd.status === 204, String(upd.status));
 const profD = (await call('GET', `/api/employee/clients/${clientD.id}`, { token: emp })).json;
-ok('...the profile shows the new credit, tier and an unchanged Approved status', profD.creditLimit === 1234.5 && profD.pricingTierName === 'Wholesale' && profD.status === 'Approved');
+ok('...the profile shows the new tier, an unchanged Approved status and no credit at all', profD.pricingTierName === 'Wholesale' && profD.status === 'Approved' && !('creditLimit' in profD));
 const updAudit = (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.find((e) => e.entityId === clientD.id && e.action === 'Update');
-ok('...and the change is in the audit log with the previous values', !!updAudit && updAudit.details.data.includes('PreviousCreditLimit') && updAudit.details.data.includes('1234.5'));
-ok('a suspended customer can be adjusted and stays suspended', (await call('PUT', `/api/admin/clients/${clientC.id}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 10 } })).status === 204
+ok('...and the change is in the audit log with the previous tier', !!updAudit && updAudit.details.data.includes('PreviousPricingTierId') && !updAudit.details.data.includes('Credit'));
+ok('a suspended customer can be moved and stays suspended', (await call('PUT', `/api/admin/clients/${clientC.id}/pricing-tier`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204
   && (await call('GET', `/api/employee/clients/${clientC.id}`, { token: emp })).json.status === 'Suspended');
-ok('a negative credit, an unknown tier and an unknown customer are refused (400/400/404)',
-  (await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: -1 } })).status === 400
-  && (await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } })).status === 400
-  && (await call('PUT', `/api/admin/clients/${crypto.randomUUID()}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 1 } })).status === 404);
+ok('an unknown tier and an unknown customer are refused (400/404)',
+  (await call('PUT', `/api/admin/clients/${clientD.id}/pricing-tier`, { token: admin, body: { pricingTierId: crypto.randomUUID() } })).status === 400
+  && (await call('PUT', `/api/admin/clients/${crypto.randomUUID()}/pricing-tier`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 404);
+ok('the old update-credit endpoint is gone (404)', (await call('PUT', `/api/admin/clients/${clientD.id}/update-credit`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 404);
 
 section('CLIENT PROFILE: a customer edits their own company details (on real Postgres)');
 const ownProfile = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
 ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.shippingAddresses.length === 0);
 const putProfile = await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: '  Adega do Dedé Ltda ', billingAddress: 'Rua Nova, 10', shippingAddresses: ['Av. Brasil, 100', ' ', 'av. brasil, 100', 'Rua do Porto, 5 — loja 2'] } });
+ok('...and sees since when they have been registered', registeredRecently(ownProfile.createdAt));
 ok('...edits them: trimmed, blank and repeated shipping lines dropped (200)', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda'
   && JSON.stringify(putProfile.json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
 ok('...the shipping list is stored as a list in the database and staff see the same', sql(`select cardinality(shipping_addresses) from client_accounts where id='${clientD.id}'`) === '2'
@@ -301,8 +327,10 @@ ok('it is always the caller\'s own account: another customer\'s details are unto
 section('CLIENT DIRECTORY: staff find a customer by company name (on real Postgres)');
 const dirSearch = (q, token = emp) => call('GET', `/api/employee/clients${q}`, { token });
 const dirZe = (await dirSearch('?search=' + encodeURIComponent('BAR DO Z'))).json;
-ok('a partial, upper-case company name finds the customer, with status, tier and credit', dirZe.items.some((c) => c.id === clientA.id && c.status === 'Approved' && typeof c.creditLimit === 'number' && c.pricingTierName));
+ok('a partial, upper-case company name finds the customer, with status and tier', dirZe.items.some((c) => c.id === clientA.id && c.status === 'Approved' && c.pricingTierName && !('creditLimit' in c)));
 ok('...each line carries the tier id (tier names are not unique) as well as its name', dirZe.items.find((c) => c.id === clientA.id)?.pricingTierId === standard.id);
+ok('...each customer has the date they registered (recent, in the past), in the directory and in the staff profile', registeredRecently(dirZe.items.find((c) => c.id === clientA.id)?.createdAt)
+  && registeredRecently((await call('GET', `/api/employee/clients/${clientA.id}`, { token: emp })).json.createdAt));
 ok('...an accented search finds accented names', (await dirSearch('?search=' + encodeURIComponent('zé'))).json.items.some((c) => c.id === clientA.id));
 ok('a percent sign or underscore is text to find, not a wildcard', (await dirSearch('?search=%25')).json.totalCount === 0 && (await dirSearch('?search=_')).json.totalCount === 0);
 const dirAll = (await dirSearch('?pageSize=200')).json;
@@ -411,7 +439,7 @@ await auditCase('delete category', () => call('DELETE', `/api/admin/categories/$
 const auditWh = (await auditCase('create warehouse', () => call('POST', '/api/admin/warehouses', { token: admin, body: { name: `CD ${catName}`, address: 'Rua A, 1', latitude: -23.5, longitude: -46.6 } }), 1)).json;
 await auditCase('create coverage area', () => call('POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: auditWh.id, type: 'Radius', radiusMiles: 5 } }), 1);
 await auditCase('delete warehouse (and its areas)', () => call('DELETE', `/api/admin/warehouses/${auditWh.id}`, { token: admin }), 1);
-await auditCase('approve client', () => call('PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id, creditLimit: 100 } }), 1);
+await auditCase('approve client', () => call('PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } }), 1);
 ok('every audit row has an actor', Number(sql(`select count(*) from audit_log_entries where actor_user_id = '00000000-0000-0000-0000-000000000000'`)) === 0);
 
 section('IDENTITY: each role\'s token carries its own account id and the endpoints honour it');
@@ -542,7 +570,7 @@ const endpoints = [
   ['GET', `/api/admin/coverage-areas/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/coverage-areas/${ID}`, { warehouseId: ID, type: 'Radius', radiusMiles: 1, polygonGeoJson: null }, ['admin']], ['DELETE', `/api/admin/coverage-areas/${ID}`, undefined, ['admin']],
   ['GET', '/api/admin/warehouses', undefined, ['admin']], ['POST', '/api/admin/warehouses', { name: 'W', address: 'A', latitude: 1, longitude: 1 }, ['admin']],
   ['GET', `/api/admin/warehouses/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/warehouses/${ID}`, { name: 'W', address: 'A', latitude: 1, longitude: 1 }, ['admin']], ['DELETE', `/api/admin/warehouses/${ID}`, undefined, ['admin']],
-  ['PUT', `/api/admin/clients/${ID}/approve`, { pricingTierId: ID, creditLimit: 1 }, ['admin']], ['PUT', `/api/admin/clients/${ID}/suspend`, undefined, ['admin']],
+  ['PUT', `/api/admin/clients/${ID}/approve`, { pricingTierId: ID }, ['admin']], ['PUT', `/api/admin/clients/${ID}/suspend`, undefined, ['admin']],
   ['POST', '/api/admin/employees', { email: 'e@e.test', password: 'Aa1!aaaa', employeeCode: 'x', department: null, hireDate: iso(0) }, ['admin']],
   ['PUT', '/api/admin/inventory', { productId: ID, warehouseId: ID, qtyOnHand: 1, reorderPoint: 1 }, ['admin']],
   ['GET', `/api/employee/clients/${ID}`, undefined, ['employee', 'admin']], ['GET', '/api/employee/inventory', undefined, ['employee', 'admin']],
@@ -553,7 +581,7 @@ const endpoints = [
   ['POST', `/api/quotes/${ID}/reject`, undefined, ['client']],
   ['GET', '/api/employee/quotes/history', undefined, ['employee', 'admin']],
   ['GET', '/api/employee/orders/history', undefined, ['employee', 'admin']],
-  ['PUT', `/api/admin/clients/${ID}/update-credit`, { pricingTierId: ID, creditLimit: 1 }, ['admin']],
+  ['PUT', `/api/admin/clients/${ID}/pricing-tier`, { pricingTierId: ID }, ['admin']],
   ['POST', '/api/admin/products/import', undefined, ['admin']],
   ['GET', '/api/employee/clients', undefined, ['employee', 'admin']],
   ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
@@ -601,7 +629,7 @@ const evilTok = await login(evilEmail, 'Evil-1234!');
 const evilClaims = JSON.parse(Buffer.from(evilTok.split('.')[1], 'base64url').toString());
 ok('mass assignment: extra fields cannot make a registrant an Admin', evilClaims[ROLE] === 'Client', JSON.stringify(evilClaims[ROLE]));
 const evilProfile = (await call('GET', `/api/employee/clients/${evil.json?.id}`, { token: emp })).json;
-ok('mass assignment: credit limit stays 0 and tier stays default', near(evilProfile?.creditLimit, 0) && evilProfile?.pricingTierName === standard.name, JSON.stringify({ c: evilProfile?.creditLimit, t: evilProfile?.pricingTierName }));
+ok('mass assignment: the tier stays the default and the status stays Pending (an extra status: Approved in the body is ignored)', evilProfile?.pricingTierName === standard.name && evilProfile?.status === 'Pending', JSON.stringify({ t: evilProfile?.pricingTierName, s: evilProfile?.status }));
 ok('registered client cannot reach admin API', (await call('GET', '/api/admin/categories', { token: evilTok })).status === 403);
 ok('duplicate email refused (400)', (await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x' } })).status === 400);
 ok('duplicate email differing only by case refused', (await call('POST', '/api/auth/register', { body: { email: evilEmail.toUpperCase(), password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x' } })).status === 400);
@@ -664,8 +692,7 @@ await expectNot500('audit page=0', 'GET', '/api/admin/audit-log?page=0', { token
 await expectNot500('audit page=-5', 'GET', '/api/admin/audit-log?page=-5', { token: admin });
 await expectNot500('audit pageSize=-1', 'GET', '/api/admin/audit-log?pageSize=-1', { token: admin });
 await expectNot500('audit huge page', 'GET', '/api/admin/audit-log?page=2147483647&pageSize=2147483647', { token: admin });
-await expectNot500('approve unknown tier', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } });
-await expectNot500('approve negative credit', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: standard.id, creditLimit: -100 } });
+await expectNot500('approve unknown tier', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID() } });
 await expectNot500('coverage area unknown warehouse', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: crypto.randomUUID(), type: 'Radius', radiusMiles: 5, polygonGeoJson: null } });
 await expectNot500('delete warehouse that has areas and stock', 'DELETE', `/api/admin/warehouses/${wh1.id}`, { token: admin });
 await expectNot500('delete product that is on quotes/orders', 'DELETE', `/api/admin/products/${prod.water.id}`, { token: admin });
@@ -687,8 +714,7 @@ await mustBe400('warehouse latitude 999', 'POST', '/api/admin/warehouses', { tok
 await mustBe400('radius area with negative radius', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: wh1.id, type: 'Radius', radiusMiles: -10, polygonGeoJson: null } });
 await mustBe400('radius area with no radius', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: wh1.id, type: 'Radius', radiusMiles: null, polygonGeoJson: null } });
 await mustBe400('coverage area for unknown warehouse', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: crypto.randomUUID(), type: 'Radius', radiusMiles: 5, polygonGeoJson: null } });
-await mustBe400('negative client credit limit', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: standard.id, creditLimit: -100 } });
-await mustBe400('approve with unknown tier', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID(), creditLimit: 1 } });
+await mustBe400('approve with unknown tier', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID() } });
 await mustBe400('product with blank SKU', 'POST', '/api/admin/products', { token: admin, body: { sku: '  ', name: 'x', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
 await mustBe400('product with blank name', 'POST', '/api/admin/products', { token: admin, body: { sku: 'OK-1', name: '', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
 await mustBe400('product with a duplicate SKU', 'POST', '/api/admin/products', { token: admin, body: { sku: 'BEER-001', name: 'Duplicate', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });

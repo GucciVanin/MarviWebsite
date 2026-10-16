@@ -22,15 +22,15 @@ const quote = (id: string, lines: object[], clientAccountId = 'c-123') => ({
   lineItems: lines,
 });
 
-const summary = (id: string, companyName: string, status: string) => ({ id, companyName, status, pricingTierName: 'Atacado', creditLimit: 5000 });
+const summary = (id: string, companyName: string, status: string) => ({ id, companyName, status, pricingTierName: 'Atacado' });
 const clientPage = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 10, totalCount });
 
 const profile = (status: string) => ({
   id: 'c-123',
   companyName: 'Bar do Zé',
+  createdAt: '2026-10-14T13:42:00Z',
   billingAddress: 'Rua A, 1',
   shippingAddresses: [],
-  creditLimit: 5000,
   pricingTierName: 'Atacado',
   status,
   quotes: [],
@@ -240,7 +240,8 @@ describe('EmployeePortal', () => {
     expect(card.textContent).toContain('Bar do Zé');
     expect(card.textContent).toContain('Aprovado');
     expect(card.textContent).toContain('Atacado');
-    expect(card.textContent).toContain('5.000,00');
+    expect(card.textContent).toContain('Cliente desde 14/10/2026');
+    expect(card.textContent).not.toMatch(/crédito|limite/i);
   });
 
   it('says so when no customer matches the company name', async () => {

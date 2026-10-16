@@ -29,7 +29,6 @@ public class QuoteFlowTests : IClassFixture<MarviApiFactory>
         var (client, clientAccountId) = await RegisterClientAsync();
         var productId = await CreatePricedProductAsync(admin, unitPrice: 10m);
 
-        // Registration gives immediate access and the default tier: no approval step is needed to ask for a quote.
         var created = await client.PostAsJsonAsync("/api/quotes", new CreateQuoteRequest([new QuoteLineItemRequest(productId, 3)]));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var quote = (await created.Content.ReadFromJsonAsync<QuoteDto>())!;
@@ -187,6 +186,10 @@ public class QuoteFlowTests : IClassFixture<MarviApiFactory>
         var register = await anonymous.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
         register.EnsureSuccessStatusCode();
         var clientAccountId = JsonDocument.Parse(await register.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+        // A new customer is Pending: an admin approves them (with the default tier) before they can transact.
+        var admin = await LoginAsync(MarviApiFactory.AdminEmail, MarviApiFactory.AdminPassword);
+        var tiers = (await admin.GetFromJsonAsync<List<PricingTierDto>>("/api/admin/pricing-tiers"))!;
+        (await admin.PutAsJsonAsync($"/api/admin/clients/{clientAccountId}/approve", new ApproveClientRequest(tiers.Single(t => t.IsDefault).Id))).EnsureSuccessStatusCode();
         return (await LoginAsync(email, "Test1234!"), clientAccountId);
     }
 

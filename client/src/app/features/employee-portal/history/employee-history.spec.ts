@@ -86,7 +86,7 @@ describe('EmployeeHistory', () => {
 
     await set('input[name="clientSearch"]', 'zé');
     button('Buscar cliente').click();
-    http.expectOne((r) => r.url === '/api/employee/clients').flush({ items: [{ id: 'c-9', companyName: 'Bar do Zé', status: 'Approved', pricingTierName: null, creditLimit: 0 }], page: 1, pageSize: 10, totalCount: 1 });
+    http.expectOne((r) => r.url === '/api/employee/clients').flush({ items: [{ id: 'c-9', companyName: 'Bar do Zé', status: 'Approved', pricingTierName: null }], page: 1, pageSize: 10, totalCount: 1 });
     await settle();
     button('Selecionar').click();
     await settle();

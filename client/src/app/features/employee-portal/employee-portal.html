@@ -98,8 +98,8 @@
             {{ t.clientStatus[profile.status] ?? profile.status }}
           </span>
         </p>
+        <p>{{ t.customerSince }} {{ profile.createdAt | ptDate }}</p>
         <p>{{ t.pricingTier }}: {{ profile.pricingTierName ?? '—' }}</p>
-        <p>{{ t.creditLimit }}: {{ profile.creditLimit | brl }}</p>
       </article>
 
       @if (profile.status !== 'Approved') {

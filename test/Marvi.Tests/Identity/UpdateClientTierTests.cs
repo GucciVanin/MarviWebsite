@@ -9,12 +9,12 @@ using Marvi.Tests.Support;
 
 namespace Marvi.Tests.Identity;
 
-/// <summary>MRV-1.3: an admin changes a customer's credit limit and pricing tier without touching their status.</summary>
-public class UpdateClientCreditTests : IClassFixture<MarviApiFactory>
+/// <summary>MRV-1.3 / MRV-5.1: an admin moves a customer to another pricing tier without touching their status. There is no credit.</summary>
+public class UpdateClientTierTests : IClassFixture<MarviApiFactory>
 {
     private readonly MarviApiFactory _factory;
 
-    public UpdateClientCreditTests(MarviApiFactory factory)
+    public UpdateClientTierTests(MarviApiFactory factory)
     {
         _factory = factory;
     }
@@ -26,37 +26,36 @@ public class UpdateClientCreditTests : IClassFixture<MarviApiFactory>
         return (await response.Content.ReadFromJsonAsync<PricingTierDto>())!.Id;
     }
 
-    private static Task<HttpResponseMessage> UpdateAsync(HttpClient admin, Guid clientId, Guid tierId, decimal credit) =>
-        admin.PutAsJsonAsync($"/api/admin/clients/{clientId}/update-credit", new UpdateClientCreditRequest(tierId, credit));
+    private static Task<HttpResponseMessage> UpdateAsync(HttpClient admin, Guid clientId, Guid tierId) =>
+        admin.PutAsJsonAsync($"/api/admin/clients/{clientId}/pricing-tier", new UpdateClientTierRequest(tierId));
 
     private static async Task<ClientProfileDto> ProfileAsync(HttpClient admin, Guid clientId) =>
         (await admin.GetFromJsonAsync<ClientProfileDto>($"/api/employee/clients/{clientId}"))!;
 
     [Fact]
-    public async Task Admin_ChangesCreditAndTier_AndTheProfileShowsIt_WithoutChangingStatus()
+    public async Task Admin_ChangesTheTier_AndTheProfileShowsIt_WithoutChangingStatus()
     {
         var admin = await _factory.AdminAsync();
         var (_, clientId) = await _factory.RegisterClientAsync();
         var gold = await CreateTierAsync(admin, $"Gold-{Guid.NewGuid():N}");
 
-        var response = await UpdateAsync(admin, clientId, gold, 2500m);
+        var response = await UpdateAsync(admin, clientId, gold);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var profile = await ProfileAsync(admin, clientId);
-        Assert.Equal(2500m, profile.CreditLimit);
         Assert.StartsWith("Gold-", profile.PricingTierName);
         Assert.Equal(ClientAccountStatus.Approved, profile.Status);
     }
 
     [Fact]
-    public async Task ASuspendedCustomer_CanHaveItsCreditAdjusted_AndStaysSuspended()
+    public async Task ASuspendedCustomer_CanBeMovedToAnotherTier_AndStaysSuspended()
     {
         var admin = await _factory.AdminAsync();
         var (_, clientId) = await _factory.RegisterClientAsync();
         var gold = await CreateTierAsync(admin, $"Gold-{Guid.NewGuid():N}");
         (await admin.PutAsync($"/api/admin/clients/{clientId}/suspend", null)).EnsureSuccessStatusCode();
 
-        Assert.Equal(HttpStatusCode.NoContent, (await UpdateAsync(admin, clientId, gold, 10m)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await UpdateAsync(admin, clientId, gold)).StatusCode);
 
         Assert.Equal(ClientAccountStatus.Suspended, (await ProfileAsync(admin, clientId)).Status);
     }
@@ -77,43 +76,52 @@ public class UpdateClientCreditTests : IClassFixture<MarviApiFactory>
         }
 
         Assert.Equal(10m, await SuggestedAsync());
-        (await UpdateAsync(admin, clientId, gold, 0m)).EnsureSuccessStatusCode();
+        (await UpdateAsync(admin, clientId, gold)).EnsureSuccessStatusCode();
         Assert.Equal(7m, await SuggestedAsync());
     }
 
     [Fact]
-    public async Task TheChange_IsAudited()
+    public async Task TheChange_IsAudited_WithThePreviousTier()
     {
         var admin = await _factory.AdminAsync();
         var (_, clientId) = await _factory.RegisterClientAsync();
         var gold = await CreateTierAsync(admin, $"Gold-{Guid.NewGuid():N}");
 
-        (await UpdateAsync(admin, clientId, gold, 1500m)).EnsureSuccessStatusCode();
+        (await UpdateAsync(admin, clientId, gold)).EnsureSuccessStatusCode();
 
         var entries = (await admin.GetFromJsonAsync<List<AuditLogEntryDto>>("/api/admin/audit-log?pageSize=200"))!;
         var entry = Assert.Single(entries, e => e.EntityId == clientId && e.Action == "Update");
         Assert.Equal(nameof(ClientAccount), entry.EntityName);
         var details = System.Text.Json.JsonDocument.Parse(entry.Details["data"]).RootElement;
-        Assert.Equal(1500m, details.GetProperty("CreditLimit").GetDecimal());
         Assert.Equal(gold, details.GetProperty("PricingTierId").GetGuid());
-        Assert.Equal(0m, details.GetProperty("PreviousCreditLimit").GetDecimal());
         Assert.NotEqual(gold, details.GetProperty("PreviousPricingTierId").GetGuid());
+        Assert.False(details.TryGetProperty("CreditLimit", out _));
     }
 
     [Fact]
-    public async Task Refuses_ANegativeCredit_AnUnknownTier_AndAnUnknownCustomer()
+    public async Task Refuses_AnUnknownTier_AndAnUnknownCustomer()
     {
         var admin = await _factory.AdminAsync();
         var (_, clientId) = await _factory.RegisterClientAsync();
         var gold = await CreateTierAsync(admin, $"Gold-{Guid.NewGuid():N}");
-        (await UpdateAsync(admin, clientId, gold, 300m)).EnsureSuccessStatusCode();
+        (await UpdateAsync(admin, clientId, gold)).EnsureSuccessStatusCode();
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await UpdateAsync(admin, clientId, gold, -1m)).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await UpdateAsync(admin, clientId, Guid.NewGuid(), 5m)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await UpdateAsync(admin, Guid.NewGuid(), gold, 5m)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await UpdateAsync(admin, clientId, Guid.NewGuid())).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await UpdateAsync(admin, Guid.NewGuid(), gold)).StatusCode);
 
-        // Refused requests changed nothing.
-        Assert.Equal(300m, (await ProfileAsync(admin, clientId)).CreditLimit);
+        // The refused requests changed nothing.
+        Assert.StartsWith("Gold-", (await ProfileAsync(admin, clientId)).PricingTierName);
+    }
+
+    [Fact]
+    public async Task OldCreditEndpoint_IsGone()
+    {
+        var admin = await _factory.AdminAsync();
+        var (_, clientId) = await _factory.RegisterClientAsync();
+
+        var response = await admin.PutAsJsonAsync($"/api/admin/clients/{clientId}/update-credit", new { pricingTierId = Guid.NewGuid(), creditLimit = 1 });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -123,7 +131,7 @@ public class UpdateClientCreditTests : IClassFixture<MarviApiFactory>
         var admin = await _factory.AdminAsync();
         var gold = await CreateTierAsync(admin, $"Gold-{Guid.NewGuid():N}");
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await UpdateAsync(client, clientId, gold, 1m)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await UpdateAsync(_factory.CreateClient(), clientId, gold, 1m)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await UpdateAsync(client, clientId, gold)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await UpdateAsync(_factory.CreateClient(), clientId, gold)).StatusCode);
     }
 }

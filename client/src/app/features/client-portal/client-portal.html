@@ -1,6 +1,15 @@
 <div class="container page stack">
   <h1>{{ t.title }}</h1>
 
+  <app-load-state [state]="account" />
+  @if (status() === 'Pending') {
+    <p class="alert" role="status" data-testid="account-notice">{{ t.pendingNotice }}</p>
+  } @else if (status() === 'Suspended') {
+    <p class="alert alert--error" role="status" data-testid="account-notice">{{ t.suspendedNotice }}</p>
+  }
+
+  <!-- Least privilege: the quote builder is only for an approved customer (and only once we know that they are one). -->
+  @if (status() === 'Approved') {
   <section class="card" aria-labelledby="catalog-title">
     <h2 id="catalog-title">{{ t.catalogTitle }}</h2>
     <p class="muted">{{ t.catalogHint }}</p>
@@ -49,6 +58,7 @@
       <p class="alert alert--success" role="status">{{ t.requestSent }}</p>
     }
   </section>
+  }
 
   <section class="card" aria-labelledby="quotes-title">
     <h2 id="quotes-title">{{ t.quotesTitle }}</h2>

@@ -8,10 +8,11 @@ public class ClientAccount
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
+    /// <summary>When the customer registered (UTC).</summary>
+    public DateTime CreatedAt { get; set; }
     public string CompanyName { get; set; } = string.Empty;
     public string BillingAddress { get; set; } = string.Empty;
     public List<string> ShippingAddresses { get; set; } = new();
-    public decimal CreditLimit { get; set; }
     public Guid? PricingTierId { get; set; }
     public PricingTier? PricingTier { get; set; }
     public ClientAccountStatus Status { get; set; }

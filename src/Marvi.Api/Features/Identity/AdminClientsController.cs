@@ -31,20 +31,15 @@ public class AdminClientsController : ControllerBase
             return NotFound();
         }
 
-        if (request.CreditLimit < 0)
-        {
-            return BadRequest("Credit limit cannot be negative.");
-        }
-
         if (!await _dbContext.PricingTiers.AnyAsync(t => t.Id == request.PricingTierId))
         {
             return BadRequest("Unknown pricing tier.");
         }
 
+        var previousStatus = clientAccount.Status;
         clientAccount.Status = ClientAccountStatus.Approved;
         clientAccount.PricingTierId = request.PricingTierId;
-        clientAccount.CreditLimit = request.CreditLimit;
-        if (!await _auditLogger.TrySaveAsync(AuditActions.Approve, nameof(ClientAccount), id, new { request.PricingTierId, request.CreditLimit }))
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Approve, nameof(ClientAccount), id, new { request.PricingTierId, PreviousStatus = previousStatus }))
         {
             return Conflict(AuditLogger.ConflictMessage);
         }
@@ -53,21 +48,16 @@ public class AdminClientsController : ControllerBase
     }
 
     /// <summary>
-    /// Changes a customer's credit limit and pricing tier (MRV-1.3). The status is left alone, so this also works for a
-    /// suspended customer; the next quote is priced from the new tier.
+    /// Moves a customer to another pricing tier (MRV-1.3, MRV-5.1: there is no credit). The status is left alone, so this also
+    /// works for a suspended customer; the next quote is priced from the new tier.
     /// </summary>
-    [HttpPut("{id:guid}/update-credit")]
-    public async Task<IActionResult> UpdateCredit(Guid id, UpdateClientCreditRequest request)
+    [HttpPut("{id:guid}/pricing-tier")]
+    public async Task<IActionResult> UpdateTier(Guid id, UpdateClientTierRequest request)
     {
         var clientAccount = await _dbContext.ClientAccounts.FirstOrDefaultAsync(c => c.Id == id);
         if (clientAccount is null)
         {
             return NotFound();
-        }
-
-        if (request.CreditLimit < 0)
-        {
-            return BadRequest("Credit limit cannot be negative.");
         }
 
         if (!await _dbContext.PricingTiers.AnyAsync(t => t.Id == request.PricingTierId))
@@ -76,11 +66,9 @@ public class AdminClientsController : ControllerBase
         }
 
         var previousTierId = clientAccount.PricingTierId;
-        var previousCreditLimit = clientAccount.CreditLimit;
         clientAccount.PricingTierId = request.PricingTierId;
-        clientAccount.CreditLimit = request.CreditLimit;
         if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(ClientAccount), id,
-                new { request.PricingTierId, request.CreditLimit, PreviousPricingTierId = previousTierId, PreviousCreditLimit = previousCreditLimit }))
+                new { request.PricingTierId, PreviousPricingTierId = previousTierId }))
         {
             return Conflict(AuditLogger.ConflictMessage);
         }

@@ -24,8 +24,22 @@ public static class TestClients
     public static Task<HttpClient> AdminAsync(this MarviApiFactory factory) =>
         factory.LoginAsync(MarviApiFactory.AdminEmail, MarviApiFactory.AdminPassword);
 
-    /// <summary>Registers a fresh client account and returns a client signed in as it, with its account id.</summary>
+    /// <summary>
+    /// Registers a fresh customer and has an admin approve them (with the default tier), so the tests of what a customer can do
+    /// start from an approved customer. Returns a client signed in as them, with their account id. A new customer is Pending until
+    /// approved: see <see cref="RegisterPendingClientAsync"/>.
+    /// </summary>
     public static async Task<(HttpClient Client, Guid AccountId)> RegisterClientAsync(this MarviApiFactory factory)
+    {
+        var (client, id) = await factory.RegisterPendingClientAsync();
+        var admin = await factory.AdminAsync();
+        var tiers = (await admin.GetFromJsonAsync<List<PricingTierDto>>("/api/admin/pricing-tiers"))!;
+        (await admin.PutAsJsonAsync($"/api/admin/clients/{id}/approve", new ApproveClientRequest(tiers.Single(t => t.IsDefault).Id))).EnsureSuccessStatusCode();
+        return (client, id);
+    }
+
+    /// <summary>Registers a fresh customer, who stays Pending (the state registration leaves them in), signed in as them.</summary>
+    public static async Task<(HttpClient Client, Guid AccountId)> RegisterPendingClientAsync(this MarviApiFactory factory)
     {
         var email = $"{Guid.NewGuid()}@example.com";
         var register = await factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
@@ -34,7 +48,7 @@ public static class TestClients
         return (await factory.LoginAsync(email, "Test1234!"), id);
     }
 
-    /// <summary>Sets a client account status directly (there is no endpoint that produces Pending).</summary>
+    /// <summary>Sets a client account status directly in the database (for states an endpoint cannot produce, such as a legacy account).</summary>
     public static async Task SetClientStatusAsync(this MarviApiFactory factory, Guid accountId, ClientAccountStatus status)
     {
         using var scope = factory.Services.CreateScope();

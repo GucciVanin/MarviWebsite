@@ -56,7 +56,7 @@ public class EmployeeClientsController : ControllerBase
             .Take(size)
             .ToListAsync();
 
-        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.CompanyName, c.Status, c.PricingTierId, c.PricingTier?.Name, c.CreditLimit)).ToList();
+        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.CompanyName, c.Status, c.PricingTierId, c.PricingTier?.Name, c.CreatedAt)).ToList();
         return Ok(new PagedResult<ClientSummaryDto>(items, page, size, total));
     }
 
@@ -84,9 +84,9 @@ public class EmployeeClientsController : ControllerBase
         var dto = new ClientProfileDto(
             clientAccount.Id,
             clientAccount.CompanyName,
+            clientAccount.CreatedAt,
             clientAccount.BillingAddress,
             clientAccount.ShippingAddresses,
-            clientAccount.CreditLimit,
             clientAccount.PricingTier?.Name,
             clientAccount.Status,
             quotes.Select(ToQuoteDto).ToList(),

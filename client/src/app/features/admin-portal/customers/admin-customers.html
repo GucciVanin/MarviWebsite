@@ -26,7 +26,7 @@
             <th>{{ t.company }}</th>
             <th>{{ t.status }}</th>
             <th>{{ t.tier }}</th>
-            <th class="num">{{ t.credit }}</th>
+            <th>{{ t.since }}</th>
             <th>{{ t.actions }}</th>
           </tr>
         </thead>
@@ -40,7 +40,7 @@
                 </span>
               </td>
               <td>{{ customer.pricingTierName ?? '—' }}</td>
-              <td class="num">{{ customer.creditLimit | brl }}</td>
+              <td>{{ customer.createdAt | ptDate }}</td>
               <td>
                 @if (confirmingSuspendId() === customer.id) {
                   <button type="button" class="btn btn--primary btn--small" [disabled]="saveAction.busy()" (click)="suspend(customer)">{{ t.confirmSuspend }}</button>
@@ -49,12 +49,31 @@
                   <button type="button" class="btn btn--outline btn--small" (click)="edit(customer)">{{ t.edit }}</button>
                   @if (customer.status === 'Approved') {
                     <button type="button" class="btn btn--outline btn--small" (click)="askToSuspend(customer)">{{ t.suspend }}</button>
-                  } @else if (customer.status === 'Suspended') {
-                    <button type="button" class="btn btn--outline btn--small" [disabled]="saveAction.busy() || !approvalTierId(customer)" (click)="approve(customer)">{{ t.approve }}</button>
+                  } @else {
+                    <button type="button" class="btn btn--outline btn--small" [disabled]="saveAction.busy()" (click)="askToApprove(customer)">{{ t.approve }}</button>
                   }
                 }
               </td>
             </tr>
+            @if (approvingId() === customer.id) {
+              <tr data-testid="customer-approval">
+                <td colspan="5">
+                  <form class="toolbar" (ngSubmit)="approve(customer)">
+                    <div class="field">
+                      <label for="approve-tier">{{ t.approveTier }}</label>
+                      <select id="approve-tier" name="approve-tier" [ngModel]="approveTierId()" (ngModelChange)="approveTierId.set($event)">
+                        <option value="">{{ t.approveChoose }}</option>
+                        @for (tier of tiers.data(); track tier.id) {
+                          <option [value]="tier.id">{{ tier.name }}</option>
+                        }
+                      </select>
+                    </div>
+                    <button type="submit" class="btn btn--primary btn--small" [disabled]="!canApprove()">{{ t.confirmApprove }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="cancelApproval()">{{ t.cancel }}</button>
+                  </form>
+                </td>
+              </tr>
+            }
             @if (editingId() === customer.id) {
               <tr data-testid="customer-editor">
                 <td colspan="5">
@@ -66,13 +85,6 @@
                           <option [value]="tier.id">{{ tier.name }}</option>
                         }
                       </select>
-                    </div>
-                    <div class="field">
-                      <label for="customer-credit">{{ t.credit }} (R$)</label>
-                      <input id="customer-credit" name="credit" type="number" min="0" step="0.01" [ngModel]="editCredit()" (ngModelChange)="editCredit.set($event)" />
-                      @if (!creditValid()) {
-                        <p role="status">{{ t.creditInvalid }}</p>
-                      }
                     </div>
                     <button type="submit" class="btn btn--primary btn--small" [disabled]="!canSave()">{{ t.save }}</button>
                     <button type="button" class="btn btn--outline btn--small" (click)="stopEditing()">{{ t.cancel }}</button>

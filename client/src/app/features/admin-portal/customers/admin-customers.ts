@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
-import { BrlPipe } from '../../../shared/format/brl.pipe';
+import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
@@ -13,12 +13,12 @@ import { AdminService, PricingTier } from '../api/admin.service';
 const PAGE_SIZE = 20;
 
 /**
- * Customers for admins (MRV-2.4b.4): find a customer by company name, change their credit limit and pricing tier, suspend
+ * Customers for admins (MRV-2.4b.4): find a customer by company name, change their pricing tier, suspend
  * them (after a confirming click) and approve them again. The admin sees every refusal in pt-BR with the server's reason.
  */
 @Component({
   selector: 'app-admin-customers',
-  imports: [FormsModule, ErrorAlert, LoadState, BrlPipe],
+  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe],
   templateUrl: './admin-customers.html',
 })
 export class AdminCustomers implements OnInit {
@@ -37,17 +37,15 @@ export class AdminCustomers implements OnInit {
 
   protected readonly editingId = signal<string | null>(null);
   protected readonly editTierId = signal('');
-  protected readonly editCredit = signal<number | string | null>(null);
   protected readonly confirmingSuspendId = signal<string | null>(null);
+  /** The customer whose approval is being decided, and the tier the admin has chosen for them. */
+  protected readonly approvingId = signal<string | null>(null);
+  protected readonly approveTierId = signal('');
   protected readonly message = signal<string | null>(null);
   protected readonly saveAction = action();
 
-  /** A credit limit is a number of 0 or more. */
-  protected readonly creditValid = computed(() => {
-    const value = this.editCredit();
-    return value !== null && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
-  });
-  protected readonly canSave = computed(() => this.editTierId() !== '' && this.creditValid() && !this.saveAction.busy());
+  protected readonly canSave = computed(() => this.editTierId() !== '' && !this.saveAction.busy());
+  protected readonly canApprove = computed(() => this.approveTierId() !== '' && !this.saveAction.busy());
 
   ngOnInit(): void {
     this.customers.load();
@@ -66,10 +64,10 @@ export class AdminCustomers implements OnInit {
   protected edit(customer: ClientSummary): void {
     this.message.set(null);
     this.saveAction.reset();
+    this.approvingId.set(null);
     this.confirmingSuspendId.set(null);
     this.editingId.set(customer.id);
     this.editTierId.set(customer.pricingTierId ?? '');
-    this.editCredit.set(customer.creditLimit);
   }
 
   protected stopEditing(): void {
@@ -83,7 +81,7 @@ export class AdminCustomers implements OnInit {
     }
     this.message.set(null);
     this.saveAction.run(
-      this.admin.updateClientCredit(customer.id, { pricingTierId: this.editTierId(), creditLimit: Number(this.editCredit()) }),
+      this.admin.updateClientTier(customer.id, { pricingTierId: this.editTierId() }),
       () => this.done(this.t.saved),
     );
   }
@@ -91,6 +89,7 @@ export class AdminCustomers implements OnInit {
   protected askToSuspend(customer: ClientSummary): void {
     this.message.set(null);
     this.saveAction.reset();
+    this.approvingId.set(null);
     this.editingId.set(null);
     this.confirmingSuspendId.set(customer.id);
   }
@@ -100,25 +99,39 @@ export class AdminCustomers implements OnInit {
     this.saveAction.run(this.admin.suspendClient(customer.id), () => this.done(this.t.suspended));
   }
 
-  /** Reactivates a suspended customer. Approving needs a tier and a limit: they keep the ones they have. */
+  /**
+   * "Aprovar" is for every customer who is not approved. Least privilege: nobody is approved by default, so approving always
+   * needs the admin to choose a pricing tier. For a pending customer nothing is preselected; for a suspended one their current
+   * tier is suggested, and either way a confirming click follows.
+   */
+  protected askToApprove(customer: ClientSummary): void {
+    this.message.set(null);
+    this.saveAction.reset();
+    this.editingId.set(null);
+    this.confirmingSuspendId.set(null);
+    this.approvingId.set(customer.id);
+    // Only a tier the list actually offers can be suggested (it may not have loaded, or may have been deleted).
+    const suggested = customer.status === 'Suspended' ? customer.pricingTierId : null;
+    this.approveTierId.set(suggested && this.tiers.data().some((tier) => tier.id === suggested) ? suggested : '');
+  }
+
+  protected cancelApproval(): void {
+    this.approvingId.set(null);
+  }
+
   protected approve(customer: ClientSummary): void {
-    const tierId = this.approvalTierId(customer);
-    if (!tierId) {
+    if (!this.canApprove()) {
       return;
     }
     this.message.set(null);
-    this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId: tierId, creditLimit: customer.creditLimit }), () => this.done(this.t.approved));
-  }
-
-  /** The tier a reactivated customer keeps, or the default tier when they have none; null until it is known. */
-  protected approvalTierId(customer: ClientSummary): string | null {
-    return customer.pricingTierId ?? this.tiers.data().find((tier) => tier.isDefault)?.id ?? null;
+    this.saveAction.run(this.admin.approveClient(customer.id, { pricingTierId: this.approveTierId() }), () => this.done(this.t.approved));
   }
 
   private done(message: string): void {
     this.message.set(message);
     this.editingId.set(null);
     this.confirmingSuspendId.set(null);
+    this.approvingId.set(null);
     this.customers.load();
   }
 }
