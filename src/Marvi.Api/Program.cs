@@ -4,6 +4,7 @@ using Marvi.Api.Features.Catalog;
 using Marvi.Api.Features.Coverage;
 using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Quotes;
+using Marvi.Api.Features.Reviews;
 using Marvi.Api.Http;
 using Marvi.Infrastructure.Data;
 using Marvi.Infrastructure.DependencyInjection;
@@ -33,6 +34,7 @@ builder.Services.AddCatalogFeature();
 builder.Services.AddCoverageFeature();
 builder.Services.AddQuotesFeature();
 builder.Services.AddAuditingFeature();
+builder.Services.AddReviewsFeature();
 
 builder.Services.AddCors(options =>
 {

@@ -35,6 +35,10 @@ services:
       RateLimiting__Coverage__PermitLimit: "100000"
       # The nginx proxy in front of the API forwards the real client address; trust it (the API is only meant to be reached through it).
       ForwardedHeaders__Enabled: "true"
+      # Google reviews on the home page (MRV-2.5); both empty hides the section.
+      Reviews__Google__ApiKey: ${GOOGLE_PLACES_API_KEY:-}
+      Reviews__Google__PlaceId: ${GOOGLE_PLACE_ID:-}
+      Reviews__Google__BaseUrl: ${GOOGLE_PLACES_BASE_URL:-}
     ports:
       - "8080:8080"
     depends_on:
