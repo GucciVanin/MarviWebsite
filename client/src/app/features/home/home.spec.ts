@@ -38,6 +38,8 @@ describe('Home (landing page)', () => {
       stats === 'down' ? statsRequest.flush('x', { status: 500, statusText: 'Server Error' }) : statsRequest.flush(stats);
       const categoriesRequest = http.expectOne('/api/categories');
       categories === 'down' ? categoriesRequest.flush('x', { status: 500, statusText: 'Server Error' }) : categoriesRequest.flush(categories);
+      // The Google reviews section asks for its own data; nothing to show (204) is the default here, see google-reviews.spec.ts.
+      http.expectOne('/api/public/reviews').flush(null);
       await settle();
     };
     return { fixture, http, root, settle, withApi };

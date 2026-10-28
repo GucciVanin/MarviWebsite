@@ -1,0 +1,154 @@
+// "Avaliações" section (MRV-2.5): the rating on the left, a snap-scrolling row of review cards on the right.
+// Mobile-first; breakpoints follow home.scss (640 / 1024).
+:host { display: block; }
+
+.reviews {
+  padding-block: var(--section-padding);
+  background: var(--color-paper);
+  scroll-margin-top: 5.5rem;
+}
+
+.reviews__layout {
+  display: grid;
+  gap: var(--space-4);
+  align-items: center;
+
+  @media (min-width: 1024px) { grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr); gap: var(--space-5); }
+}
+
+.reviews__title {
+  margin: 0 0 var(--space-2);
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 800;
+  color: var(--color-navy-900);
+}
+
+.reviews__score {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.reviews__number {
+  font-size: 3.2rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--color-navy-900);
+}
+
+.reviews__count { margin: var(--space-1) 0 var(--space-3); color: var(--color-text-muted); font-size: 0.95rem; }
+
+.stars {
+  display: inline-flex;
+  gap: 2px;
+
+  svg { fill: var(--color-gold-500); }
+  .stars__off { fill: var(--color-border); }
+}
+
+// ---- carousel ----
+.reviews__carousel { min-width: 0; }
+
+.reviews__track {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0.25rem 0.25rem var(--space-2);
+  margin: 0;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+
+  &:focus-visible { outline: 3px solid var(--color-blue-600); outline-offset: 2px; border-radius: var(--radius-card); }
+}
+
+.review {
+  flex: 0 0 min(85%, 20rem);
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-top: 4px solid var(--color-gold-500);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+
+  @media (min-width: 640px) { flex-basis: 20rem; }
+}
+
+.review__head { display: flex; align-items: center; gap: var(--space-2); }
+
+.review__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  font-weight: 800;
+  color: var(--color-text-inverse);
+  background: var(--color-navy-900);
+}
+
+.review__who { display: flex; flex-direction: column; min-width: 0; }
+
+.review__name {
+  font-weight: 700;
+  color: var(--color-navy-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.review__name:hover { text-decoration: underline; }
+.review__time { font-size: 0.8rem; color: var(--color-text-muted); }
+
+.review__text {
+  margin: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+
+  &--clamped {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    overflow: hidden;
+  }
+}
+
+.review__more {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-blue-600);
+  background: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.reviews__nav { display: flex; gap: var(--space-1); justify-content: flex-end; margin-top: var(--space-1); }
+
+.reviews__arrow {
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-navy-900);
+  background: var(--color-surface);
+  cursor: pointer;
+
+  &:hover { border-color: var(--color-gold-600); background: var(--color-gold-500); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reviews__track { scroll-behavior: auto; }
+}

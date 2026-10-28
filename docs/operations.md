@@ -67,3 +67,23 @@ window, so do it at a quiet hour. After a leak, also rotate the admin password a
 Everything that matters is in PostgreSQL (the `marvi-db-data` volume in compose): accounts, catalog, stock, quotes, orders and the
 audit trail. Back up the database (`pg_dump` nightly, plus a copy off the machine) and test a restore. Secrets live in your secret
 store, not in the repository or the database.
+
+## 6. Google reviews on the home page (MRV-2.5)
+
+The "Avaliações" section shows the business's Google rating and the reviews the Places API (New) returns. It stays **hidden**
+until both settings exist, so an unconfigured site is simply without the section.
+
+| What | Setting (environment variable) |
+|---|---|
+| Places API (New) key | `Reviews:Google:ApiKey` (`Reviews__Google__ApiKey`; compose reads `GOOGLE_PLACES_API_KEY` from `deploy/.env`) |
+| The business's Place ID | `Reviews:Google:PlaceId` (`GOOGLE_PLACE_ID`) |
+| How long an answer is kept | `Reviews:CacheMinutes` (default 60; a failure is remembered 5 minutes) |
+
+Set up in Google Cloud: enable **Places API (New)**, create an API key, **restrict it to that API** (and, if your host has a fixed
+address, to that address). The key stays on the server: the browser only ever talks to `/api/public/reviews`, and visitors never
+reach Google, so cost does not grow with traffic (one request per cache period per API instance). Find the Place ID with Google's
+Place ID Finder.
+
+What to expect: Google decides which reviews it returns (at most five, "most relevant") and the section shows them as they come,
+a low rating included; the total and the average cover all reviews. Reviews can change on Google at any time. `Reviews:Google:BaseUrl` exists only for tests and local fakes; Production refuses to start with it set, because the key would be sent there. A refresh that fails (5 s timeout, quota, outage) keeps showing the last good answer; a site that never had one hides the section.
+A key that is wrong or blocked therefore hides it from the start (the API logs a warning with the status, never the key).

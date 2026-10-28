@@ -171,6 +171,8 @@ use `AuditLogger`; all features share `AppDbContext`.
 chosen by `Geocoding:Provider` (`Google`, otherwise Azure Maps).
 Geocoding returns a `GeocodeOutcome` (MRV-4.8): `Found`, `NotFound` (the provider does not know the address) or `Unavailable` (no or refused key, quota, outage, unreadable answer, logged as a warning, never with the key). The coverage check still answers visitors "not covered" for both non-found outcomes; a distinct message is an owner decision. Adapters share `HttpGeocodingProvider` and only supply the key setting, the URL and the answer parsing; they are tested with a stubbed `HttpMessageHandler` (no keys, no network). Google can answer HTTP 200 with a `status` such as `REQUEST_DENIED`, which is the provider failing, not an unknown address.
 
+Reviews (MRV-2.5): `Features/Reviews` serves `GET /api/public/reviews` from `ReviewsService`, which wraps `IPlaceReviewsProvider` (`Infrastructure/Reviews/GooglePlacesReviewsProvider`, Places API (New), key in a header) with an in-memory cache (60 min, failures 5 min) and 204 when there is nothing to show. The home page's `app-google-reviews` hides itself on 204 or failure.
+
 ### 4.4 Business services (domain)
 
 | Service | Responsibility |

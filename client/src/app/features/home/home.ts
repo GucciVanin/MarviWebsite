@@ -6,6 +6,7 @@ import { loadable } from '../../core/http/loadable';
 import { PT } from '../../core/i18n/pt-br';
 import type { Category } from '../../shared/models/catalog.model';
 import { CountUp } from '../../shared/ui/count-up/count-up';
+import { GoogleReviewsSection } from './reviews/google-reviews';
 import { PublicStats, PublicStatsService } from './api/public-stats.service';
 import { loadHeroRibbons, whenIdle } from './hero-ribbons.loader';
 
@@ -25,7 +26,7 @@ const MAX_TILES = 6;
  */
 @Component({
   selector: 'app-home',
-  imports: [RouterLink, CountUp],
+  imports: [RouterLink, CountUp, GoogleReviewsSection],
   schemas: [CUSTOM_ELEMENTS_SCHEMA], // <marvi-ribbons> is defined by the lazily loaded React island
   templateUrl: './home.html',
   styleUrl: './home.scss',
