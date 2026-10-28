@@ -28,7 +28,7 @@ export class GoogleReviewsSection implements OnInit {
   /** The reviews to show, or null while loading, on failure and when there is nothing to show. */
   protected readonly reviews = computed(() => {
     const data = this.source.loaded() ? this.source.data() : null;
-    return data && data.count > 0 ? data : null;
+    return data && data.count > 0 && data.reviews.length > 0 ? data : null;
   });
   protected readonly ratingText = computed(() => (this.reviews()?.rating ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
   protected readonly filledStars = computed(() => Math.round(this.reviews()?.rating ?? 0));
@@ -61,6 +61,7 @@ export class GoogleReviewsSection implements OnInit {
 
   protected scroll(direction: 1 | -1): void {
     const element = this.track()?.nativeElement;
-    element?.scrollBy({ left: direction * element.clientWidth * 0.8, behavior: 'smooth' });
+    const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element?.scrollBy({ left: direction * element.clientWidth * 0.8, behavior: reduceMotion ? 'auto' : 'smooth' });
   }
 }

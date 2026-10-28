@@ -79,6 +79,12 @@ public static class ProductionConfigurationGuard
             problems.Add($"The database password is an example value or shorter than {MinPasswordLength} characters.");
         }
 
+        // A test/fake endpoint for the Google reviews would receive the API key.
+        if (!string.IsNullOrWhiteSpace(configuration["Reviews:Google:BaseUrl"]))
+        {
+            problems.Add("Reviews:Google:BaseUrl is for tests and local fakes only; remove it (the Google API key would be sent there).");
+        }
+
         var origin = configuration["Cors:AllowedOrigin"];
         if (!string.IsNullOrWhiteSpace(origin) && !origin.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {

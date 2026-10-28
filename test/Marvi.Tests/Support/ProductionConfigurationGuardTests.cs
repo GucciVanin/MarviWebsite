@@ -109,6 +109,10 @@ public class ProductionConfigurationGuardTests
     }
 
     [Fact]
+    public void AReviewsTestEndpoint_IsAProblem_BecauseTheGoogleKeyWouldBeSentThere() =>
+        Assert.Single(ProductionConfigurationGuard.Problems(Config(With("Reviews:Google:BaseUrl", "http://example.test"))), p => p.Contains("Reviews:Google:BaseUrl"));
+
+    [Fact]
     public void EveryProblem_IsReported_AtOnce_AndNeverRepeatsASecret()
     {
         var bad = Config(

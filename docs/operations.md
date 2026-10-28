@@ -85,5 +85,5 @@ reach Google, so cost does not grow with traffic (one request per cache period p
 Place ID Finder.
 
 What to expect: Google decides which reviews it returns (at most five, "most relevant") and the section shows them as they come,
-a low rating included; the total and the average cover all reviews. Reviews can change on Google at any time. A key that is wrong,
-over quota or blocked, or an outage, hides the section (the API logs a warning with the status, never the key).
+a low rating included; the total and the average cover all reviews. Reviews can change on Google at any time. `Reviews:Google:BaseUrl` exists only for tests and local fakes; Production refuses to start with it set, because the key would be sent there. A refresh that fails (5 s timeout, quota, outage) keeps showing the last good answer; a site that never had one hides the section.
+A key that is wrong or blocked therefore hides it from the start (the API logs a warning with the status, never the key).

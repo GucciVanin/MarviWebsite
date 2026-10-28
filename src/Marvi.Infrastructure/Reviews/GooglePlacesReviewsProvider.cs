@@ -13,6 +13,7 @@ namespace Marvi.Infrastructure.Reviews;
 public sealed class GooglePlacesReviewsProvider : IPlaceReviewsProvider
 {
     private const string DefaultBaseUrl = "https://places.googleapis.com";
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
     private const string FieldMask = "rating,userRatingCount,googleMapsUri,reviews";
 
     private readonly HttpClient _httpClient;
@@ -42,6 +43,11 @@ public sealed class GooglePlacesReviewsProvider : IPlaceReviewsProvider
         request.Headers.Add("X-Goog-Api-Key", apiKey);
         request.Headers.Add("X-Goog-FieldMask", FieldMask);
 
+        // Google hanging must not hold the public endpoint open for the HttpClient default of 100 s.
+        var caller = cancellationToken;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(caller);
+        timeout.CancelAfter(RequestTimeout);
+        cancellationToken = timeout.Token;
         try
         {
             using var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -54,7 +60,7 @@ public sealed class GooglePlacesReviewsProvider : IPlaceReviewsProvider
             using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
             return Read(body.RootElement);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is not OperationCanceledException || !caller.IsCancellationRequested)
         {
             _logger.LogWarning("Google Places reviews request failed: {Error}", ex.GetType().Name);
             return null;

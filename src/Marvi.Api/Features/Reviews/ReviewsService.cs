@@ -19,6 +19,7 @@ public sealed class ReviewsService
     private readonly IMemoryCache _cache;
     private readonly TimeSpan _successTtl;
     private readonly SemaphoreSlim _refresh = new(1, 1);
+    private ReviewsDto? _lastGood;
 
     public ReviewsService(IPlaceReviewsProvider provider, IMemoryCache cache, IConfiguration configuration)
     {
@@ -44,9 +45,18 @@ public sealed class ReviewsService
             }
 
             var fetched = await _provider.GetAsync(cancellationToken);
-            var dto = fetched is null || fetched.Count <= 0 ? null : ToDto(fetched);
-            _cache.Set(CacheKey, dto, dto is null ? FailureTtl : _successTtl);
-            return dto;
+            // Nothing to show when Google has no ratings or returned no quotable review (a lone score would sit above an empty row).
+            var dto = fetched is null || fetched.Count <= 0 || fetched.Reviews.Count == 0 ? null : ToDto(fetched);
+            if (dto is not null)
+            {
+                _lastGood = dto;
+                _cache.Set(CacheKey, dto, _successTtl);
+                return dto;
+            }
+
+            // A blip after good data keeps showing the last good answer; only a site that never had one hides the section.
+            _cache.Set(CacheKey, _lastGood, FailureTtl);
+            return _lastGood;
         }
         finally
         {

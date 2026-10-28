@@ -54,6 +54,13 @@ public class GoogleReviewsTests
         }
     }
 
+    private sealed class SequenceProvider(params PlaceReviews?[] results) : IPlaceReviewsProvider
+    {
+        public int Calls { get; private set; }
+
+        public Task<PlaceReviews?> GetAsync(CancellationToken cancellationToken) => Task.FromResult(results[Calls++]);
+    }
+
     private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
@@ -159,6 +166,26 @@ public class GoogleReviewsTests
         Assert.Null(dto.ProfileUrl);
         Assert.Null(dto.Reviews.Single().AuthorUrl);
     }
+
+    [Fact]
+    public async Task TheService_KeepsServingTheLastGoodAnswer_WhenARefreshFails()
+    {
+        var provider = new SequenceProvider(Source(), null);
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = new ReviewsService(provider, cache, new ConfigurationBuilder().Build());
+
+        Assert.NotNull(await service.GetAsync(CancellationToken.None));
+        cache.Remove("google-reviews"); // the 60 minutes are up
+
+        var afterBlip = await service.GetAsync(CancellationToken.None);
+
+        Assert.Equal(2, provider.Calls);
+        Assert.NotNull(afterBlip);
+    }
+
+    [Fact]
+    public async Task TheService_HasNothingToShow_WhenNoReviewHasText() =>
+        Assert.Null(await Service(new CountingProvider(new PlaceReviews(4.8, 25, null, []))).GetAsync(CancellationToken.None));
 
     [Fact]
     public async Task TheService_HasNothingToShow_ForAPlaceWithoutRatings() =>
