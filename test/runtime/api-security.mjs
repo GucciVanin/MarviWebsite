@@ -525,6 +525,11 @@ ok('stats and categories are cacheable for a short time (Cache-Control public, m
   && /max-age=60/.test((await call('GET', '/api/categories')).headers.get('cache-control') ?? ''));
 ok('stats contain no price or customer data', !/price|email|company|client/i.test(stats.text));
 
+section('GOOGLE REVIEWS: public, and simply absent (204) while no Google key is configured');
+const googleReviews = await call('GET', '/api/public/reviews');
+ok('the reviews endpoint is public and answers 204 without a Google key (the section hides)', googleReviews.status === 204, String(googleReviews.status));
+ok('it leaks no configuration or error text', googleReviews.text === '', googleReviews.text);
+
 section('STOCK NAMES: the employee stock list names the warehouse, not only its id');
 const stockList = (await call('GET', '/api/employee/inventory', { token: emp })).json;
 ok('every record carries its warehouse\'s name', stockList.length > 0 && stockList.every((r) => r.warehouseName === (r.warehouseId === wh1.id ? wh1.name : r.warehouseId === wh2.id ? wh2.name : null)));
