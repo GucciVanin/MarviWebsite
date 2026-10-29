@@ -161,7 +161,7 @@ use `AuditLogger`; all features share `AppDbContext`.
    `AddAuditingFeature` (`AuditLogger`, `IHttpContextAccessor`). Controllers are discovered by
    convention, so they need no registration.
 3. CORS policy `SpaClient` (origin `Cors:AllowedOrigin`, default `http://localhost:4200`).
-4. Pipeline: exception handler → forwarded headers (only when `ForwardedHeaders:Enabled`) → HTTPS redirection → CORS → rate limiter → authentication → authorization → controllers. Before everything, `ProductionConfigurationGuard.EnsureSafe` (MRV-3.3a) refuses to start in Production on example/weak secrets unless `Deployment:AllowExampleSecrets=true` (set only in the dev/runtime compose file). `Configuration/RateLimiting.cs` (MRV-3.3b) defines the `auth` (register/login, 10 per 60 s) and `coverage` (public check, 30 per 60 s) per-client fixed-window policies, configurable under `RateLimiting:*`; 429 with `Retry-After`. Operations guidance lives in `docs/operations.md`.
+4. Pipeline: exception handler → forwarded headers (only when `ForwardedHeaders:Enabled`) → HTTPS redirection → CORS → rate limiter → authentication → authorization → controllers. Before everything, `ProductionConfigurationGuard.EnsureSafe` (MRV-3.3a) refuses to start in Production on example/weak secrets unless `Deployment:AllowExampleSecrets=true` (set only in the dev/runtime compose file). `Configuration/RateLimiting.cs` (MRV-3.3b) defines the `auth` (register/login, 10 per 60 s), `coverage` (public check, 30 per 60 s) and `contact` (public contact form, MRV-2.8, 5 per 60 s) per-client fixed-window policies, configurable under `RateLimiting:*`; 429 with `Retry-After`. Operations guidance lives in `docs/operations.md`.
 5. Outside the `Testing` environment on startup: apply migrations, `IdentityModule.SeedRolesAsync` (creates `Client`,
    `Employee`, `Admin`), `IdentityModule.SeedAdminAsync` (first admin from config), and
    `DefaultPricingTier.GetOrCreateAsync` (ensures one default tier, "Standard"). `DefaultPricingTier` (Api/Features/Catalog, MRV-4.9) is the single owner of the default-tier rule: find (alphabetical fallback for legacy data), get-or-create and promote, `ShouldBeDefaultAsync` (the first tier ever is the default) and `MakeDefaultAsync` (un-flag and flush the old default, then flag the new one) and `ApplyRequestedDefaultAsync` (the update rules: the only default cannot be unset, asking for the default switches it); startup, registration, the catalog and the pricing-tier admin controller all use it. Tests run the same seeding via `MarviApiFactory`.
@@ -170,6 +170,8 @@ use `AuditLogger`; all features share `AppDbContext`.
 (`ApplicationUser`, `IdentityRole<Guid>`), a singleton `HttpClient` (a plain one, not from the HTTP client factory, so no request URL, which carries the geocoding key, is ever logged by HttpClient itself), and the `IGeocodingProvider`
 chosen by `Geocoding:Provider` (`Google`, otherwise Azure Maps).
 Geocoding returns a `GeocodeOutcome` (MRV-4.8): `Found`, `NotFound` (the provider does not know the address) or `Unavailable` (no or refused key, quota, outage, unreadable answer, logged as a warning, never with the key). The coverage check still answers visitors "not covered" for both non-found outcomes; a distinct message is an owner decision. Adapters share `HttpGeocodingProvider` and only supply the key setting, the URL and the answer parsing; they are tested with a stubbed `HttpMessageHandler` (no keys, no network). Google can answer HTTP 200 with a `status` such as `REQUEST_DENIED`, which is the provider failing, not an unknown address.
+
+Contact (MRV-2.8a): `Features/Contact` holds the site's contact form. `PublicContactController` (`POST /api/public/contact`, anonymous, `[EnableRateLimiting("contact")]`) validates with `ContactRules` (trim, required, e-mail format, lengths; field-only problem messages, the visitor's text is never echoed or logged), drops a request whose honeypot field `website` is filled (204, nothing stored) and stores a `ContactMessage` (Domain `Contact`; table `contact_messages`, migration `ContactMessages`). `AdminContactMessagesController` (`/api/admin/contact-messages`, Admin) lists newest first with the shared `Paging`/`PagedResult` and an optional `handled` filter, and `POST .../{id}/handle` sets `HandledAt` through `AuditLogger.TrySaveAsync`; `HandledAt` is a concurrency token so a double-handle race is a 409. The admin inbox (`AdminPendingActionsController`) shows the unhandled ones as its `contactMessages` group. The feature has no services of its own (`AddContactFeature` is an empty registration kept for the one-line-per-feature convention).
 
 Reviews (MRV-2.5): `Features/Reviews` serves `GET /api/public/reviews` from `ReviewsService`, which wraps `IPlaceReviewsProvider` (`Infrastructure/Reviews/GooglePlacesReviewsProvider`, Places API (New), key in a header) with an in-memory cache (60 min, failures 5 min) and 204 when there is nothing to show. The home page's `app-google-reviews` hides itself on 204 or failure.
 
@@ -183,7 +185,7 @@ Reviews (MRV-2.5): `Features/Reviews` serves `GET /api/public/reviews` from `Rev
 | `QuoteWorkflowService` | `CreateQuote`, `PriceQuote` (Submitted → Priced; every line needs a non-negative final price; employee id nullable for admins), `AcceptQuote` (Priced → Accepted, returns the new `Order` built by `OrderFactory`; a line without a final price throws `QuoteNotFullyPricedException` -> 409), `RejectQuote` (Priced -> Rejected, MRV-1.4: the customer turns a priced quote down and it can no longer be accepted); other invalid transitions throw `InvalidOperationException` |
 | `OrderFactory.Place(customer, lines, ...)` (MRV-4.3) | The one place an `Order` is built from priced lines (ids, line items, `PlacedAt` = now in UTC (MRV-1.2b), `TotalAmount` = sum of unit price x qty); used by `AcceptQuote` and employee orders. The API shape of an order is built in one place, `OrderDto.From` |
 | `ProductCsv` / `ProductImportPlanner` / `ProductRules` (MRV-2.1, `Domain/Catalog`) | The CSV product import as pure rules: `ProductCsv.Read` parses the file (comma or semicolon, quotes, BOM); `ProductImportPlanner.Plan(csv, ImportCatalog)` checks every header and row against the schema and the existing category/tier names and returns either every error with its line or the rows ready to store (a null value = blank cell = leave unchanged). `AdminProductImportController` (`POST /api/admin/products/import`) loads the names, applies a valid plan in one save with one `Import` audit entry, and supports `dryRun`; `ProductRules` holds the SKU/name limits it shares with the admin product form |
-| `AdminPendingActionsController` (MRV-6.2, `Api/Features/Admin`) | The admin inbox: `GET /api/admin/pending-actions` reads four groups straight from `AppDbContext` (Pending customers, Submitted quotes, stock records at or below their reorder point, active products with no price in the default tier), each with a total count and at most 50 items, plus a grand total. The reorder rule is defined once in Domain, as an expression (`StockAvailability.NeedsReorderFilter`) that `NeedsReorder` evaluates in memory and the controller hands to the database; a product is unpriced when it has no default-tier price from quantity 1, and unstocked when it has no stock record at all |
+| `AdminPendingActionsController` (MRV-6.2, `Api/Features/Admin`) | The admin inbox: `GET /api/admin/pending-actions` reads its groups straight from `AppDbContext` (Pending customers, Submitted quotes, stock records at or below their reorder point, active products with no price in the default tier, active products with no stock record and, from MRV-2.8a, unhandled contact messages, newest first), each with a total count and at most 50 items, plus a grand total. The reorder rule is defined once in Domain, as an expression (`StockAvailability.NeedsReorderFilter`) that `NeedsReorder` evaluates in memory and the controller hands to the database; a product is unpriced when it has no default-tier price from quantity 1, and unstocked when it has no stock record at all |
 | `StockAvailability` (MRV-4.10) | The one definition of stock availability: a product's available units are `QtyOnHand - QtyReserved` summed over its inventory records (one per warehouse), in stock when above zero. `Available(records)`, `InStock(records)`, `AvailableByProduct(records)`. The public catalog list loads only the stock records of the products it returns and the detail loads one product's; neither computes the sum itself. Reserving stock on orders is not built yet (Release 2), so `QtyReserved` is only ever set by hand today |
 
 ### 4.5 State machines
@@ -320,6 +322,15 @@ erDiagram
         guid PlacedByEmployeeId
         decimal TotalAmount
     }
+    ContactMessage {
+        string Name
+        string Email
+        string Phone
+        string Company
+        string Message
+        datetime CreatedAt
+        datetime HandledAt
+    }
     AuditLogEntry {
         guid ActorUserId
         string Action
@@ -333,7 +344,7 @@ erDiagram
 `Product.CategoryId` is a real foreign key to `Category` (restrict delete; nullable). Not drawn as
 relationships because they are plain id lists: `Deal.ProductIds` and `Deal.CategoryIds` (no foreign key, so
 `AdminCategoriesController` checks deals itself before deleting). `ClientAccount.ShippingAddresses`
-is a string list column. `AuditLogEntry.ActorUserId` is not a foreign key.
+is a string list column. `AuditLogEntry.ActorUserId` is not a foreign key. `ContactMessage` (MRV-2.8) stands alone: no relationships; `HandledAt` is a concurrency token.
 
 ## 6. Authentication and authorization
 

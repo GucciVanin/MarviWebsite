@@ -37,8 +37,9 @@ public class AdminPendingActionsController : ControllerBase
         var lowStock = await LowStockAsync();
         var unpriced = await UnpricedProductsAsync();
         var unstocked = await UnstockedProductsAsync();
+        var contactMessages = await ContactMessagesAsync();
 
-        return Ok(new PendingActionsDto(customers.Count + quotes.Count + lowStock.Count + unpriced.Count + unstocked.Count, customers, quotes, lowStock, unpriced, unstocked));
+        return Ok(new PendingActionsDto(customers.Count + quotes.Count + lowStock.Count + unpriced.Count + unstocked.Count + contactMessages.Count, customers, quotes, lowStock, unpriced, unstocked, contactMessages));
     }
 
     private async Task<PendingGroup<PendingCustomerDto>> CustomersAsync()
@@ -61,6 +62,18 @@ public class AdminPendingActionsController : ControllerBase
             .Select(q => new PendingQuoteDto(q.Id, q.ClientAccountId, q.ClientAccount!.CompanyName, q.CreatedAt, q.LineItems.Count))
             .ToListAsync();
         return new PendingGroup<PendingQuoteDto>(await query.CountAsync(), items);
+    }
+
+    private async Task<PendingGroup<PendingContactMessageDto>> ContactMessagesAsync()
+    {
+        // Unlike the other groups, newest first: a visitor message is read as it arrives (MRV-2.8).
+        var query = _dbContext.ContactMessages.Where(m => m.HandledAt == null);
+        var items = await query
+            .OrderByDescending(m => m.CreatedAt).ThenByDescending(m => m.Id)
+            .Take(MaxItemsPerGroup)
+            .Select(m => new PendingContactMessageDto(m.Id, m.Name, m.Email, m.Phone, m.Company, m.Message, m.CreatedAt))
+            .ToListAsync();
+        return new PendingGroup<PendingContactMessageDto>(await query.CountAsync(), items);
     }
 
     private async Task<PendingGroup<LowStockDto>> LowStockAsync()

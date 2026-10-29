@@ -1,6 +1,7 @@
 using Marvi.Api.Configuration;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Catalog;
+using Marvi.Api.Features.Contact;
 using Marvi.Api.Features.Coverage;
 using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Quotes;
@@ -35,6 +36,7 @@ builder.Services.AddCoverageFeature();
 builder.Services.AddQuotesFeature();
 builder.Services.AddAuditingFeature();
 builder.Services.AddReviewsFeature();
+builder.Services.AddContactFeature();
 
 builder.Services.AddCors(options =>
 {

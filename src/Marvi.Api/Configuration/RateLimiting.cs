@@ -9,16 +9,18 @@ namespace Marvi.Api.Configuration;
 /// MRV-3.3b: per-client request limits on the endpoints anyone can hit without an account: sign-in and registration
 /// (password guessing, account spam) and the public coverage check (each call may reach the paid geocoding provider).
 /// Fixed windows per client address; going over answers 429 with <c>Retry-After</c>. The limits are configuration
-/// (<c>RateLimiting:Auth</c> and <c>RateLimiting:Coverage</c>, each with <c>PermitLimit</c> and <c>WindowSeconds</c>), so the
+/// (<c>RateLimiting:Auth</c>, <c>RateLimiting:Coverage</c> and, from MRV-2.8, <c>RateLimiting:Contact</c> for the public contact form, each with <c>PermitLimit</c> and <c>WindowSeconds</c>), so the
 /// development stack and the test suites can run generously while production keeps the tight defaults.
 /// </summary>
 public static class RateLimiting
 {
     public const string AuthPolicy = "auth";
     public const string CoveragePolicy = "coverage";
+    public const string ContactPolicy = "contact";
 
     private const int DefaultAuthPermits = 10;
     private const int DefaultCoveragePermits = 30;
+    private const int DefaultContactPermits = 5;
     private const int DefaultWindowSeconds = 60;
 
     public static IServiceCollection AddMarviRateLimiting(this IServiceCollection services, IConfiguration configuration)
@@ -39,6 +41,7 @@ public static class RateLimiting
 
             AddPolicy(options, AuthPolicy, configuration.GetSection("RateLimiting:Auth"), DefaultAuthPermits);
             AddPolicy(options, CoveragePolicy, configuration.GetSection("RateLimiting:Coverage"), DefaultCoveragePermits);
+            AddPolicy(options, ContactPolicy, configuration.GetSection("RateLimiting:Contact"), DefaultContactPermits);
         });
 
         return services;
