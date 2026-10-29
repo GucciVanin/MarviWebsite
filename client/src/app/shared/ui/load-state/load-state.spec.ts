@@ -81,4 +81,17 @@ describe('LoadState', () => {
       expect(root.querySelector('app-icon')).not.toBeNull();
     });
   });
+
+  describe('product skeleton (MRV-7.4)', () => {
+    it('has the same two parts as a product card, an art block and a body, all hidden from assistive technology', () => {
+      const { root } = setup(fake({ loading: true }), 'cards');
+      const card = root.querySelector('.skeleton-card')!;
+
+      expect(card.classList).toContain('skeleton-card--product');
+      expect(card.querySelector('.skeleton-card__art')).not.toBeNull();
+      expect(card.querySelector('.skeleton-card__body .skeleton')).not.toBeNull();
+      expect(card.getAttribute('aria-hidden')).toBe('true');
+      expect(root.querySelector('.product-grid')).not.toBeNull();
+    });
+  });
 });

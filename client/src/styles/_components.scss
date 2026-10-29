@@ -14,7 +14,14 @@
   font-weight: 700;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--color-gold-500);
+  // Dark gold on light surfaces (AA); --inverse is the bright gold for navy surfaces.
+  color: var(--color-gold-700);
+
+  &--inverse { color: var(--color-gold-500); }
+  &--center { display: flex; align-items: center; justify-content: center; gap: 0.9rem; text-align: center; }
+  // Short gold rules either side, as in the landing mockup.
+  &--center::before,
+  &--center::after { content: ''; flex: 0 1 3rem; height: 2px; background: currentColor; opacity: 0.55; }
 }
 
 .btn {
@@ -78,6 +85,9 @@
     border-color: rgba(255, 255, 255, 0.55);
     &:hover { border-color: var(--color-gold-500); color: var(--color-gold-500); background: rgba(255, 255, 255, 0.08); }
   }
+
+  &--lg { min-height: 3rem; padding: 0.8rem 1.7rem; font-size: var(--text-lg); }
+  &--block { display: flex; justify-content: center; width: 100%; }
 
   &--outline {
     color: var(--color-navy-900);
@@ -249,10 +259,55 @@
   }
 }
 
-// Product cards (public catalog).
-.product-grid {
+// ---- public catalog ----
+.filterbar {
   display: grid;
   gap: var(--space-2);
+  margin-bottom: var(--space-3);
+
+  .toolbar { margin-bottom: 0; }
+  .toolbar .field { flex: 1 1 14rem; }
+}
+
+// Category chips: toggle buttons with a clear selected state (aria-pressed).
+.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 0; list-style: none; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.95rem;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-navy-900);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-out);
+
+  &:hover { background: var(--color-paper); border-color: var(--color-navy-700); }
+  &:active { transform: scale(0.97); transition-duration: var(--motion-press); }
+  &[aria-pressed='true'] { color: var(--color-text-inverse); background: var(--color-navy-900); border-color: var(--color-navy-900); }
+  &[aria-pressed='true']:hover { background: var(--color-navy-700); }
+
+  // A static tag (not a control), e.g. the product code.
+  &--tag { min-height: 0; padding: 0.1rem 0.6rem; font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted); background: var(--color-paper); cursor: default; }
+  &--tag:hover { background: var(--color-paper); border-color: var(--color-border); }
+}
+
+.results-count { margin: 0 0 var(--space-2); font-size: var(--text-sm); font-weight: 600; color: var(--color-text-muted); }
+
+// Product cards (public catalog). Art on top (inline SVG on a brand gradient), details below.
+.product-grid {
+  display: grid;
+  gap: var(--space-3);
   grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
   padding: 0;
   list-style: none;
@@ -263,12 +318,31 @@
 
 .product {
   display: grid;
-  gap: 0.35rem;
-  align-content: start;
+  grid-template-rows: auto 1fr;
+  min-height: var(--product-card-min);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
 
+  &__art {
+    display: grid;
+    place-items: center;
+    height: 7rem;
+    background: var(--art-bg, var(--gradient-brand));
+    svg { height: 5.5rem; width: auto; filter: drop-shadow(0 6px 8px rgba(10, 18, 48, 0.35)); }
+  }
+  &--0 { --art-bg: linear-gradient(150deg, #c98a10, #5a3c06); }
+  &--1 { --art-bg: linear-gradient(150deg, #d8202f, #5c0f17); }
+  &--2 { --art-bg: linear-gradient(150deg, #3a82d6, #123a73); }
+  &--3 { --art-bg: linear-gradient(150deg, #1c8a54, #0c3b24); }
+  &--4 { --art-bg: linear-gradient(150deg, #5d6f1c, #2a3407); }
+  &--5 { --art-bg: linear-gradient(150deg, #7a2a4a, #2c0f1d); }
+
+  &__body { display: grid; gap: 0.4rem; align-content: start; padding: var(--space-2); }
+  &__tags { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
   h3 { margin: 0; font-size: 1.05rem; }
   p { margin: 0; }
-  &__price { font-size: 1.25rem; font-weight: 800; }
+  &__price { font-size: 1.25rem; font-weight: 800; color: var(--color-navy-900); }
 }
 
 // A spinning icon (the busy / loading mark). It only rotates when motion is allowed; otherwise it stays still.
@@ -288,4 +362,53 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+// Touch targets: primary controls are at least 44px tall on phones and tablets. Scoped to the public site's own hosts
+// (the header and the public pages), so the portals' dense tables, toolbars and .btn--small stay as they were.
+@media (max-width: 1023px) {
+  :is(app-header, app-home, app-storefront, app-contact, app-privacy, app-login, app-register) {
+    .btn,
+    .btn--small,
+    .chip,
+    input:not([type='checkbox']):not([type='radio']),
+    select { min-height: var(--tap-min); }
+    .chip--tag { min-height: 0; }
+  }
+}
+
+// Page header band for public pages (catalog, contact, privacy): brand gradient, ring shapes and a tricolour edge.
+// The shapes are pseudo-elements, so there is no extra markup to hide from assistive technology.
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding-block: var(--space-5);
+  color: var(--color-text-inverse);
+  background: var(--gradient-hero);
+
+  &::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    top: -9rem;
+    right: -7rem;
+    width: 24rem;
+    height: 24rem;
+    border-radius: 50%;
+    border: 2px solid rgba(245, 183, 0, 0.28);
+    box-shadow: 0 0 0 2.5rem rgba(245, 183, 0, 0.05), 0 0 0 5rem rgba(255, 255, 255, 0.03);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--color-gold-500), var(--color-red-500) 55%, var(--color-blue-600));
+  }
+
+  h1 { margin-bottom: var(--space-1); color: var(--color-text-inverse); }
+  &__lead { max-width: 40rem; margin-bottom: var(--space-3); font-size: var(--text-lg); color: #dfe3f2; }
+  &__cta { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: 0; }
 }

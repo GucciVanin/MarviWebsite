@@ -1,5 +1,6 @@
+:host { display: block; }
 .contact { max-width: 60rem; }
-.contact h1 { font-size: 1.75rem; }
+.page-hero__lead { margin-bottom: 0; }
 .contact__layout { display: grid; gap: var(--space-3); }
 .contact__error { display: inline-flex; align-items: flex-start; gap: 0.35rem; color: #7a111b; }
 .contact__error > app-icon { margin-top: 0.15em; }
@@ -7,6 +8,8 @@
 .contact__icon-top { inset-block: 0.85rem auto; margin-block: 0; }
 .contact__details ul { list-style: none; padding: 0; margin: 0; }
 .contact__details li { display: grid; margin-bottom: var(--space-2); }
+.contact__details h2 { font-size: var(--text-xl); }
+.contact__layout .btn--primary { min-width: 10rem; justify-content: center; }
 .contact__label { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; }
 .contact__placeholder { opacity: 0.7; font-style: italic; }
 // Honeypot: off-screen rather than display:none, so bots that skip hidden fields still fill it.

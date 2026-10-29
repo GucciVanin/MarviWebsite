@@ -1,13 +1,35 @@
+// Login and register: a centred card on a soft brand backdrop, with a gold edge.
+:host { display: block; }
+
+.auth-page {
+  padding-block: var(--space-5) var(--section-padding);
+  background:
+    radial-gradient(40rem 22rem at 85% 0%, rgba(245, 183, 0, 0.14), transparent 70%),
+    radial-gradient(36rem 22rem at 0% 100%, rgba(31, 63, 168, 0.12), transparent 70%),
+    var(--color-paper);
+}
+
 .auth-card {
   max-width: 28rem;
   margin-inline: auto;
+  border-top: 5px solid var(--color-gold-500);
+  box-shadow: var(--shadow-lg);
 }
 
 .auth-title {
-  font-size: 1.75rem;
+  font-size: var(--text-2xl);
+}
+
+.auth-card .btn--primary {
+  width: 100%;
+  justify-content: center;
 }
 
 .auth-switch {
   margin: var(--space-3) 0 0;
   font-size: 0.95rem;
+}
+
+@media (max-width: 480px) {
+  .auth-card { padding: var(--space-3); }
 }

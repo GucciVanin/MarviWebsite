@@ -27,4 +27,17 @@ describe('App', () => {
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement?.id).toBe('content');
   });
+
+  // A jsdom spec cannot measure layout shift; this pins the structure the CLS fix relies on: the footer is a sibling
+  // after <main> (which holds the router outlet) inside the shell, so main's minimum height keeps it below the fold.
+  it('puts the footer after the routed <main> in the shell, so the page area can reserve space above it (CLS)', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const main = root.querySelector('main#content')!;
+
+    expect(main.querySelector('router-outlet')).not.toBeNull();
+    expect(main.nextElementSibling?.tagName.toLowerCase()).toBe('app-footer');
+    expect(root.querySelector('app-footer')!.parentElement).toBe(root);
+  });
 });

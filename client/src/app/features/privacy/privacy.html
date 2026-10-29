@@ -1,6 +1,12 @@
+<header class="page-hero">
+  <div class="container">
+    <h1>{{ t.title }}</h1>
+    <p class="page-hero__lead policy__draft">{{ t.draft }}</p>
+  </div>
+</header>
+
 <div class="container page policy">
-  <h1>{{ t.title }}</h1>
-  <p class="policy__draft">{{ t.draft }}</p>
+  <article class="card policy__body">
 
   <h2>{{ t.controller.heading }}</h2>
   <p>
@@ -56,4 +62,5 @@
 
   <h2>{{ t.updated.heading }}</h2>
   <p>{{ t.updated.text }}</p>
+  </article>
 </div>

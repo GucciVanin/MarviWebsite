@@ -77,9 +77,22 @@ html { scroll-padding-top: var(--scroll-offset); }
   display: grid;
   gap: 0.6rem;
   align-content: start;
-  min-height: 9.5rem; // about the height of a real product card, so the swap does not move the page
+  min-height: 9.5rem;
   padding: var(--space-3);
   background: var(--color-surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+}
+
+// The product-shaped skeleton: an art block and a body, at the real card's minimum height.
+.skeleton-card--product {
+  grid-template-rows: 7rem 1fr;
+  gap: 0;
+  min-height: var(--product-card-min);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+
+  .skeleton-card__art { background: var(--color-border); }
+  .skeleton-card__body { display: grid; gap: 0.6rem; align-content: start; padding: var(--space-2); }
 }

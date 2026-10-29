@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Reveal } from '../../../shared/ui/reveal/reveal';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { GoogleReviews } from '../api/google-reviews.service';
@@ -135,5 +137,15 @@ describe('GoogleReviewsSection (MRV-2.5b)', () => {
 
     expect(root.querySelector('[data-testid="reviews-skeleton"]')).toBeNull();
     expect(root.querySelector('[data-testid="reviews"]')).not.toBeNull();
+  });
+
+  it('keeps #avaliacoes as a plain anchor target: it carries no reveal, so a fragment link lands on it exactly (MRV-7.4)', async () => {
+    const { fixture, root, answer } = render();
+    await answer(reviews());
+
+    const section = root.querySelector<HTMLElement>('section#avaliacoes')!;
+    expect(section).not.toBeNull();
+    expect(fixture.debugElement.queryAll(By.directive(Reveal)).some((d) => d.nativeElement === section)).toBe(false);
+    expect(section.classList.contains('reveal')).toBe(false);
   });
 });

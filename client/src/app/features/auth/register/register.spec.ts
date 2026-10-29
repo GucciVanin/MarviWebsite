@@ -76,4 +76,14 @@ describe('Register icons', () => {
     }
     expect(root.querySelector('button[type="submit"]')?.textContent?.trim()).toBe('Cadastrar');
   });
+
+  it('renders the form in the shared auth card with four labelled fields (MRV-7.4)', () => {
+    const { fixture } = setup();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.auth-page .container > .card.auth-card')).not.toBeNull();
+    expect(element.querySelectorAll('h1').length).toBe(1);
+    expect(element.querySelectorAll('.field label').length).toBe(4);
+    expect(element.querySelector('button[type="submit"]')!.classList).toContain('btn--primary');
+  });
 });

@@ -22,11 +22,14 @@ import { ErrorAlert } from '../error-alert/error-alert';
         <div role="status" class="load-state--cards product-grid" data-testid="skeleton-cards">
           <span class="visually-hidden">{{ t.loading }}</span>
           @for (n of placeholders(); track n) {
-            <div class="skeleton-card" aria-hidden="true">
-              <span class="skeleton skeleton--title"></span>
-              <span class="skeleton skeleton--line skeleton--short"></span>
-              <span class="skeleton skeleton--line"></span>
-              <span class="skeleton skeleton--pill"></span>
+            <div class="skeleton-card skeleton-card--product" aria-hidden="true">
+              <span class="skeleton-card__art"></span>
+              <div class="skeleton-card__body">
+                <span class="skeleton skeleton--title"></span>
+                <span class="skeleton skeleton--line skeleton--short"></span>
+                <span class="skeleton skeleton--line"></span>
+                <span class="skeleton skeleton--pill"></span>
+              </div>
             </div>
           }
         </div>

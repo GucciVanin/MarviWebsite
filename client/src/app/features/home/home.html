@@ -1,5 +1,19 @@
 <section class="hero" aria-labelledby="hero-title">
-  <div class="hero__media" aria-hidden="true"></div>
+  <div class="hero__media" aria-hidden="true">
+    <svg class="hero__shapes" viewBox="0 0 600 600" preserveAspectRatio="xMaxYMid slice" focusable="false" aria-hidden="true">
+      <defs>
+        <pattern id="hero-dots" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.7" fill="#fff" fill-opacity="0.2" /></pattern>
+      </defs>
+      <rect width="600" height="600" fill="url(#hero-dots)" />
+      <circle cx="400" cy="270" r="230" fill="none" stroke="#f5b700" stroke-opacity="0.3" stroke-width="2" />
+      <circle cx="400" cy="270" r="165" fill="#f5b700" fill-opacity="0.07" />
+      <circle cx="400" cy="270" r="100" fill="none" stroke="#fff" stroke-opacity="0.2" stroke-width="2" />
+      <circle cx="400" cy="270" r="44" fill="#d8202f" fill-opacity="0.85" />
+      <path d="M356 270h88M400 226v88" stroke="#fff" stroke-opacity="0.35" stroke-width="2" />
+      <circle cx="565" cy="95" r="12" fill="#f5b700" />
+      <circle cx="205" cy="470" r="8" fill="#1f3fa8" />
+    </svg>
+  </div>
   <!-- The static ribbons are the content of <marvi-ribbons>; the React island (MRV-2.3d) replaces them with the animated version once loaded. -->
   <marvi-ribbons class="hero__ribbons" aria-hidden="true">
     <svg viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -9,19 +23,19 @@
     </svg>
   </marvi-ribbons>
   <div class="container hero__content">
-    <p class="eyebrow">{{ t.eyebrow }}</p>
+    <p class="eyebrow eyebrow--inverse">{{ t.eyebrow }}</p>
     <h1 id="hero-title">
       {{ t.headlineLine1 }}<br />
       <span class="hero__accent">{{ t.headlineLine2 }}</span>
     </h1>
     <p class="hero__subtitle">{{ t.subtitle }}</p>
     <div class="hero__actions">
-      <a class="btn btn--ghost btn--cta" routerLink="/storefront">
+      <a class="btn btn--primary btn--lg" routerLink="/storefront">
         {{ t.explore }}
-        <span class="btn__arrow" aria-hidden="true"><app-icon name="arrow-right" size="1.1rem" /></span>
+        <app-icon name="arrow-right" />
       </a>
       @if (!isAuthenticated()) {
-        <a class="btn btn--ghost" routerLink="/register"><app-icon name="user-plus" />{{ t.register }}</a>
+        <a class="btn btn--ghost btn--lg" routerLink="/register"><app-icon name="user-plus" />{{ t.register }}</a>
       }
     </div>
   </div>
@@ -135,6 +149,7 @@
             routerLink="/storefront"
             [queryParams]="tile.categoryId ? { category: tile.categoryId } : null"
           >
+            <span class="tile__art" aria-hidden="true"></span>
             <span class="tile__name">{{ tile.name }}</span>
             @if (tile.productCount !== null) {
               <span class="tile__count">{{ tile.productCount }} {{ t.tileProducts }}</span>
@@ -150,18 +165,22 @@
 <app-google-reviews />
 
 <section class="banner" data-testid="banner" aria-labelledby="banner-title">
+  <svg class="banner__shapes" viewBox="0 0 400 300" preserveAspectRatio="xMaxYMid slice" focusable="false" aria-hidden="true">
+    <circle cx="300" cy="150" r="140" fill="none" stroke="#f5b700" stroke-opacity="0.3" stroke-width="2" />
+    <circle cx="300" cy="150" r="90" fill="#f5b700" fill-opacity="0.08" />
+    <path d="M0 230 C 110 190, 250 250, 400 205 L 400 300 L 0 300 Z" fill="#d8202f" fill-opacity="0.75" />
+    <path d="M0 262 C 120 228, 260 280, 400 244 L 400 300 L 0 300 Z" fill="#1f3fa8" fill-opacity="0.85" />
+  </svg>
   <div class="container banner__content" appReveal>
-    <p class="eyebrow">{{ t.bannerEyebrow }}</p>
+    <p class="eyebrow eyebrow--inverse">{{ t.bannerEyebrow }}</p>
     <h2 id="banner-title" class="banner__title">{{ t.bannerTitle1 }} <span class="hero__accent">{{ t.bannerTitle2 }}</span></h2>
     <p class="banner__text">{{ t.bannerText }}</p>
     @if (isAuthenticated()) {
-      <a class="btn btn--ghost btn--cta" routerLink="/storefront"><app-icon name="store" />{{ t.bannerCtaSignedIn }}</a>
+      <a class="btn btn--primary btn--lg" routerLink="/storefront"><app-icon name="store" />{{ t.bannerCtaSignedIn }}</a>
     } @else {
-      <a class="btn btn--ghost btn--cta" routerLink="/register">
+      <a class="btn btn--primary btn--lg" routerLink="/register">
         {{ t.bannerCta }}
-        <span class="btn__arrow" aria-hidden="true">
-          <app-icon name="arrow-right" size="1.1rem" />
-        </span>
+        <app-icon name="arrow-right" />
       </a>
     }
   </div>

@@ -319,6 +319,15 @@ describe('Contact page', () => {
     expect(el.querySelector('a[href="mailto:vendas@marvi.com.br"]')).not.toBeNull();
     expect(el.querySelector('a[href="tel:+551134567890"]')).not.toBeNull();
   });
+
+  it('sits under a page header with the only h1, and the details are a card like the form (MRV-7.4)', () => {
+    render();
+
+    expect(el.querySelectorAll('h1').length).toBe(1);
+    expect(el.querySelector('header.page-hero h1')).not.toBeNull();
+    expect(el.querySelectorAll('.contact__layout > .card').length).toBe(2);
+    expect(el.querySelector('.contact__layout .contact__details.card')).not.toBeNull();
+  });
 });
 
 describe('Contact page icons', () => {
@@ -368,4 +377,5 @@ describe('Contact page icons', () => {
 
     expect(iconNames(fixture, '.contact__details')).toEqual(['phone', 'message-circle', 'mail', 'map-pin']);
   });
+
 });

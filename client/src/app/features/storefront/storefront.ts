@@ -101,6 +101,12 @@ export class Storefront implements OnInit {
     this.products.load();
   }
 
+  /** A category chip: sets the category and runs the search with the text already typed. */
+  pickCategory(id: string): void {
+    this.categoryId.set(id);
+    this.applyFilters();
+  }
+
   checkCoverage(): void {
     const address = this.coverageAddress().trim();
     if (!address) {

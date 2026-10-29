@@ -1,7 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
+import { Reveal } from '../../shared/ui/reveal/reveal';
 import { fakeToken } from '../../core/auth/testing/fake-token';
 import { iconNames } from '../../shared/ui/app-icon/testing/icon-names';
 import { Home } from './home';
@@ -233,5 +235,46 @@ describe('Home (landing page)', () => {
     expect(iconNames(fixture, '[data-testid="stats"]')).toEqual(['package', 'map-pin', 'clock', 'shield-check']);
     expect(iconNames(fixture, '.hero__actions')).toEqual(['arrow-right', 'user-plus']);
     expect(root.querySelectorAll('app-icon:not([aria-hidden="true"])').length).toBe(0);
+  });
+
+  // ---- layout and art refresh (MRV-7.4)
+
+  it('has one h1, the hero actions are buttons, and the hero art is decorative inline SVG', async () => {
+    const { root, withApi } = render();
+    await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+
+    expect(root.querySelectorAll('h1').length).toBe(1);
+    const actions = Array.from(root.querySelectorAll('.hero__actions a'));
+    expect(actions.length).toBe(2);
+    expect(actions.every((a) => a.classList.contains('btn'))).toBe(true);
+    expect(actions[0].classList).toContain('btn--primary');
+    const shapes = root.querySelector('.hero__media svg.hero__shapes')!;
+    expect(shapes.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('.hero img')).toBeNull();
+  });
+
+  it('uses the bright gold eyebrow on navy sections and the readable dark gold on light ones', async () => {
+    const { root, withApi } = render();
+    await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+
+    expect(root.querySelector('.hero .eyebrow')!.classList).toContain('eyebrow--inverse');
+    expect(root.querySelector('.banner .eyebrow')!.classList).toContain('eyebrow--inverse');
+    expect(root.querySelector('.flow .eyebrow')!.classList).not.toContain('eyebrow--inverse');
+    expect(root.querySelector('.products .eyebrow')!.classList).not.toContain('eyebrow--inverse');
+  });
+
+  it('draws the closing banner shapes as decorative art and keeps the section anchors', async () => {
+    const { fixture, root, withApi } = render();
+    await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+
+    expect(root.querySelector('.banner svg.banner__shapes')!.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelectorAll('.tile__art[aria-hidden="true"]').length).toBeGreaterThan(0);
+    // An element with appReveal is translated while it waits to appear, which would shift where an anchor lands.
+    const revealed = fixture.debugElement.queryAll(By.directive(Reveal)).map((d) => d.nativeElement as HTMLElement);
+    for (const id of ['sobre', 'por-que', 'produtos', 'rede']) {
+      const target = root.querySelector<HTMLElement>(`#${id}`);
+      expect(target, id).not.toBeNull();
+      expect(revealed.includes(target!), `#${id} must not carry appReveal`).toBe(false);
+    }
   });
 });

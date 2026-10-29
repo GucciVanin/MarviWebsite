@@ -4,6 +4,7 @@
   --color-navy-700: #142049;
   --color-gold-500: #f5b700;
   --color-gold-600: #d99e00;
+  --color-gold-700: #8a5f00; // gold as TEXT on light surfaces (gold-500 is only for fills and for text on navy)
   --color-red-500: #d8202f;
   --color-blue-600: #1f3fa8;
   --color-paper: #f6f7fa;
@@ -70,6 +71,9 @@
   --gradient-brand: linear-gradient(135deg, var(--color-navy-900) 0%, var(--color-navy-700) 55%, var(--color-blue-600) 100%);
   --gradient-gold: linear-gradient(135deg, #ffd23f 0%, var(--color-gold-500) 50%, var(--color-gold-600) 100%);
   --gradient-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
+  --gradient-hero: radial-gradient(60% 90% at 85% 20%, rgba(245, 183, 0, 0.22), transparent 70%), radial-gradient(50% 70% at 10% 100%, rgba(31, 63, 168, 0.55), transparent 70%), linear-gradient(125deg, #070d24 0%, var(--color-navy-900) 40%, var(--color-navy-700) 100%);
+  --product-card-min: 17rem; // real and skeleton product cards share it so the swap shifts nothing
+  --tap-min: 2.75rem; // 44px minimum touch target
   --focus-ring: 0 0 0 3px rgba(245, 183, 0, 0.55);
 }
 

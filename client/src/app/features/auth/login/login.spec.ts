@@ -92,4 +92,14 @@ describe('Login icons', () => {
 
     expect(iconNames(fixture, '[role="alert"]')).toEqual(['alert-circle']);
   });
+
+  it('renders the form in the shared auth card on the brand backdrop (MRV-7.4)', () => {
+    const { fixture } = setup();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.auth-page .container > .card.auth-card')).not.toBeNull();
+    expect(element.querySelectorAll('h1').length).toBe(1);
+    expect(element.querySelector('button[type="submit"]')!.classList).toContain('btn--primary');
+    expect(element.querySelectorAll('.field label').length).toBe(2);
+  });
 });

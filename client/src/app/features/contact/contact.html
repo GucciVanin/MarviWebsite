@@ -1,7 +1,11 @@
-<div class="container page contact">
-  <h1>{{ t.title }}</h1>
-  <p>{{ t.intro }}</p>
+<header class="page-hero">
+  <div class="container">
+    <h1>{{ t.title }}</h1>
+    <p class="page-hero__lead">{{ t.intro }}</p>
+  </div>
+</header>
 
+<div class="container page contact">
   <div class="contact__layout">
     <div class="card" appReveal>
       @if (sent()) {
@@ -52,7 +56,7 @@
       </form>
     </div>
 
-    <section class="contact__details" aria-labelledby="contact-details" [appReveal]="1">
+    <section class="card contact__details" aria-labelledby="contact-details" [appReveal]="1">
       <h2 id="contact-details">{{ t.detailsTitle }}</h2>
       <ul>
         <li>

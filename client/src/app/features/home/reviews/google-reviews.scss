@@ -31,7 +31,7 @@
 
 .reviews__number {
   font-size: 3.2rem;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
   color: var(--color-navy-900);
 }
@@ -75,6 +75,8 @@
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
+  transition: box-shadow var(--motion-base) var(--ease-standard);
+  &:hover { box-shadow: var(--shadow-lg); }
 
   @media (min-width: 640px) { flex-basis: 20rem; }
 }
@@ -122,6 +124,7 @@ a.review__name:hover { text-decoration: underline; }
 
 .review__more {
   align-self: flex-start;
+  min-height: var(--tap-min);
   padding: 0;
   border: 0;
   font: inherit;
@@ -137,8 +140,8 @@ a.review__name:hover { text-decoration: underline; }
 .reviews__arrow {
   display: inline-grid;
   place-items: center;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: var(--tap-min);
+  height: var(--tap-min);
   border: 1px solid var(--color-border);
   border-radius: 50%;
   font-size: 1.1rem;
