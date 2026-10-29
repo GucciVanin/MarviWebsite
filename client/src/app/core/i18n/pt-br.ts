@@ -20,6 +20,17 @@ export const PT = {
     rights: 'Todos os direitos reservados.',
     explore: 'Explorar',
     account: 'Conta',
+    contact: 'Contato',
+    social: 'Redes sociais',
+  },
+  contact: {
+    phone: 'Telefone',
+    whatsapp: 'WhatsApp',
+    email: 'E-mail',
+    address: 'Endereço',
+    whatsappButton: 'Falar no WhatsApp',
+    facebook: 'Marvi no Facebook',
+    instagram: 'Marvi no Instagram',
   },
   home: {
     eyebrow: 'Distribuição que entrega',

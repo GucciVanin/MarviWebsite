@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
+import { CONTACT_INFO, CONTACT_PLACEHOLDER, contactLinks } from '../../../core/contact/contact-info';
 import { PT } from '../../../core/i18n/pt-br';
 
 @Component({
@@ -12,5 +13,8 @@ import { PT } from '../../../core/i18n/pt-br';
 export class AppFooter {
   protected readonly t = PT;
   protected readonly year = new Date().getFullYear();
+  protected readonly contact = inject(CONTACT_INFO);
+  protected readonly placeholderAddress = CONTACT_PLACEHOLDER.address;
+  protected readonly links = contactLinks(this.contact);
   protected readonly isAuthenticated = inject(AuthService).isAuthenticated;
 }
