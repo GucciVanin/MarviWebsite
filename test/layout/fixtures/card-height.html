@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="card-height">
+<title>Card height</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px;max-width:960px;margin:0 auto}
+input,select{font:inherit;height:40px;padding:0 8px;width:100%}
+label{display:block}
+.btn{display:inline-flex;align-items:center;white-space:nowrap;height:40px;padding:0 16px;border:1px solid #333;background:#eee;font:inherit}
+.grid{display:grid;gap:16px;grid-template-columns:1fr 1fr;align-items:start}.card{border:1px solid #999;padding:16px}
+</style></head><body><main class="page">
+<div class="grid"><div class="card"><h3>Curto</h3></div><div class="card"><h3>Longo</h3><p>Muito mais texto.</p><p>Outra linha de texto.</p></div></div>
+</main></body></html>

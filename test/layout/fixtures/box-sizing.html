@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="box-sizing">
+<title>Box sizing</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px;max-width:960px;margin:0 auto}
+input,select{font:inherit;height:40px;padding:0 8px;width:100%}
+label{display:block}
+.btn{display:inline-flex;align-items:center;white-space:nowrap;height:40px;padding:0 16px;border:1px solid #333;background:#eee;font:inherit}
+.cb{box-sizing:content-box;width:50%;padding:20px;background:#eee}
+</style></head><body><main class="page">
+<div class="cb">Caixa com content-box</div>
+</main></body></html>

@@ -1,0 +1,40 @@
+// Layout primitives (MRV-8.1). Tokens and mixins-as-classes only: no page uses them yet; slices 8.2 to 8.5 move pages onto them.
+// Rules they encode (MRV-8.0): flex/grid with an explicit `gap` (no margin hacks), `min-width: 0` on children so long content
+// shrinks instead of spilling, single-line controls stay on one line, widths are fluid (minmax/clamp), never fixed pixels.
+// `.stack` itself (components) is still the margin-based one used by existing pages; `.stack--gap` is its gap-based form.
+
+// A vertical column of blocks separated by a gap.
+.stack--gap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap, var(--space-3));
+
+  > * { min-width: 0; }
+}
+
+// A row of items that wraps instead of overflowing; items keep their own line (see .nowrap).
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cluster-gap, var(--space-1));
+
+  > * { min-width: 0; }
+}
+
+// Equal-width fluid columns: as many as fit, each at least --grid-min, rows stretch to equal height.
+.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--grid-min)), 1fr));
+  gap: var(--grid-gap, var(--space-3));
+  align-items: stretch;
+
+  > * { min-width: 0; }
+}
+
+// Controls and labels that must never wrap onto a second line (nav links, buttons, chips, tabs, icon + label).
+.nowrap { white-space: nowrap; }
+
+// Width caps for readable content, centred; they compose with .container.
+.measure-narrow { max-width: var(--container-narrow); }
+.measure-default { max-width: var(--container-default); }

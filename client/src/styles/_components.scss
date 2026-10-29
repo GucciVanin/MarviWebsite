@@ -1,6 +1,6 @@
 // UI primitives as global classes: .container .page .btn .card .field .alert .eyebrow
 .container {
-  width: min(100% - 2rem, 72rem);
+  width: min(100% - 2 * var(--gutter), var(--container-max));
   margin-inline: auto;
 }
 

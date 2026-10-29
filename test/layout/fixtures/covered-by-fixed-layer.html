@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="covered-text">
+<title>Covered by fixed bar</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px;max-width:960px;margin:0 auto}
+input,select{font:inherit;height:40px;padding:0 8px;width:100%}
+label{display:block}
+.btn{display:inline-flex;align-items:center;white-space:nowrap;height:40px;padding:0 16px;border:1px solid #333;background:#eee;font:inherit}
+main{padding-bottom:0}.bar{position:fixed;left:0;right:0;bottom:0;height:64px;background:#123;color:#fff}.pad{height:900px}
+</style></head><body><main class="page">
+<h1>Covered by a fixed bar</h1><div class="pad"></div><a href="#x">Último link da página</a><div class="bar">Barra fixa</div>
+</main></body></html>
