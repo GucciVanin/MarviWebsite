@@ -27,6 +27,7 @@ describe('AppHeader', () => {
       ['Nossa Rede', '/#rede'],
       ['Sobre', '/#sobre'],
       ['Por que a Marvi', '/#por-que'],
+      ['Contato', '/contato'],
     ]);
   });
 

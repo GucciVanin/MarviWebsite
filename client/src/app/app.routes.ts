@@ -17,6 +17,10 @@ export const routes: Routes = [
     loadChildren: () => import('./features/privacy/privacy.routes').then((m) => m.PRIVACY_ROUTES),
   },
   {
+    path: 'contato',
+    loadChildren: () => import('./features/contact/contact.routes').then((m) => m.CONTACT_ROUTES),
+  },
+  {
     path: 'storefront',
     loadChildren: () =>
       import('./features/storefront/storefront.routes').then((m) => m.STOREFRONT_ROUTES),

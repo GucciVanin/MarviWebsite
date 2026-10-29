@@ -17,6 +17,10 @@ describe('AppFooter contact column', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
+  it('links to the contact page in the explore list', () => {
+    expect(render().querySelector('nav a[href="/contato"]')?.textContent?.trim()).toBe('Contato');
+  });
+
   it('shows the placeholders as plain text, never as links', () => {
     const el = render();
 
