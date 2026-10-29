@@ -2,6 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { CONTACT, CONTACT_INFO, ContactInfo } from '../../../core/contact/contact-info';
+import { iconNames } from '../app-icon/testing/icon-names';
+import { fakeToken } from '../../../core/auth/testing/fake-token';
 import { AppFooter } from './app-footer';
 
 describe('AppFooter contact column', () => {
@@ -53,5 +55,52 @@ describe('AppFooter contact column', () => {
 
   it('links to the privacy policy', () => {
     expect(render().querySelector('a[href="/privacidade"]')?.textContent).toContain('Política de Privacidade');
+  });
+});
+
+describe('AppFooter icons', () => {
+  beforeEach(() => localStorage.clear());
+
+  function setup(contact?: ContactInfo) {
+    TestBed.configureTestingModule({
+      imports: [AppFooter],
+      providers: [provideRouter([]), provideHttpClient(), ...(contact ? [{ provide: CONTACT_INFO, useValue: contact }] : [])],
+    });
+    const fixture = TestBed.createComponent(AppFooter);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('marks the address, phone, WhatsApp and e-mail rows with their icons, placeholders included', () => {
+    const fixture = setup();
+
+    expect(iconNames(fixture, '.footer__contact')).toEqual(['phone', 'message-circle', 'mail', 'map-pin']);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.footer__contact a').length).toBe(0); // still plain text
+  });
+
+  it('draws the social links with the app icon and names them for assistive technology', () => {
+    const fixture = setup();
+    const links = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.footer__social a'));
+
+    expect(iconNames(fixture, '.footer__social')).toEqual(['facebook', 'instagram']);
+    expect(links.map((a) => a.getAttribute('aria-label'))).toEqual(['Marvi no Facebook', 'Marvi no Instagram']);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('svg:not([aria-hidden="true"])').length).toBe(0);
+  });
+
+  it('gives the privacy link a shield and the navigation links their icons', () => {
+    const fixture = setup();
+
+    expect(iconNames(fixture, '.footer__privacy')).toEqual(['shield-check']);
+    expect(iconNames(fixture, 'nav[aria-label="Explorar"]')).toEqual(['home', 'store', 'truck', 'info', 'shield-check', 'mail']);
+  });
+
+  it('gives the account links their icons when signed out, and shows no account links when signed in', () => {
+    expect(iconNames(setup(), 'nav[aria-label="Conta"]')).toEqual(['log-in', 'user-plus']);
+
+    TestBed.resetTestingModule();
+    localStorage.setItem('marvi_auth_token', fakeToken('Client'));
+    const signedIn = setup();
+    expect((signedIn.nativeElement as HTMLElement).querySelector('nav[aria-label="Conta"]')).toBeNull();
+    localStorage.clear();
   });
 });

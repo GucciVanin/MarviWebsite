@@ -5,7 +5,6 @@
 .reviews {
   padding-block: var(--section-padding);
   background: var(--color-paper);
-  scroll-margin-top: 5.5rem;
 }
 
 .reviews__layout {
@@ -32,7 +31,7 @@
 
 .reviews__number {
   font-size: 3.2rem;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
   color: var(--color-navy-900);
 }
@@ -43,8 +42,8 @@
   display: inline-flex;
   gap: 2px;
 
-  svg { fill: var(--color-gold-500); }
-  .stars__off { fill: var(--color-border); }
+  app-icon { color: var(--color-gold-500); }
+  .stars__off { color: var(--color-border); }
 }
 
 // ---- carousel ----
@@ -76,6 +75,8 @@
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
+  transition: box-shadow var(--motion-base) var(--ease-standard);
+  &:hover { box-shadow: var(--shadow-lg); }
 
   @media (min-width: 640px) { flex-basis: 20rem; }
 }
@@ -123,6 +124,7 @@ a.review__name:hover { text-decoration: underline; }
 
 .review__more {
   align-self: flex-start;
+  min-height: var(--tap-min);
   padding: 0;
   border: 0;
   font: inherit;
@@ -136,8 +138,10 @@ a.review__name:hover { text-decoration: underline; }
 .reviews__nav { display: flex; gap: var(--space-1); justify-content: flex-end; margin-top: var(--space-1); }
 
 .reviews__arrow {
-  width: 2.6rem;
-  height: 2.6rem;
+  display: inline-grid;
+  place-items: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
   border: 1px solid var(--color-border);
   border-radius: 50%;
   font-size: 1.1rem;
@@ -145,10 +149,23 @@ a.review__name:hover { text-decoration: underline; }
   color: var(--color-navy-900);
   background: var(--color-surface);
   cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-out);
 
-  &:hover { border-color: var(--color-gold-600); background: var(--color-gold-500); }
+  &:hover { border-color: var(--color-gold-600); background: var(--color-gold-500); transform: translateY(-1px); }
+  &:active { transform: scale(0.94); transition-duration: var(--motion-press); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .reviews__track { scroll-behavior: auto; }
+}
+
+// Loading skeleton: same two-column layout as the real section, so the swap keeps the page where it is.
+.reviews__sk-title { margin-block: var(--space-2); width: 80%; }
+.reviews__sk-line { width: 55%; }
+.reviews__summary > .skeleton { display: block; }
+.reviews__sk-row {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  min-height: 12rem;
 }

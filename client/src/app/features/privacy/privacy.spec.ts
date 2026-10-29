@@ -39,4 +39,14 @@ describe('Privacy policy page', () => {
     expect(el.querySelector('a[href="tel:+551134567890"]')).not.toBeNull();
     expect(el.textContent).toContain('Rua A, 1');
   });
+
+  it('keeps the policy in one readable card under a page header, with h1 before the h2 sections (MRV-7.4)', () => {
+    const el = render();
+
+    expect(el.querySelectorAll('h1').length).toBe(1);
+    expect(el.querySelector('header.page-hero h1')).not.toBeNull();
+    const article = el.querySelector('article.card')!;
+    expect(article.querySelectorAll('h2').length).toBeGreaterThanOrEqual(6);
+    expect(el.querySelectorAll('h2').length).toBe(article.querySelectorAll('h2').length);
+  });
 });

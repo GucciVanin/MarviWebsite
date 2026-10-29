@@ -1,4 +1,5 @@
 import { Component, ElementRef, OnInit, computed, inject, signal, viewChild } from '@angular/core';
+import { AppIcon } from '../../../shared/ui/app-icon/app-icon';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
 import { GoogleReview, GoogleReviews, GoogleReviewsService } from '../api/google-reviews.service';
@@ -13,6 +14,7 @@ const STARS = [1, 2, 3, 4, 5];
  * (not configured, Google down, request failed) the whole section is simply absent: no empty frame, no error banner.
  */
 @Component({
+  imports: [AppIcon],
   selector: 'app-google-reviews',
   templateUrl: './google-reviews.html',
   styleUrl: './google-reviews.scss',
@@ -20,10 +22,15 @@ const STARS = [1, 2, 3, 4, 5];
 export class GoogleReviewsSection implements OnInit {
   protected readonly t = PT.home.reviews;
   protected readonly stars = STARS;
+  protected readonly loadingText = PT.state.loading;
+  protected readonly placeholders = [1, 2, 3];
   private readonly service = inject(GoogleReviewsService);
   private readonly source = loadable(() => this.service.get(), null as GoogleReviews | null);
   private readonly track = viewChild<ElementRef<HTMLElement>>('track');
   private readonly expanded = signal<ReadonlySet<number>>(new Set());
+
+  /** True only while the request is in flight: the section shows a skeleton then, and vanishes if nothing comes back. */
+  protected readonly loading = computed(() => this.source.loading() && !this.source.loaded());
 
   /** The reviews to show, or null while loading, on failure and when there is nothing to show. */
   protected readonly reviews = computed(() => {

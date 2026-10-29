@@ -10,8 +10,10 @@ import { PT } from '../../core/i18n/pt-br';
 import { BrlPipe } from '../../shared/format/brl.pipe';
 import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import type { Category, ProductListItem } from '../../shared/models/catalog.model';
+import { AppIcon } from '../../shared/ui/app-icon/app-icon';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
+import { Reveal } from '../../shared/ui/reveal/reveal';
 import { Deal, DealsService } from './api/deals.service';
 import { CoverageCheckResult, CoverageService } from './api/coverage.service';
 
@@ -20,7 +22,7 @@ const validCategory = (value: string | null): string => (value && GUID.test(valu
 
 @Component({
   selector: 'app-storefront',
-  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, BrlPipe, PtDatePipe],
+  imports: [FormsModule, RouterLink, AppIcon, ErrorAlert, LoadState, Reveal, BrlPipe, PtDatePipe],
   templateUrl: './storefront.html',
 })
 export class Storefront implements OnInit {
@@ -97,6 +99,12 @@ export class Storefront implements OnInit {
     }
     this.router.navigate([], { queryParams, replaceUrl: true });
     this.products.load();
+  }
+
+  /** A category chip: sets the category and runs the search with the text already typed. */
+  pickCategory(id: string): void {
+    this.categoryId.set(id);
+    this.applyFilters();
   }
 
   checkCoverage(): void {

@@ -6,7 +6,9 @@ import { CONTACT_INFO, CONTACT_PLACEHOLDER, contactLinks } from '../../core/cont
 import { action } from '../../core/http/action';
 import { ApiError } from '../../core/http/api-error';
 import { PT } from '../../core/i18n/pt-br';
+import { AppIcon } from '../../shared/ui/app-icon/app-icon';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
+import { Reveal } from '../../shared/ui/reveal/reveal';
 import { ContactService } from './contact.service';
 
 /** Mirrors the server's limits (ContactRules). */
@@ -21,7 +23,7 @@ const FIELDS: readonly Field[] = ['name', 'email', 'phone', 'company', 'message'
 /** Public contact page (MRV-2.8b): a form that writes to the business, plus the contact details as plain text while they are placeholders. */
 @Component({
   selector: 'app-contact',
-  imports: [FormsModule, ErrorAlert],
+  imports: [FormsModule, ErrorAlert, AppIcon, Reveal],
   templateUrl: './contact.html',
   styleUrl: './contact.scss',
 })

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { iconNames } from '../../../shared/ui/app-icon/testing/icon-names';
 import { Register } from './register';
 
 describe('Register', () => {
@@ -55,5 +56,34 @@ describe('Register', () => {
     const { fixture } = setup();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('a[href="/privacidade"]')).not.toBeNull();
+  });
+});
+
+describe('Register icons', () => {
+  function setup() {
+    TestBed.configureTestingModule({ imports: [Register], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    const fixture = TestBed.createComponent(Register);
+    fixture.detectChanges();
+    return { fixture, root: fixture.nativeElement as HTMLElement };
+  }
+
+  it('shows a leading icon on every field and a user-plus icon on the button', () => {
+    const { fixture, root } = setup();
+
+    expect(iconNames(fixture, 'form')).toEqual(['building', 'map-pin', 'mail', 'lock', 'user-plus']);
+    for (const id of ['companyName', 'billingAddress', 'email', 'password']) {
+      expect(root.querySelector(`.field__control > input#${id}`)).not.toBeNull();
+    }
+    expect(root.querySelector('button[type="submit"]')?.textContent?.trim()).toBe('Cadastrar');
+  });
+
+  it('renders the form in the shared auth card with four labelled fields (MRV-7.4)', () => {
+    const { fixture } = setup();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.auth-page .container > .card.auth-card')).not.toBeNull();
+    expect(element.querySelectorAll('h1').length).toBe(1);
+    expect(element.querySelectorAll('.field label').length).toBe(4);
+    expect(element.querySelector('button[type="submit"]')!.classList).toContain('btn--primary');
   });
 });

@@ -238,6 +238,8 @@ export const PT = {
     allCategories: 'Todas as categorias',
     applyFilters: 'Buscar',
     noProducts: 'Nenhum produto encontrado.',
+    resultOne: 'produto',
+    resultMany: 'produtos',
     priceOnRequest: 'Sob consulta',
     inStock: 'Disponível',
     outOfStock: 'Sem estoque',

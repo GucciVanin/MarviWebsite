@@ -3,6 +3,7 @@
   position: sticky;
   top: 0;
   z-index: 10;
+  view-transition-name: site-header; // stays still while the page between header and footer cross-fades (MRV-7.3)
 }
 
 .header {
@@ -67,6 +68,8 @@
   color: var(--color-text-inverse);
   background: transparent;
   border: 2px solid rgba(255, 255, 255, 0.55);
+  align-items: center;
+  gap: 0.4rem;
 
   &:hover {
     background: transparent;
@@ -90,15 +93,31 @@
   list-style: none;
 
   a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    position: relative;
     padding-block: 0.4rem;
     color: inherit;
     font-size: 0.95rem;
     text-decoration: none;
-    border-bottom: 2px solid transparent;
 
-    &:hover,
-    &.is-active {
-      border-bottom-color: var(--color-gold-500);
+    // The gold indicator slides in from the left on hover and stays on the active page (transform only).
+    &::after {
+      content: '';
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 2px;
+      background: var(--color-gold-500);
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform var(--motion-base) var(--ease-out);
+    }
+
+    &:hover::after,
+    &:focus-visible::after,
+    &.is-active::after {
+      transform: scaleX(1);
     }
   }
 }
@@ -110,6 +129,9 @@
 }
 
 .header__logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   padding-inline: 0.5rem;
   color: var(--color-text-inverse);
   background: transparent;
@@ -123,19 +145,36 @@
 
 @media (max-width: 1023px) {
   .header__toggle {
-    display: inline-block;
+    display: inline-flex;
   }
 
+  // The menu is a panel under the bar that slides and fades in (transform and opacity). Closed, it is visibility:hidden
+  // (after the fade), so its links leave the tab order and the accessibility tree exactly as display:none did.
   .header__nav {
-    display: none;
+    position: absolute;
+    inset: 100% 0 auto 0;
+    display: flex;
     flex-direction: column;
     align-items: flex-start;
-    width: 100%;
-    flex-basis: 100%;
-    padding-bottom: var(--space-2);
+    padding: var(--space-2) max(1rem, calc((100% - 72rem) / 2)) var(--space-3);
+    background: var(--color-navy-900);
+    border-bottom: 3px solid var(--color-gold-500);
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    transform: translateY(-0.75rem);
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity var(--motion-base) var(--ease-standard),
+      transform var(--motion-base) var(--ease-out),
+      visibility 0s linear var(--motion-base);
 
     &--open {
-      display: flex;
+      opacity: 1;
+      transform: none;
+      visibility: visible;
+      pointer-events: auto;
+      transition-delay: 0s;
     }
   }
 

@@ -1,38 +1,42 @@
-<div class="container page contact">
-  <h1>{{ t.title }}</h1>
-  <p>{{ t.intro }}</p>
+<header class="page-hero">
+  <div class="container">
+    <h1>{{ t.title }}</h1>
+    <p class="page-hero__lead">{{ t.intro }}</p>
+  </div>
+</header>
 
+<div class="container page contact">
   <div class="contact__layout">
-    <div class="card">
+    <div class="card" appReveal>
       @if (sent()) {
-        <p class="alert alert--success" role="status" tabindex="-1" id="contact-sent" data-testid="sent">{{ t.success }}</p>
+        <p class="alert alert--success" role="status" tabindex="-1" id="contact-sent" data-testid="sent"><app-icon name="check-circle" />{{ t.success }}</p>
       }
 
       <form (ngSubmit)="submit()" novalidate>
         <div class="field">
           <label for="contact-name">{{ t.name }}</label>
-          <input id="contact-name" type="text" name="name" [(ngModel)]="name" autocomplete="name" required [attr.maxlength]="limits.name" [attr.aria-invalid]="fieldErrors().name ? 'true' : null" [attr.aria-describedby]="fieldErrors().name ? 'contact-name-error' : null" />
-          @if (fieldErrors().name; as problem) { <small class="contact__error" role="alert" id="contact-name-error" data-testid="error-name">{{ problem }}</small> }
+          <div class="field__control"><app-icon name="user" /><input id="contact-name" type="text" name="name" [(ngModel)]="name" autocomplete="name" required [attr.maxlength]="limits.name" [attr.aria-invalid]="fieldErrors().name ? 'true' : null" [attr.aria-describedby]="fieldErrors().name ? 'contact-name-error' : null" /></div>
+          @if (fieldErrors().name; as problem) { <small class="contact__error" role="alert" id="contact-name-error" data-testid="error-name"><app-icon name="alert-circle" />{{ problem }}</small> }
         </div>
         <div class="field">
           <label for="contact-email">{{ t.email }}</label>
-          <input id="contact-email" type="email" name="email" [(ngModel)]="email" autocomplete="email" required [attr.maxlength]="limits.email" [attr.aria-invalid]="fieldErrors().email ? 'true' : null" [attr.aria-describedby]="fieldErrors().email ? 'contact-email-error' : null" />
-          @if (fieldErrors().email; as problem) { <small class="contact__error" role="alert" id="contact-email-error" data-testid="error-email">{{ problem }}</small> }
+          <div class="field__control"><app-icon name="mail" /><input id="contact-email" type="email" name="email" [(ngModel)]="email" autocomplete="email" required [attr.maxlength]="limits.email" [attr.aria-invalid]="fieldErrors().email ? 'true' : null" [attr.aria-describedby]="fieldErrors().email ? 'contact-email-error' : null" /></div>
+          @if (fieldErrors().email; as problem) { <small class="contact__error" role="alert" id="contact-email-error" data-testid="error-email"><app-icon name="alert-circle" />{{ problem }}</small> }
         </div>
         <div class="field">
           <label for="contact-phone">{{ t.phone }}</label>
-          <input id="contact-phone" type="tel" name="phone" [(ngModel)]="phone" autocomplete="tel" [attr.maxlength]="limits.phone" [attr.aria-invalid]="fieldErrors().phone ? 'true' : null" [attr.aria-describedby]="fieldErrors().phone ? 'contact-phone-error' : null" />
-          @if (fieldErrors().phone; as problem) { <small class="contact__error" role="alert" id="contact-phone-error" data-testid="error-phone">{{ problem }}</small> }
+          <div class="field__control"><app-icon name="phone" /><input id="contact-phone" type="tel" name="phone" [(ngModel)]="phone" autocomplete="tel" [attr.maxlength]="limits.phone" [attr.aria-invalid]="fieldErrors().phone ? 'true' : null" [attr.aria-describedby]="fieldErrors().phone ? 'contact-phone-error' : null" /></div>
+          @if (fieldErrors().phone; as problem) { <small class="contact__error" role="alert" id="contact-phone-error" data-testid="error-phone"><app-icon name="alert-circle" />{{ problem }}</small> }
         </div>
         <div class="field">
           <label for="contact-company">{{ t.company }}</label>
-          <input id="contact-company" type="text" name="company" [(ngModel)]="company" autocomplete="organization" [attr.maxlength]="limits.company" [attr.aria-invalid]="fieldErrors().company ? 'true' : null" [attr.aria-describedby]="fieldErrors().company ? 'contact-company-error' : null" />
-          @if (fieldErrors().company; as problem) { <small class="contact__error" role="alert" id="contact-company-error" data-testid="error-company">{{ problem }}</small> }
+          <div class="field__control"><app-icon name="building" /><input id="contact-company" type="text" name="company" [(ngModel)]="company" autocomplete="organization" [attr.maxlength]="limits.company" [attr.aria-invalid]="fieldErrors().company ? 'true' : null" [attr.aria-describedby]="fieldErrors().company ? 'contact-company-error' : null" /></div>
+          @if (fieldErrors().company; as problem) { <small class="contact__error" role="alert" id="contact-company-error" data-testid="error-company"><app-icon name="alert-circle" />{{ problem }}</small> }
         </div>
         <div class="field">
           <label for="contact-message">{{ t.message }}</label>
-          <textarea id="contact-message" name="message" rows="6" [(ngModel)]="message" autocomplete="off" required [attr.maxlength]="limits.messageMax" [attr.aria-invalid]="fieldErrors().message ? 'true' : null" [attr.aria-describedby]="fieldErrors().message ? 'contact-message-error' : null"></textarea>
-          @if (fieldErrors().message; as problem) { <small class="contact__error" role="alert" id="contact-message-error" data-testid="error-message">{{ problem }}</small> }
+          <div class="field__control"><app-icon name="message-circle" class="contact__icon-top" /><textarea id="contact-message" name="message" rows="6" [(ngModel)]="message" autocomplete="off" required [attr.maxlength]="limits.messageMax" [attr.aria-invalid]="fieldErrors().message ? 'true' : null" [attr.aria-describedby]="fieldErrors().message ? 'contact-message-error' : null"></textarea></div>
+          @if (fieldErrors().message; as problem) { <small class="contact__error" role="alert" id="contact-message-error" data-testid="error-message"><app-icon name="alert-circle" />{{ problem }}</small> }
         </div>
 
         <!-- Honeypot: off-screen (not display:none, so bots still fill it) and hidden from assistive tech. -->
@@ -46,28 +50,29 @@
         }
 
         <button type="submit" class="btn btn--primary" [disabled]="sendAction.busy()">
+          <app-icon [name]="sendAction.busy() ? 'loader' : 'send'" [class.icon-spin]="sendAction.busy()" />
           {{ sendAction.busy() ? t.sending : t.submit }}
         </button>
       </form>
     </div>
 
-    <section class="contact__details" aria-labelledby="contact-details">
+    <section class="card contact__details" aria-labelledby="contact-details" [appReveal]="1">
       <h2 id="contact-details">{{ t.detailsTitle }}</h2>
       <ul>
         <li>
-          <span class="contact__label">{{ t.labels.phone }}</span>
+          <span class="contact__label"><app-icon name="phone" />{{ t.labels.phone }}</span>
           @if (links.phone; as href) { <a [href]="href">{{ contact.phone }}</a> } @else { <span class="contact__placeholder" data-testid="placeholder">{{ contact.phone }}</span> }
         </li>
         <li>
-          <span class="contact__label">{{ t.labels.whatsapp }}</span>
+          <span class="contact__label"><app-icon name="message-circle" />{{ t.labels.whatsapp }}</span>
           @if (links.whatsapp; as href) { <a [href]="href" target="_blank" rel="noopener noreferrer">{{ contact.whatsapp }}</a> } @else { <span class="contact__placeholder" data-testid="placeholder">{{ contact.whatsapp }}</span> }
         </li>
         <li>
-          <span class="contact__label">{{ t.labels.email }}</span>
+          <span class="contact__label"><app-icon name="mail" />{{ t.labels.email }}</span>
           @if (links.email; as href) { <a [href]="href">{{ contact.email }}</a> } @else { <span class="contact__placeholder" data-testid="placeholder">{{ contact.email }}</span> }
         </li>
         <li>
-          <span class="contact__label">{{ t.labels.address }}</span>
+          <span class="contact__label"><app-icon name="map-pin" />{{ t.labels.address }}</span>
           <span [class.contact__placeholder]="contact.address === placeholderAddress" [attr.data-testid]="contact.address === placeholderAddress ? 'placeholder' : null">{{ contact.address }}</span>
         </li>
       </ul>

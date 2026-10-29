@@ -1,7 +1,10 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Reveal } from '../../../shared/ui/reveal/reveal';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { GoogleReviews } from '../api/google-reviews.service';
+import { iconNames } from '../../../shared/ui/app-icon/testing/icon-names';
 import { GoogleReviewsSection } from './google-reviews';
 
 const LONG = 'Muito bom. '.repeat(30);
@@ -43,7 +46,7 @@ describe('GoogleReviewsSection (MRV-2.5b)', () => {
     const cards = Array.from(root.querySelectorAll('[data-testid="review"]'));
     expect(cards.length).toBe(2);
     expect(cards[0].textContent).toContain('Livia Marques');
-    expect(cards[1].querySelectorAll('svg:not(.stars__off)').length).toBe(1);
+    expect(cards[1].querySelectorAll('app-icon:not(.stars__off)').length).toBe(1);
     expect(cards[1].textContent).toContain('S'); // avatar initial, upper-cased
   });
 
@@ -95,5 +98,54 @@ describe('GoogleReviewsSection (MRV-2.5b)', () => {
       expect(root.querySelector('[data-testid="reviews"]')).toBeNull();
       expect(text(root)).toBe('');
     }
+  });
+
+  it('draws the carousel arrows with arrow icons and names them for assistive technology', async () => {
+    const { fixture, root, answer } = render();
+    await answer(reviews());
+    const arrows = Array.from(root.querySelectorAll('.reviews__arrow'));
+
+    expect(iconNames(fixture, '.reviews__nav')).toEqual(['arrow-left', 'arrow-right']);
+    expect(arrows.map((a) => a.getAttribute('aria-label'))).toEqual(['Avaliações anteriores', 'Próximas avaliações']);
+    expect(arrows.every((a) => a.querySelector('app-icon')?.getAttribute('aria-hidden') === 'true')).toBe(true);
+  });
+
+  it('marks filled and empty stars with the star icon', async () => {
+    const { fixture, root, answer } = render();
+    await answer(reviews());
+
+    expect(iconNames(fixture, '[data-testid="reviews-score"]')).toEqual(['star', 'star', 'star', 'star', 'star']);
+    expect(root.querySelectorAll('[data-testid="reviews-score"] app-icon.icon-filled').length).toBe(5);
+  });
+
+  it('shows a skeleton with the loading status while Google answers, and removes it when nothing comes back (MRV-7.3)', async () => {
+    const { root, answer } = render();
+
+    expect(root.querySelector('[data-testid="reviews-skeleton"]')).not.toBeNull();
+    expect(root.querySelector('[role="status"]')?.textContent?.trim()).toBe('Carregando…');
+    expect(root.querySelector('[data-testid="reviews"]')).toBeNull();
+
+    await answer('down');
+
+    expect(root.querySelector('[data-testid="reviews-skeleton"]')).toBeNull();
+    expect(root.querySelector('[data-testid="reviews"]')).toBeNull();
+  });
+
+  it('replaces the skeleton with the real section when the reviews arrive (MRV-7.3)', async () => {
+    const { root, answer } = render();
+    await answer(reviews());
+
+    expect(root.querySelector('[data-testid="reviews-skeleton"]')).toBeNull();
+    expect(root.querySelector('[data-testid="reviews"]')).not.toBeNull();
+  });
+
+  it('keeps #avaliacoes as a plain anchor target: it carries no reveal, so a fragment link lands on it exactly (MRV-7.4)', async () => {
+    const { fixture, root, answer } = render();
+    await answer(reviews());
+
+    const section = root.querySelector<HTMLElement>('section#avaliacoes')!;
+    expect(section).not.toBeNull();
+    expect(fixture.debugElement.queryAll(By.directive(Reveal)).some((d) => d.nativeElement === section)).toBe(false);
+    expect(section.classList.contains('reveal')).toBe(false);
   });
 });

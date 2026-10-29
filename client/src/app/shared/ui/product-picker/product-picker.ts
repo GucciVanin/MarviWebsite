@@ -5,12 +5,13 @@ import { loadable } from '../../../core/http/loadable';
 import { CatalogService } from '../../../core/catalog/catalog.service';
 import { BrlPipe } from '../../format/brl.pipe';
 import type { Category, ProductListItem } from '../../models/catalog.model';
+import { AppIcon } from '../app-icon/app-icon';
 import { LoadState } from '../load-state/load-state';
 
 /** Search and filter the public catalog and pick products; the screen decides what picking means (a quote line, an order line). */
 @Component({
   selector: 'app-product-picker',
-  imports: [FormsModule, LoadState, BrlPipe],
+  imports: [FormsModule, LoadState, BrlPipe, AppIcon],
   templateUrl: './product-picker.html',
 })
 export class ProductPicker implements OnInit {

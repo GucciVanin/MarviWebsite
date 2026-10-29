@@ -8,13 +8,13 @@
           <span class="reviews__number">{{ ratingText() }}</span>
           <span class="stars" role="img" [attr.aria-label]="ratingText() + ' ' + t.outOfFive">
             @for (n of stars; track n) {
-              <svg viewBox="0 0 24 24" width="22" height="22" focusable="false" aria-hidden="true" [class.stars__off]="n > filledStars()"><path d="m12 2.5 2.9 6 6.6.9-4.8 4.6 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5L2.5 9.4l6.6-.9Z" /></svg>
+              <app-icon name="star" class="icon-filled" size="1.4rem" [class.stars__off]="n > filledStars()" />
             }
           </span>
         </p>
         <p class="reviews__count">{{ countText() }} · {{ t.source }}</p>
         @if (data.profileUrl) {
-          <a class="btn btn--outline reviews__all" [href]="data.profileUrl" target="_blank" rel="noopener noreferrer">{{ t.seeAll }} →</a>
+          <a class="btn btn--outline reviews__all" [href]="data.profileUrl" target="_blank" rel="noopener noreferrer">{{ t.seeAll }} <app-icon name="external-link" /></a>
         }
       </div>
 
@@ -35,7 +35,7 @@
               </div>
               <span class="stars stars--small" role="img" [attr.aria-label]="review.rating + ' ' + t.outOfFive">
                 @for (n of stars; track n) {
-                  <svg viewBox="0 0 24 24" width="16" height="16" focusable="false" aria-hidden="true" [class.stars__off]="n > review.rating"><path d="m12 2.5 2.9 6 6.6.9-4.8 4.6 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5L2.5 9.4l6.6-.9Z" /></svg>
+                  <app-icon name="star" class="icon-filled" size="1rem" [class.stars__off]="n > review.rating" />
                 }
               </span>
               <p class="review__text" [class.review__text--clamped]="isLong(review) && !isExpanded(i)">{{ review.text }}</p>
@@ -49,9 +49,26 @@
         </ul>
         @if (data.reviews.length > 1) {
           <div class="reviews__nav">
-            <button type="button" class="reviews__arrow" [attr.aria-label]="t.previous" (click)="scroll(-1)">←</button>
-            <button type="button" class="reviews__arrow" [attr.aria-label]="t.next" (click)="scroll(1)">→</button>
+            <button type="button" class="reviews__arrow" [attr.aria-label]="t.previous" (click)="scroll(-1)"><app-icon name="arrow-left" /></button>
+            <button type="button" class="reviews__arrow" [attr.aria-label]="t.next" (click)="scroll(1)"><app-icon name="arrow-right" /></button>
           </div>
+        }
+      </div>
+    </div>
+  </section>
+} @else if (loading()) {
+  <!-- Placeholder while Google answers. It is not the real section (no test id, no heading); if nothing comes back it simply goes away. -->
+  <section class="reviews" data-testid="reviews-skeleton">
+    <p class="visually-hidden" role="status">{{ loadingText }}</p>
+    <div class="container reviews__layout" aria-hidden="true">
+      <div class="reviews__summary">
+        <span class="skeleton skeleton--pill"></span>
+        <span class="skeleton skeleton--title reviews__sk-title"></span>
+        <span class="skeleton skeleton--line reviews__sk-line"></span>
+      </div>
+      <div class="reviews__sk-row">
+        @for (n of placeholders; track n) {
+          <div class="skeleton-card"><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--line"></span><span class="skeleton skeleton--line"></span><span class="skeleton skeleton--line skeleton--short"></span></div>
         }
       </div>
     </div>

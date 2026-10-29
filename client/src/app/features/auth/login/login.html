@@ -1,36 +1,44 @@
-<div class="container page">
+<div class="auth-page">
+<div class="container">
   <div class="card auth-card">
     <h1 class="auth-title">{{ t.loginTitle }}</h1>
 
     <form (ngSubmit)="submit()">
       <div class="field">
         <label for="email">{{ t.email }}</label>
-        <input
-          id="email"
-          type="email"
-          name="email"
-          [(ngModel)]="email"
-          autocomplete="email"
-          required
-        />
+        <div class="field__control">
+          <app-icon name="mail" />
+          <input
+            id="email"
+            type="email"
+            name="email"
+            [(ngModel)]="email"
+            autocomplete="email"
+            required
+          />
+        </div>
       </div>
       <div class="field">
         <label for="password">{{ t.password }}</label>
-        <input
-          id="password"
-          type="password"
-          name="password"
-          [(ngModel)]="password"
-          autocomplete="current-password"
-          required
-        />
+        <div class="field__control">
+          <app-icon name="lock" />
+          <input
+            id="password"
+            type="password"
+            name="password"
+            [(ngModel)]="password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
       </div>
 
       @if (error(); as message) {
-        <p class="alert alert--error" role="alert">{{ message }}</p>
+        <p class="alert alert--error" role="alert"><app-icon name="alert-circle" />{{ message }}</p>
       }
 
       <button type="submit" class="btn btn--primary" [disabled]="busy()">
+        <app-icon name="log-in" />
         {{ t.submitLogin }}
       </button>
     </form>
@@ -39,4 +47,5 @@
       {{ t.newClient }} <a routerLink="/register">{{ t.createAccount }}</a>
     </p>
   </div>
+</div>
 </div>

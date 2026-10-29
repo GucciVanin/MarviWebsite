@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { iconNames } from '../app-icon/testing/icon-names';
 import { PrivacyNotice } from './privacy-notice';
 import { PRIVACY_NOTICE_KEY, PrivacyNoticeState } from './privacy-notice-state';
 
@@ -105,5 +106,19 @@ describe('PrivacyNotice', () => {
     callback();
 
     expect(TestBed.inject(PrivacyNoticeState).height()).toBe(72);
+  });
+});
+
+describe('PrivacyNotice icon', () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+
+  it('marks the acknowledge button with a check icon and keeps its text as the name', () => {
+    TestBed.configureTestingModule({ imports: [PrivacyNotice], providers: [provideRouter([])] });
+    const fixture = TestBed.createComponent(PrivacyNotice);
+    fixture.detectChanges();
+
+    expect(iconNames(fixture, 'button')).toEqual(['check']);
+    expect((fixture.nativeElement as HTMLElement).querySelector('button')?.textContent?.trim()).toBe('Entendi');
   });
 });

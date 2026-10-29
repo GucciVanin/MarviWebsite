@@ -4,11 +4,16 @@
   min-height: 100vh;
 }
 
+// CLS: the routed page is a lazy chunk, so for a moment <main> is empty. If it were short, the footer would be painted in
+// the first screen and jump down when the page arrives. A full viewport of minimum height keeps the footer below the fold
+// until the content exists (and on every route change); once the page is taller, the footer just moves further down,
+// out of view, which is not a layout shift. The footer stays in the DOM and the markup, so crawlers and no-JS still see it.
 main {
-  flex: 1;
+  flex: 1 0 auto;
+  min-height: 100vh; // fallback
+  min-height: 100svh;
   // Focused by code after the skip link; a ring around the whole page would only be noise.
   outline: none;
-  scroll-margin-top: 6rem; // keep the target clear of the sticky header
 
   &:focus-visible {
     box-shadow: none;

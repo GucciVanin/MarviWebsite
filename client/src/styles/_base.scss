@@ -14,7 +14,8 @@ body {
   min-height: 100vh;
   font-family: var(--font-sans);
   font-size: 1rem;
-  line-height: 1.5;
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
   color: var(--color-text);
   background: var(--color-paper);
 }
@@ -23,20 +24,29 @@ h1,
 h2,
 h3 {
   margin: 0 0 var(--space-2);
-  line-height: 1.15;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
   font-weight: 800;
   color: var(--color-navy-900);
 }
 
-h1 { font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 900; }
-h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
-h3 { font-size: 1.15rem; }
+h1 { font-size: var(--text-4xl); font-weight: 800; }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-lg); }
 
 p { margin: 0 0 var(--space-2); }
 
 a {
   color: var(--color-blue-600);
   text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: color var(--motion-fast) var(--ease-standard), text-decoration-color var(--motion-fast) var(--ease-standard);
+}
+
+// Only plain in-text links change on hover; links that carry a class (nav, buttons, footer) style themselves.
+:where(a:not([class])):hover {
+  color: var(--color-navy-900);
+  text-decoration-thickness: 2px;
 }
 
 :focus-visible {
@@ -60,8 +70,9 @@ textarea {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-field);
-  transition: border-color var(--motion-fast);
+  transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 
+  &:hover { border-color: var(--color-text-muted); }
   &:focus { border-color: var(--color-gold-500); }
 }
 
@@ -74,7 +85,7 @@ button {
   border: 0;
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: background var(--motion-fast);
+  transition: background var(--motion-fast) var(--ease-standard);
 
   &:hover { background: var(--color-gold-600); }
   &:disabled { opacity: 0.55; cursor: not-allowed; }

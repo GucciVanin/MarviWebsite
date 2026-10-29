@@ -7,43 +7,43 @@
     <nav [attr.aria-label]="t.footer.explore">
       <p class="footer__title">{{ t.footer.explore }}</p>
       <ul>
-        <li><a routerLink="/">{{ t.nav.home }}</a></li>
-        <li><a routerLink="/storefront">{{ t.nav.products }}</a></li>
-        <li><a routerLink="/" fragment="rede">{{ t.nav.network }}</a></li>
-        <li><a routerLink="/" fragment="sobre">{{ t.nav.about }}</a></li>
-        <li><a routerLink="/" fragment="por-que">{{ t.nav.why }}</a></li>
-        <li><a routerLink="/contato">{{ t.nav.contact }}</a></li>
+        <li><a routerLink="/"><app-icon name="home" />{{ t.nav.home }}</a></li>
+        <li><a routerLink="/storefront"><app-icon name="store" />{{ t.nav.products }}</a></li>
+        <li><a routerLink="/" fragment="rede"><app-icon name="truck" />{{ t.nav.network }}</a></li>
+        <li><a routerLink="/" fragment="sobre"><app-icon name="info" />{{ t.nav.about }}</a></li>
+        <li><a routerLink="/" fragment="por-que"><app-icon name="shield-check" />{{ t.nav.why }}</a></li>
+        <li><a routerLink="/contato"><app-icon name="mail" />{{ t.nav.contact }}</a></li>
       </ul>
     </nav>
     <section aria-labelledby="footer-contact">
       <p id="footer-contact" class="footer__title">{{ t.footer.contact }}</p>
       <ul class="footer__contact">
         <li>
-          <span class="footer__label">{{ t.contact.phone }}</span>
+          <span class="footer__label"><app-icon name="phone" />{{ t.contact.phone }}</span>
           @if (links.phone; as href) { <a [href]="href">{{ contact.phone }}</a> } @else { <span class="footer__placeholder" data-testid="placeholder">{{ contact.phone }}</span> }
         </li>
         <li>
-          <span class="footer__label">{{ t.contact.whatsapp }}</span>
+          <span class="footer__label"><app-icon name="message-circle" />{{ t.contact.whatsapp }}</span>
           @if (links.whatsapp; as href) { <a [href]="href" target="_blank" rel="noopener noreferrer">{{ contact.whatsapp }}</a> } @else { <span class="footer__placeholder" data-testid="placeholder">{{ contact.whatsapp }}</span> }
         </li>
         <li>
-          <span class="footer__label">{{ t.contact.email }}</span>
+          <span class="footer__label"><app-icon name="mail" />{{ t.contact.email }}</span>
           @if (links.email; as href) { <a [href]="href">{{ contact.email }}</a> } @else { <span class="footer__placeholder" data-testid="placeholder">{{ contact.email }}</span> }
         </li>
         <li>
-          <span class="footer__label">{{ t.contact.address }}</span>
+          <span class="footer__label"><app-icon name="map-pin" />{{ t.contact.address }}</span>
           <address class="footer__address" [class.footer__placeholder]="contact.address === placeholderAddress">{{ contact.address }}</address>
         </li>
       </ul>
       <ul class="footer__social" [attr.aria-label]="t.footer.social">
         <li>
           <a [href]="contact.facebook" target="_blank" rel="noopener noreferrer" [attr.aria-label]="t.contact.facebook">
-            <svg viewBox="0 0 24 24" width="22" height="22" focusable="false" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>
+            <app-icon name="facebook" size="1.375rem" />
           </a>
         </li>
         <li>
           <a [href]="contact.instagram" target="_blank" rel="noopener noreferrer" [attr.aria-label]="t.contact.instagram">
-            <svg viewBox="0 0 24 24" width="22" height="22" focusable="false" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>
+            <app-icon name="instagram" size="1.375rem" />
           </a>
         </li>
       </ul>
@@ -52,14 +52,14 @@
       <nav [attr.aria-label]="t.footer.account">
         <p class="footer__title">{{ t.footer.account }}</p>
         <ul>
-          <li><a routerLink="/login">{{ t.nav.login }}</a></li>
-          <li><a routerLink="/register">{{ t.nav.register }}</a></li>
+          <li><a routerLink="/login"><app-icon name="log-in" />{{ t.nav.login }}</a></li>
+          <li><a routerLink="/register"><app-icon name="user-plus" />{{ t.nav.register }}</a></li>
         </ul>
       </nav>
     }
   </div>
   <p class="container footer__legal">
     © {{ year }} {{ t.brand.name }} — {{ t.brand.tagline }}. {{ t.footer.rights }}
-    <a class="footer__privacy" routerLink="/privacidade">{{ t.privacy.link }}</a>
+    <a class="footer__privacy" routerLink="/privacidade"><app-icon name="shield-check" />{{ t.privacy.link }}</a>
   </p>
 </footer>

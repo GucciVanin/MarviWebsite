@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { BehaviorSubject } from 'rxjs';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { fakeToken } from '../../core/auth/testing/fake-token';
+import { iconNames } from '../../shared/ui/app-icon/testing/icon-names';
 import { Storefront } from './storefront';
 
 const CAT = '11111111-1111-1111-1111-111111111111';
@@ -269,5 +270,111 @@ describe('Storefront (public catalog)', () => {
     expect(deals).toContain('10%');
     expect(deals).toContain('R$');
     expect(deals).not.toContain('Percent');
+  });
+
+  // ---- icons (MRV-7.2)
+
+  it('gives the search field, filter button, coverage check and stock badges their icons', async () => {
+    const { fixture, http, loadWith } = setup();
+    await loadWith({ products: [product('a', 'Cafe', 5), product('b', 'Acucar', 3, { inStock: false })] });
+    http.verify();
+
+    expect(iconNames(fixture, '[data-testid="filters"]')).toEqual(['search', 'filter']);
+    expect(iconNames(fixture, '[data-testid="coverage"]')).toEqual(['map-pin', 'search']);
+    expect(iconNames(fixture, '.product-grid')).toEqual(['check-circle', 'alert-triangle']);
+  });
+
+  it('swaps the coverage check icon for a spinning loader while the check is in flight', async () => {
+    const { fixture, http, root, settle, loadWith } = setup();
+    await loadWith();
+    const address = root.querySelector<HTMLInputElement>('input[name="coverageAddress"]')!;
+    address.value = 'Rua A, 100';
+    address.dispatchEvent(new Event('input'));
+    await settle();
+    expect(iconNames(fixture, '[data-testid="coverage"]')).toEqual(['map-pin', 'search']);
+
+    root.querySelector<HTMLFormElement>('form[data-testid="coverage"]')!.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+    expect(iconNames(fixture, '[data-testid="coverage"]')).toEqual(['map-pin', 'loader']);
+    expect(root.querySelector('[data-testid="coverage"] button app-icon')?.classList).toContain('icon-spin');
+
+    http.expectOne('/api/coverage/check').flush({ supported: true, warehouseName: 'Depósito Central' });
+    await settle();
+    expect(iconNames(fixture, '[data-testid="coverage"]')).toEqual(['map-pin', 'search']);
+    expect(iconNames(fixture, '[data-testid="coverage-result"]')).toEqual(['check-circle']);
+  });
+
+  // ---- layout and art refresh (MRV-7.4)
+
+  it('shows each product as a card with decorative art, code chip, price and a stock badge', async () => {
+    const { root, loadWith } = setup();
+    await loadWith({ products: [product('1', 'Cola 2L', 12.5), product('2', 'Água', 3)] });
+
+    const cards = Array.from(root.querySelectorAll('[data-testid="product"]'));
+    expect(cards.length).toBe(2);
+    for (const card of cards) {
+      expect(card.querySelector('.product__art')?.getAttribute('aria-hidden')).toBe('true');
+      expect(card.querySelector('.product__art svg')).not.toBeNull();
+      expect(card.querySelector('img')).toBeNull(); // art is inline SVG: no remote or stock images
+      expect(card.querySelector('h3')).not.toBeNull();
+    }
+    expect(cards[0].querySelector('.chip--tag')?.textContent).toContain('SKU-1');
+    expect(cards[0].className).not.toBe(cards[1].className); // the brand colour varies per card
+  });
+
+  it('counts the results, singular and plural, once the list has loaded', async () => {
+    const { root, loadWith, settle, navigateTo, http } = setup();
+    expect(root.querySelector('[data-testid="results-count"]')).toBeNull();
+    await loadWith({ products: [product('1', 'Cola 2L', 12.5), product('2', 'Água', 3)] });
+    expect(root.querySelector('[data-testid="results-count"]')?.textContent?.trim()).toBe('2 produtos');
+
+    navigateTo({ q: 'cola' });
+    http.expectOne((r) => r.url === '/api/products').flush([product('1', 'Cola 2L', 12.5)]);
+    await settle();
+    expect(root.querySelector('[data-testid="results-count"]')?.textContent?.trim()).toBe('1 produto');
+  });
+
+  it('offers category chips as toggle buttons: "all" is pressed first, a chip applies that category', async () => {
+    const { http, root, settle, loadWith, navigate } = setup();
+    await loadWith({ categories: [{ id: CAT, name: 'Refrigerantes', productCount: 3 }, { id: 'c2', name: 'Águas', productCount: 1 }] });
+
+    const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-testid="category-chips"] button'));
+    expect(chips.map((c) => c.textContent?.trim())).toEqual(['Todas as categorias', 'Refrigerantes', 'Águas']);
+    expect(chips.every((c) => c.type === 'button')).toBe(true);
+    expect(chips.map((c) => c.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false']);
+
+    chips[1].click();
+    const request = http.expectOne((r) => r.url === '/api/products');
+    expect(request.request.params.get('category')).toBe(CAT);
+    request.flush([]);
+    await settle();
+
+    expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { category: CAT }, replaceUrl: true }));
+    expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe(CAT);
+    const after = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-testid="category-chips"] button'));
+    expect(after.map((c) => c.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false']);
+  });
+
+  it('marks the category from the URL as the pressed chip', async () => {
+    const { root, loadWith } = setup({ category: CAT });
+    await loadWith({ categories: [{ id: CAT, name: 'Refrigerantes', productCount: 3 }] });
+    expect(root.querySelector('[data-testid="category-chips"] button[aria-pressed="true"]')?.textContent).toContain('Refrigerantes');
+  });
+
+  it('shows no chips at all while there are no categories', async () => {
+    const { root, loadWith } = setup();
+    await loadWith({ categories: [] });
+    expect(root.querySelector('[data-testid="category-chips"]')).toBeNull();
+    expect(root.querySelector('select')).not.toBeNull(); // the select form is still there
+  });
+
+  it('keeps the register call to action prominent in the page header', async () => {
+    const { root, loadWith } = setup();
+    await loadWith();
+
+    const cta = root.querySelector<HTMLAnchorElement>('header.page-hero a[href="/register"]')!;
+    expect(cta.classList).toContain('btn--primary');
+    expect(cta.classList).toContain('btn--lg');
+    expect(root.querySelectorAll('h1').length).toBe(1);
   });
 });

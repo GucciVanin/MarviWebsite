@@ -1,55 +1,89 @@
-<div class="container page stack">
-  <header>
+<header class="page-hero">
+  <div class="container page-hero__inner">
     <h1>{{ t.title }}</h1>
-    <p class="muted">{{ t.intro }}</p>
+    <p class="page-hero__lead">{{ t.intro }}</p>
     @if (isAuthenticated()) {
-      <a class="btn btn--primary" [routerLink]="homeUrl()">{{ areaLabel() }}</a>
+      <a class="btn btn--primary btn--lg" [routerLink]="homeUrl()"><app-icon name="user" />{{ areaLabel() }}</a>
     } @else {
-      <p>
-        {{ t.registerPrompt }}
-        <a class="btn btn--primary btn--small" routerLink="/register">{{ t.registerCta }}</a>
+      <p class="page-hero__cta">
+        <span>{{ t.registerPrompt }}</span>
+        <a class="btn btn--primary btn--lg" routerLink="/register"><app-icon name="user-plus" />{{ t.registerCta }}</a>
       </p>
     }
-  </header>
+  </div>
+</header>
 
+<div class="container page stack">
   <section class="card" aria-labelledby="catalog-title">
     <h2 id="catalog-title" class="visually-hidden">{{ t.title }}</h2>
-    <form class="toolbar" data-testid="filters" (ngSubmit)="applyFilters()">
-      <div class="field">
-        <label for="search">{{ t.search }}</label>
-        <input id="search" name="search" type="search" [(ngModel)]="searchText" [placeholder]="t.searchPlaceholder" />
-      </div>
-      <div class="field">
-        <label for="category">{{ t.category }}</label>
-        <select id="category" name="category" [(ngModel)]="categoryId">
-          <option value="">{{ t.allCategories }}</option>
+    <div class="filterbar">
+      <form class="toolbar" data-testid="filters" (ngSubmit)="applyFilters()">
+        <div class="field">
+          <label for="search">{{ t.search }}</label>
+          <div class="field__control">
+            <app-icon name="search" />
+            <input id="search" name="search" type="search" [(ngModel)]="searchText" [placeholder]="t.searchPlaceholder" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="category">{{ t.category }}</label>
+          <select id="category" name="category" [(ngModel)]="categoryId">
+            <option value="">{{ t.allCategories }}</option>
+            @for (category of categories.data(); track category.id) {
+              <option [value]="category.id">{{ category.name }}</option>
+            }
+          </select>
+        </div>
+        <button type="submit" class="btn btn--primary"><app-icon name="filter" />{{ t.applyFilters }}</button>
+      </form>
+      @if (categories.data().length > 0) {
+        <ul class="chips" data-testid="category-chips" [attr.aria-label]="t.category">
+          <li>
+            <button type="button" class="chip" [attr.aria-pressed]="categoryId() === ''" (click)="pickCategory('')">{{ t.allCategories }}</button>
+          </li>
           @for (category of categories.data(); track category.id) {
-            <option [value]="category.id">{{ category.name }}</option>
+            <li>
+              <button type="button" class="chip" [attr.aria-pressed]="categoryId() === category.id" (click)="pickCategory(category.id)">{{ category.name }}</button>
+            </li>
           }
-        </select>
-      </div>
-      <button type="submit" class="btn btn--outline btn--small">{{ t.applyFilters }}</button>
-    </form>
+        </ul>
+      }
+    </div>
 
-    <app-load-state [state]="products" [emptyText]="t.noProducts" />
+    @if (products.loaded() && !products.error() && products.data().length > 0) {
+      <p class="results-count" data-testid="results-count" aria-live="polite">{{ products.data().length }} {{ products.data().length === 1 ? t.resultOne : t.resultMany }}</p>
+    }
+    <app-load-state [state]="products" [emptyText]="t.noProducts" variant="cards" />
     <ul class="product-grid">
       @for (product of products.data(); track product.id) {
-        <li class="card product" data-testid="product">
-          <h3>{{ product.name }}</h3>
-          <p class="muted">{{ product.sku }}</p>
-          <p class="product__price">
-            @if (product.price !== null) {
-              {{ product.price | brl }}
+        <li class="card product" [class]="'card product product--' + ($index % 6)" data-testid="product" [appReveal]="$index % 4">
+          <div class="product__art" aria-hidden="true">
+            @if ($index % 2 === 0) {
+              <svg viewBox="0 0 40 80" focusable="false"><rect x="14" y="0" width="12" height="5" rx="1.5" fill="#d8202f" /><path d="M16 5h8v8c0 4 8 8 8 18v43a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V31c0-10 8-14 8-18Z" fill="#fff" fill-opacity="0.93" /><rect x="8" y="38" width="24" height="22" fill="#f5b700" /></svg>
             } @else {
-              {{ t.priceOnRequest }}
+              <svg viewBox="0 0 40 80" focusable="false"><rect x="6" y="14" width="28" height="60" rx="5" fill="#fff" fill-opacity="0.93" /><rect x="6" y="30" width="28" height="22" fill="#d8202f" /><rect x="10" y="9" width="20" height="6" rx="2" fill="#c7ccdb" /></svg>
             }
-          </p>
-          @if (product.dealName) {
-            <span class="badge badge--warn">{{ product.dealName }}</span>
-          }
-          <span class="badge" [class.badge--ok]="product.inStock" [class.badge--warn]="!product.inStock">
-            {{ product.inStock ? t.inStock : t.outOfStock }}
-          </span>
+          </div>
+          <div class="product__body">
+            <h3>{{ product.name }}</h3>
+            <div class="product__tags">
+              <span class="chip chip--tag">{{ product.sku }}</span>
+              @if (product.dealName) {
+                <span class="badge badge--warn">{{ product.dealName }}</span>
+              }
+            </div>
+            <p class="product__price">
+              @if (product.price !== null) {
+                {{ product.price | brl }}
+              } @else {
+                {{ t.priceOnRequest }}
+              }
+            </p>
+            <span class="badge" [class.badge--ok]="product.inStock" [class.badge--warn]="!product.inStock">
+              <app-icon [name]="product.inStock ? 'check-circle' : 'alert-triangle'" />
+              {{ product.inStock ? t.inStock : t.outOfStock }}
+            </span>
+          </div>
         </li>
       }
     </ul>
@@ -60,13 +94,18 @@
     <form class="toolbar" data-testid="coverage" (ngSubmit)="checkCoverage()">
       <div class="field">
         <label for="coverageAddress">{{ t.addressLabel }}</label>
-        <input id="coverageAddress" name="coverageAddress" type="text" [(ngModel)]="coverageAddress" [placeholder]="t.addressPlaceholder" />
+        <div class="field__control">
+          <app-icon name="map-pin" />
+          <input id="coverageAddress" name="coverageAddress" type="text" [(ngModel)]="coverageAddress" [placeholder]="t.addressPlaceholder" />
+        </div>
       </div>
-      <button type="submit" class="btn btn--outline btn--small" [disabled]="coverageAction.busy()">{{ t.check }}</button>
+      <button type="submit" class="btn btn--outline btn--small" [disabled]="coverageAction.busy()">
+        <app-icon [name]="coverageAction.busy() ? 'loader' : 'search'" [class.icon-spin]="coverageAction.busy()" />{{ t.check }}</button>
     </form>
     <app-error-alert [error]="coverageAction.error()" />
     @if (coverageResult(); as result) {
       <p class="alert" [class.alert--success]="result.supported" data-testid="coverage-result" role="status">
+        <app-icon [name]="result.supported ? 'check-circle' : 'info'" />
         @if (result.supported) {
           {{ t.coveredBy }} {{ result.warehouseName }}
         } @else {
