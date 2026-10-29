@@ -3,10 +3,11 @@ import { RouterOutlet } from '@angular/router';
 import { PT } from './core/i18n/pt-br';
 import { AppFooter } from './shared/ui/app-footer/app-footer';
 import { WhatsappButton } from './shared/ui/whatsapp-button/whatsapp-button';
+import { PrivacyNotice } from './shared/ui/privacy-notice/privacy-notice';
 import { AppHeader } from './shared/ui/app-header/app-header';
 
 @Component({
-  imports: [RouterOutlet, AppHeader, AppFooter, WhatsappButton],
+  imports: [RouterOutlet, AppHeader, AppFooter, WhatsappButton, PrivacyNotice],
   selector: 'app-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',

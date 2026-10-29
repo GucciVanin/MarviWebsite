@@ -46,4 +46,8 @@ describe('AppFooter contact column', () => {
     expect(el.querySelector('[data-testid="placeholder"]')).toBeNull();
     expect(el.textContent).toContain('Rua A, 1');
   });
+
+  it('links to the privacy policy', () => {
+    expect(render().querySelector('a[href="/privacidade"]')?.textContent).toContain('Política de Privacidade');
+  });
 });

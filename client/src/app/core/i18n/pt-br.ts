@@ -23,6 +23,64 @@ export const PT = {
     contact: 'Contato',
     social: 'Redes sociais',
   },
+  privacy: {
+    link: 'Política de Privacidade',
+    notice: {
+      label: 'Aviso de privacidade',
+      text: 'Este site não usa cookies. O navegador guarda apenas o seu login e o registro de que você leu este aviso. Saiba mais na',
+      ok: 'Entendi',
+    },
+    registerLink: 'Veja como usamos seus dados na',
+    page: {
+      title: 'Política de Privacidade',
+      draft: 'Texto em elaboração, sujeito a revisão jurídica.',
+      contactLabels: { email: 'E-mail', phone: 'Telefone', address: 'Endereço' },
+      controller: {
+        heading: 'Quem é o responsável',
+        text: 'O responsável pelo tratamento dos seus dados pessoais é',
+        legalNamePlaceholder: '[Razão social a informar]',
+        cnpjPlaceholder: '[CNPJ a informar]',
+      },
+      data: {
+        heading: 'Quais dados coletamos',
+        intro: 'Coletamos somente os dados necessários para atender você:',
+        items: [
+          'Cadastro da conta: e-mail, senha, nome da empresa e endereço de cobrança.',
+          'Cotações e pedidos: os produtos, as quantidades, os preços, os endereços de entrega e o histórico da sua conta.',
+          'Formulário de contato e mensagens: os dados que você nos enviar, como nome, telefone e a mensagem.',
+        ],
+      },
+      purpose: {
+        heading: 'Para que usamos seus dados',
+        text: 'Usamos seus dados para criar e manter sua conta, preparar cotações, processar pedidos e entregas, responder aos seus contatos e cumprir obrigações legais.',
+      },
+      rights: {
+        heading: 'Seus direitos (LGPD, art. 18)',
+        intro: 'Você pode pedir, a qualquer momento:',
+        items: [
+          'confirmação de que tratamos seus dados e acesso a eles;',
+          'correção de dados incompletos, inexatos ou desatualizados;',
+          'anonimização, bloqueio ou eliminação de dados desnecessários ou tratados em desacordo com a lei;',
+          'portabilidade dos dados;',
+          'informação sobre com quem compartilhamos os dados.',
+        ],
+        how: 'Para exercer qualquer desses direitos, entre em contato pelos canais acima.',
+      },
+      device: {
+        heading: 'O que guardamos no seu dispositivo',
+        text: 'Este site não define cookies e não usa ferramentas de análise ou de publicidade. Usamos apenas o armazenamento local do navegador para:',
+        items: [
+          'manter você conectado depois do login (necessário para o funcionamento do site);',
+          'lembrar que você leu o aviso de privacidade, para não mostrá-lo de novo.',
+        ],
+      },
+      thirdParties: {
+        heading: 'Terceiros',
+        text: 'As avaliações exibidas na página inicial vêm do Google e são buscadas pelo nosso servidor; seu navegador não se conecta ao Google por causa delas. Se isso mudar, esta política será atualizada.',
+      },
+      updated: { heading: 'Última atualização', text: '28/10/2026' },
+    },
+  },
   contact: {
     phone: 'Telefone',
     whatsapp: 'WhatsApp',

@@ -57,6 +57,10 @@
       </button>
     </form>
 
+    <p class="auth-switch" data-testid="privacy-link">
+      {{ privacy.registerLink }} <a routerLink="/privacidade">{{ privacy.link }}</a>.
+    </p>
+
     <p class="auth-switch">
       {{ t.haveAccount }} <a routerLink="/login">{{ t.goToLogin }}</a>
     </p>

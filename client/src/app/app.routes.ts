@@ -13,6 +13,10 @@ export const routes: Routes = [
     loadChildren: () => import('./features/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
   {
+    path: 'privacidade',
+    loadChildren: () => import('./features/privacy/privacy.routes').then((m) => m.PRIVACY_ROUTES),
+  },
+  {
     path: 'storefront',
     loadChildren: () =>
       import('./features/storefront/storefront.routes').then((m) => m.STOREFRONT_ROUTES),
