@@ -12,6 +12,7 @@
         <li><a routerLink="/" fragment="rede">{{ t.nav.network }}</a></li>
         <li><a routerLink="/" fragment="sobre">{{ t.nav.about }}</a></li>
         <li><a routerLink="/" fragment="por-que">{{ t.nav.why }}</a></li>
+        <li><a routerLink="/contato">{{ t.nav.contact }}</a></li>
       </ul>
     </nav>
     <section aria-labelledby="footer-contact">
@@ -59,5 +60,6 @@
   </div>
   <p class="container footer__legal">
     © {{ year }} {{ t.brand.name }} — {{ t.brand.tagline }}. {{ t.footer.rights }}
+    <a class="footer__privacy" routerLink="/privacidade">{{ t.privacy.link }}</a>
   </p>
 </footer>

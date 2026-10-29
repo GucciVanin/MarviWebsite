@@ -5,13 +5,17 @@ import { provideRouter } from '@angular/router';
 import { AdminInbox } from './admin-inbox';
 
 const group = (items: object[], count = items.length) => ({ count, items });
-const inbox = (over: Partial<Record<'customers' | 'quotes' | 'lowStock' | 'unpricedProducts' | 'unstockedProducts', object>> = {}) => {
+const inbox = (over: Partial<Record<'customers' | 'quotes' | 'lowStock' | 'unpricedProducts' | 'unstockedProducts' | 'contactMessages', object>> = {}) => {
   const body = {
-    customers: group([]), quotes: group([]), lowStock: group([]), unpricedProducts: group([]), unstockedProducts: group([]), ...over,
+    customers: group([]), quotes: group([]), lowStock: group([]), unpricedProducts: group([]), unstockedProducts: group([]), contactMessages: group([]), ...over,
   } as Record<string, { count: number }>;
   return { total: Object.values(body).reduce((sum, g) => sum + g.count, 0), ...body };
 };
 const waiting = (id: string, companyName: string) => ({ id, companyName, createdAt: '2026-10-14T13:42:00Z' });
+const contactMessage = (id: string, over: object = {}) => ({
+  id, name: 'Ana Souza', email: 'ana@bar.com.br', phone: '(11) 99999-0000', company: 'Bar da Ana', message: 'Quero pedir\nem volume.',
+  createdAt: '2026-10-20T09:30:00Z', ...over,
+});
 const tiers = [{ id: 't-std', name: 'Standard', isDefault: true }, { id: 't-gold', name: 'Ouro', isDefault: false }];
 
 describe('AdminInbox', () => {
@@ -31,8 +35,9 @@ describe('AdminInbox', () => {
     const button = (label: string, within: ParentNode = root) =>
       Array.from(within.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === label)!;
     const row = (company: string) => Array.from(root.querySelectorAll<HTMLElement>('[data-testid="pending-customer"]')).find((r) => r.textContent?.includes(company))!;
+    const card = (name: string) => Array.from(root.querySelectorAll<HTMLElement>('[data-testid="pending-contact"]')).find((r) => r.textContent?.includes(name))!;
     const reload = (next: ReturnType<typeof inbox>) => http.expectOne('/api/admin/pending-actions').flush(next);
-    return { fixture, http, root, settle, button, row, reload };
+    return { fixture, http, root, settle, button, row, card, reload };
   }
   const text = (root: HTMLElement) => (root.textContent ?? '').replace(/\s+/g, ' ');
 
@@ -235,5 +240,174 @@ describe('AdminInbox', () => {
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('Erro no servidor');
     expect(text(root)).not.toContain('Nada pendente');
+  });
+
+  describe('contact messages', () => {
+    it('lists each message with name, e-mail, phone, company, date and text', async () => {
+      const { root, settle, card } = setup(inbox({ contactMessages: group([contactMessage('m1')]) }));
+      await settle();
+
+      const item = card('Ana Souza');
+      expect(text(root)).toContain('Mensagens de contato');
+      expect(item.textContent).toContain('ana@bar.com.br');
+      expect(item.textContent).toContain('(11) 99999-0000');
+      expect(item.textContent).toContain('Bar da Ana');
+      expect(item.textContent).toContain('20/10/2026');
+      expect(item.querySelector('[data-testid="contact-message"]')!.textContent).toBe('Quero pedir\nem volume.');
+      expect(item.querySelector('[data-testid="contact-message"]')!.classList).toContain('pre-wrap');
+      expect(item.querySelector('a')!.getAttribute('href')).toBe('mailto:ana@bar.com.br');
+      expect(item.querySelector('a[href^="tel:"]')).toBeNull();
+      expect(text(root)).toContain('1 item aguardando');
+    });
+
+    it('shows a hostile message as text: no element is created from it', async () => {
+      const evil = '<script>alert(1)</script><b>x</b>';
+      const { root, settle, card } = setup(inbox({ contactMessages: group([contactMessage('m1', { message: evil, name: '<i>Eve</i>' })]) }));
+      await settle();
+
+      const item = card('Eve');
+      expect(item.querySelector('[data-testid="contact-message"]')!.textContent).toBe(evil);
+      expect(item.querySelector('[data-testid="contact-message"]')!.children.length).toBe(0);
+      expect(item.querySelector('[data-testid="contact-name"]')!.children.length).toBe(0);
+      expect(root.querySelector('script')).toBeNull();
+    });
+
+    it('links the e-mail only when it looks like an address, and always shows it as text', async () => {
+      const { settle, card } = setup(inbox({ contactMessages: group([
+        contactMessage('m1', { name: 'Bom', email: 'bom@x.com' }),
+        contactMessage('m2', { name: 'Mau', email: 'javascript:alert(1)' }),
+        contactMessage('m3', { name: 'Outro', email: 'a b@x.com' }),
+      ]) }));
+      await settle();
+
+      expect(card('Bom').querySelector('a')!.getAttribute('href')).toBe('mailto:bom@x.com');
+      expect(card('Mau').querySelector('a')).toBeNull();
+      expect(card('Mau').textContent).toContain('javascript:alert(1)');
+      expect(card('Outro').querySelector('a')).toBeNull();
+    });
+
+    it('never links an address that could pre-fill the mail client (extra parameters, headers, paths)', async () => {
+      const tricky = ['a@b.com?bcc=x@y.z', 'a@b.com%0d%0abcc:x', 'a@b.com&body=hi', 'a/b@c.com', 'a@b.com#x', 'a`b@c.com'];
+      const { root, settle } = setup(inbox({ contactMessages: group(tricky.map((email, i) => contactMessage('t' + i, { name: 'N' + i, email }))) }));
+      await settle();
+
+      expect(root.querySelectorAll('[data-testid="pending-contact"] a').length).toBe(0);
+      expect(root.querySelectorAll('[data-testid="pending-contact"]').length).toBe(tricky.length);
+      expect(text(root)).toContain('a@b.com?bcc=x@y.z');
+    });
+
+    it('still links an ordinary address with dots and a plus in the local part', async () => {
+      const { settle, card } = setup(inbox({ contactMessages: group([contactMessage('m1', { name: 'Plus', email: 'jo.ao+vendas@mail.exemplo.com.br' })]) }));
+      await settle();
+
+      expect(card('Plus').querySelector('a')!.getAttribute('href')).toBe('mailto:jo.ao+vendas@mail.exemplo.com.br');
+    });
+
+    it('gives each handle button the sender in its accessible name', async () => {
+      const { root, settle } = setup(inbox({ contactMessages: group([contactMessage('m1'), contactMessage('m2', { name: 'Beto' })]) }));
+      await settle();
+
+      const labels = Array.from(root.querySelectorAll('[data-testid="pending-contact"] button')).map((b) => b.getAttribute('aria-label'));
+      expect(labels).toEqual(['Marcar como atendida: Ana Souza', 'Marcar como atendida: Beto']);
+    });
+
+    it('treats a response without the contact group as an empty group', async () => {
+      const body = inbox() as Record<string, unknown>;
+      delete body['contactMessages'];
+      const { root, settle } = setup(body as ReturnType<typeof inbox>);
+      await settle();
+
+      expect(text(root)).toContain('Nenhuma mensagem de contato.');
+    });
+
+    it('omits a missing phone and company', async () => {
+      const { settle, card } = setup(inbox({ contactMessages: group([contactMessage('m1', { phone: null, company: null })]) }));
+      await settle();
+
+      expect(card('Ana Souza').textContent).not.toContain('Telefone');
+      expect(card('Ana Souza').textContent).not.toContain('Empresa');
+    });
+
+    it('takes a handled message off the list at once, calls the endpoint and refreshes the count', async () => {
+      const { fixture, http, root, settle, button, card, reload } = setup(inbox({ contactMessages: group([contactMessage('m1'), contactMessage('m2', { name: 'Beto' })]) }));
+      await settle();
+
+      button('Marcar como atendida', card('Ana Souza')).click();
+      fixture.detectChanges();
+      const request = http.expectOne('/api/admin/contact-messages/m1/handle');
+      expect(request.request.method).toBe('POST');
+      request.flush(null, { status: 204, statusText: 'No Content' });
+      await settle(); // the refreshed list has not arrived yet
+
+      expect(root.querySelectorAll('[data-testid="pending-contact"]').length).toBe(1);
+      expect(text(root)).not.toContain('Ana Souza');
+      expect(text(root)).toContain('Mensagem marcada como atendida');
+      reload(inbox({ contactMessages: group([contactMessage('m2', { name: 'Beto' })]) }));
+      await settle();
+      expect(text(root)).toContain('1 item aguardando');
+    });
+
+    it('when another admin handled it first (409), says so and refreshes the list', async () => {
+      const { fixture, http, root, settle, button, card, reload } = setup(inbox({ contactMessages: group([contactMessage('m1')]) }));
+      await settle();
+
+      button('Marcar como atendida', card('Ana Souza')).click();
+      fixture.detectChanges();
+      http.expectOne('/api/admin/contact-messages/m1/handle').flush('This message is already handled.', { status: 409, statusText: 'Conflict' });
+      fixture.detectChanges();
+      reload(inbox());
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('conflito');
+      expect(root.querySelector('[data-testid="pending-contact"]')).toBeNull();
+    });
+
+    it('when the message no longer exists (404), says so and refreshes the list', async () => {
+      const { fixture, http, root, settle, button, card, reload } = setup(inbox({ contactMessages: group([contactMessage('m1')]) }));
+      await settle();
+
+      button('Marcar como atendida', card('Ana Souza')).click();
+      fixture.detectChanges();
+      http.expectOne('/api/admin/contact-messages/m1/handle').flush('Not found', { status: 404, statusText: 'Not Found' });
+      fixture.detectChanges();
+      reload(inbox());
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('não existe mais');
+      expect(root.querySelector('[data-testid="pending-contact"]')).toBeNull();
+    });
+
+    it('uses the standard error alert for any other failure', async () => {
+      const { fixture, http, root, settle, button, card } = setup(inbox({ contactMessages: group([contactMessage('m1')]) }));
+      await settle();
+
+      button('Marcar como atendida', card('Ana Souza')).click();
+      fixture.detectChanges();
+      http.expectOne('/api/admin/contact-messages/m1/handle').flush('boom', { status: 500, statusText: 'Server Error' });
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('Erro no servidor');
+      expect(root.querySelectorAll('[data-testid="pending-contact"]').length).toBe(1);
+    });
+
+    it('says so when the group is empty, and keeps the inbox not-empty when it is the only group with items', async () => {
+      const empty = setup(inbox());
+      await empty.settle();
+      expect(text(empty.root)).toContain('Nenhuma mensagem de contato.');
+      expect(text(empty.root)).toContain('Nada pendente. Tudo em dia.');
+      TestBed.resetTestingModule();
+
+      const only = setup(inbox({ contactMessages: group([contactMessage('m1')]) }));
+      await only.settle();
+      expect(text(only.root)).not.toContain('Nada pendente');
+      expect(text(only.root)).toContain('1 item aguardando');
+    });
+
+    it('says how many there are when more are waiting than are shown', async () => {
+      const { root, settle } = setup(inbox({ contactMessages: group([contactMessage('m1')], 60) }));
+      await settle();
+
+      expect(text(root)).toContain('Mostrando 1 de 60');
+    });
   });
 });

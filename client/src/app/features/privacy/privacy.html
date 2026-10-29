@@ -1,0 +1,59 @@
+<div class="container page policy">
+  <h1>{{ t.title }}</h1>
+  <p class="policy__draft">{{ t.draft }}</p>
+
+  <h2>{{ t.controller.heading }}</h2>
+  <p>
+    {{ t.controller.text }}
+    <span class="policy__placeholder" data-testid="placeholder">{{ t.controller.legalNamePlaceholder }}</span>,
+    CNPJ <span class="policy__placeholder" data-testid="placeholder">{{ t.controller.cnpjPlaceholder }}</span>.
+  </p>
+  <ul>
+    <li>
+      {{ t.contactLabels.email }}:
+      @if (links.email; as href) { <a [href]="href">{{ contact.email }}</a> } @else { <span class="policy__placeholder" data-testid="placeholder">{{ contact.email }}</span> }
+    </li>
+    <li>
+      {{ t.contactLabels.phone }}:
+      @if (links.phone; as href) { <a [href]="href">{{ contact.phone }}</a> } @else { <span class="policy__placeholder" data-testid="placeholder">{{ contact.phone }}</span> }
+    </li>
+    <li>
+      {{ t.contactLabels.address }}:
+      <span [class.policy__placeholder]="contact.address === placeholderAddress" [attr.data-testid]="contact.address === placeholderAddress ? 'placeholder' : null">{{ contact.address }}</span>
+    </li>
+  </ul>
+
+  <h2>{{ t.data.heading }}</h2>
+  <p>{{ t.data.intro }}</p>
+  <ul>
+    @for (item of t.data.items; track item) {
+      <li>{{ item }}</li>
+    }
+  </ul>
+
+  <h2>{{ t.purpose.heading }}</h2>
+  <p>{{ t.purpose.text }}</p>
+
+  <h2>{{ t.rights.heading }}</h2>
+  <p>{{ t.rights.intro }}</p>
+  <ul>
+    @for (item of t.rights.items; track item) {
+      <li>{{ item }}</li>
+    }
+  </ul>
+  <p>{{ t.rights.how }}</p>
+
+  <h2>{{ t.device.heading }}</h2>
+  <p>{{ t.device.text }}</p>
+  <ul>
+    @for (item of t.device.items; track item) {
+      <li>{{ item }}</li>
+    }
+  </ul>
+
+  <h2>{{ t.thirdParties.heading }}</h2>
+  <p>{{ t.thirdParties.text }}</p>
+
+  <h2>{{ t.updated.heading }}</h2>
+  <p>{{ t.updated.text }}</p>
+</div>

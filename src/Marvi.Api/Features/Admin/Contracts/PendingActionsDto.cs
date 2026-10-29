@@ -15,6 +15,9 @@ public record LowStockDto(Guid ProductId, string Sku, string ProductName, Guid W
 /// <summary>A product that needs attention: an active product with no price a visitor can see ("Sob consulta"), or with no stock record at all.</summary>
 public record ProductRefDto(Guid ProductId, string Sku, string Name);
 
+/// <summary>A contact-form message nobody has handled yet (MRV-2.8). The text is a visitor's, shown as plain text.</summary>
+public record PendingContactMessageDto(Guid Id, string Name, string Email, string? Phone, string? Company, string Message, DateTime CreatedAt);
+
 /// <summary>Everything that is waiting on an admin (MRV-6.2): the admin portal's inbox. `Total` is the sum of the counts.</summary>
 public record PendingActionsDto(
     int Total,
@@ -22,4 +25,5 @@ public record PendingActionsDto(
     PendingGroup<PendingQuoteDto> Quotes,
     PendingGroup<LowStockDto> LowStock,
     PendingGroup<ProductRefDto> UnpricedProducts,
-    PendingGroup<ProductRefDto> UnstockedProducts);
+    PendingGroup<ProductRefDto> UnstockedProducts,
+    PendingGroup<PendingContactMessageDto> ContactMessages);

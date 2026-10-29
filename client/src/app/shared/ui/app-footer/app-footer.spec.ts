@@ -17,6 +17,10 @@ describe('AppFooter contact column', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
+  it('links to the contact page in the explore list', () => {
+    expect(render().querySelector('nav a[href="/contato"]')?.textContent?.trim()).toBe('Contato');
+  });
+
   it('shows the placeholders as plain text, never as links', () => {
     const el = render();
 
@@ -45,5 +49,9 @@ describe('AppFooter contact column', () => {
     expect(hrefs).toEqual(['tel:+551134567890', 'https://wa.me/5511912345678', 'mailto:vendas@marvi.com.br']);
     expect(el.querySelector('[data-testid="placeholder"]')).toBeNull();
     expect(el.textContent).toContain('Rua A, 1');
+  });
+
+  it('links to the privacy policy', () => {
+    expect(render().querySelector('a[href="/privacidade"]')?.textContent).toContain('Política de Privacidade');
   });
 });

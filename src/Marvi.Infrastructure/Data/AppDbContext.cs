@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Marvi.Domain.Auditing;
 using Marvi.Domain.Catalog;
+using Marvi.Domain.Contact;
 using Marvi.Domain.Coverage;
 using Marvi.Domain.Identity;
 using Marvi.Domain.Inventory;
@@ -35,6 +36,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<OrderLineItem> OrderLineItems => Set<OrderLineItem>();
     public DbSet<InventoryRecord> InventoryRecords => Set<InventoryRecord>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
+    public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -85,6 +87,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         // The status is a concurrency token (MRV-6.1): a decision about a customer applies only if their status is still the one it was
         // read with, so two admins deciding at once cannot overwrite each other (the second gets a 409).
         builder.Entity<ClientAccount>().Property(c => c.Status).IsConcurrencyToken();
+        // Contact messages (MRV-2.8): length limits mirror the form rules. HandledAt is a concurrency token so two admins handling the
+        // same message at once cannot both succeed (the second save is refused and answers 409).
+        builder.Entity<ContactMessage>(e =>
+        {
+            e.Property(m => m.Name).HasMaxLength(ContactMessage.MaxNameLength);
+            e.Property(m => m.Email).HasMaxLength(ContactMessage.MaxEmailLength);
+            e.Property(m => m.Phone).HasMaxLength(ContactMessage.MaxPhoneLength);
+            e.Property(m => m.Company).HasMaxLength(ContactMessage.MaxCompanyLength);
+            e.Property(m => m.Message).HasMaxLength(ContactMessage.MaxMessageLength);
+            e.Property(m => m.HandledAt).IsConcurrencyToken();
+            e.HasIndex(m => m.CreatedAt);
+        });
+
         // Stock records are deleted deliberately, never as a side effect of deleting the warehouse.
         builder.Entity<InventoryRecord>().HasOne(i => i.Warehouse).WithMany(w => w.InventoryRecords).HasForeignKey(i => i.WarehouseId).OnDelete(DeleteBehavior.Restrict);
 

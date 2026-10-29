@@ -30,10 +30,11 @@ To see the check work: start the API image with the example values and without t
 
 ## 2. Rate limiting (MRV-3.3b)
 
-Sign-in, registration (`/api/auth`) and the public coverage check (`/api/coverage/check`, each call may reach the paid
-geocoding provider) are limited per client address, in fixed windows; over the limit the API answers `429` with `Retry-After`.
-Defaults: 10 requests per 60 s for `/api/auth`, 30 per 60 s for the coverage check. Tune with `RateLimiting__Auth__PermitLimit`,
-`RateLimiting__Auth__WindowSeconds`, `RateLimiting__Coverage__PermitLimit`, `RateLimiting__Coverage__WindowSeconds`.
+Sign-in, registration (`/api/auth`), the public coverage check (`/api/coverage/check`, each call may reach the paid
+geocoding provider) and the public contact form (`POST /api/public/contact`, MRV-2.8: anyone can post to it, and each message is stored) are limited per client address, in fixed windows; over the limit the API answers `429` with `Retry-After`.
+Defaults: 10 requests per 60 s for `/api/auth`, 30 per 60 s for the coverage check, 5 per 60 s for the contact form. Tune with `RateLimiting__Auth__PermitLimit`,
+`RateLimiting__Auth__WindowSeconds`, `RateLimiting__Coverage__PermitLimit`, `RateLimiting__Coverage__WindowSeconds`,
+`RateLimiting__Contact__PermitLimit`, `RateLimiting__Contact__WindowSeconds`.
 
 The limits are keyed on the caller's address. Behind a reverse proxy (the bundled nginx, or your load balancer) the API sees the
 proxy's address unless it reads `X-Forwarded-For`; set `ForwardedHeaders__Enabled=true` **only if the API port is reachable
@@ -41,6 +42,8 @@ exclusively through your proxy**, otherwise a caller could pick their own addres
 hops from the end (default 1: the bundled nginx). With a load balancer or ingress in front of nginx, set it to **2**; left at 1 the API
 would see the balancer's address for every visitor, and they would all share one bucket (and without `ForwardedHeaders__Enabled`,
 they share nginx's address). Check after deploying: sign in wrongly 11 times from one machine, then from another one.
+
+**Warning:** because the limiter trusts `X-Forwarded-For` once that setting is on, the API port 8080 that the development compose publishes must not be exposed in production: bind it to `127.0.0.1` or do not publish it at all, so only nginx can reach the API.
 
 The development compose
 file sets this and raises the limits so the test suites can sign in at machine speed; **do not copy those two lines to production.**

@@ -50,4 +50,10 @@ describe('Register', () => {
     expect(alert).not.toContain('Passwords');
     expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
   });
+
+  it('links to the privacy policy', () => {
+    const { fixture } = setup();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('a[href="/privacidade"]')).not.toBeNull();
+  });
 });

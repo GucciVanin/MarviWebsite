@@ -17,6 +17,10 @@
       <p class="alert alert--success" role="status">{{ done }}</p>
     }
     <app-error-alert [error]="decide.error()" />
+    <app-error-alert [error]="handleError()" />
+    @if (messageGone()) {
+      <p class="alert alert--error" role="alert">{{ t.contactGone }}</p>
+    }
   </section>
 
   @if (data(); as inbox) {
@@ -181,6 +185,43 @@
         </table>
         @if (inbox.unstockedProducts.count > inbox.unstockedProducts.items.length) {
           <p class="muted">{{ t.showing }} {{ inbox.unstockedProducts.items.length }} {{ t.of }} {{ inbox.unstockedProducts.count }}.</p>
+        }
+      }
+    </section>
+
+    <section class="card" aria-labelledby="inbox-contact">
+      <h2 id="inbox-contact">{{ t.contactTitle }} <span class="badge">{{ contactGroup().count }}</span></h2>
+      @if (waitingMessages().length === 0) {
+        <p class="muted">{{ t.noContact }}</p>
+      } @else {
+        <ul class="stack" role="list">
+          @for (item of waitingMessages(); track item.id) {
+            <li class="card" data-testid="pending-contact">
+              <p>
+                <strong data-testid="contact-name">{{ item.name }}</strong>
+                <span class="muted"> · {{ t.contactReceived }} {{ item.createdAt | ptDate }}</span>
+              </p>
+              <p>
+                {{ t.contactEmail }}:
+                @if (mailto(item.email); as link) {
+                  <a [href]="link">{{ item.email }}</a>
+                } @else {
+                  <span>{{ item.email }}</span>
+                }
+                @if (item.phone) {
+                  · {{ t.contactPhone }}: <span>{{ item.phone }}</span>
+                }
+                @if (item.company) {
+                  · {{ t.contactCompany }}: <span>{{ item.company }}</span>
+                }
+              </p>
+              <p class="pre-wrap" data-testid="contact-message">{{ item.message }}</p>
+              <button type="button" class="btn btn--primary btn--small" [attr.aria-label]="t.markHandled + ': ' + item.name" [disabled]="handle.busy()" (click)="markHandled(item.id)">{{ t.markHandled }}</button>
+            </li>
+          }
+        </ul>
+        @if (contactGroup().count > contactGroup().items.length) {
+          <p class="muted">{{ t.showing }} {{ waitingMessages().length }} {{ t.of }} {{ contactGroup().count }}.</p>
         }
       }
     </section>

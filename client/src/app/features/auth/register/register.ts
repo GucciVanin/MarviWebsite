@@ -18,6 +18,7 @@ export class Register {
   private readonly router = inject(Router);
 
   protected readonly t = PT.auth;
+  protected readonly privacy = PT.privacy;
 
   email = '';
   password = '';

@@ -318,7 +318,7 @@ ok('a product that is out of stock is below its reorder point (low stock)', inbo
 ok('an active product with no price is listed as unpriced, a priced one is not', inbox.unpricedProducts.items.some((p) => p.productId === prod.nopr.id) && !inbox.unpricedProducts.items.some((p) => p.productId === prod.cola.id));
 ok('a quote nobody has priced is waiting, with the company that asked', inbox.quotes.count === inbox.quotes.items.length && inbox.quotes.items.every((q) => q.companyName && q.lineCount >= 1));
 ok('an active product that no warehouse has ever held is listed (these fixtures leave mixer and nopr without any stock record), a stocked one is not', inbox.unstockedProducts.items.some((p) => p.productId === prod.nopr.id) && !inbox.unstockedProducts.items.some((p) => p.productId === prod.cola.id));
-const groups = [inbox.customers, inbox.quotes, inbox.lowStock, inbox.unpricedProducts, inbox.unstockedProducts];
+const groups = [inbox.customers, inbox.quotes, inbox.lowStock, inbox.unpricedProducts, inbox.unstockedProducts, inbox.contactMessages];
 ok('the total is the sum of the groups, and each group lists at most 50', inbox.total === groups.reduce((sum, g) => sum + g.count, 0) && groups.every((g) => g.items.length <= 50 && g.items.length <= g.count));
 await call('PUT', `/api/admin/clients/${waiting.id}/suspend`, { token: admin });
 ok('once an admin has decided, the customer leaves the inbox', !(await call('GET', '/api/admin/pending-actions', { token: admin })).json.customers.items.some((c) => c.id === waiting.id));
@@ -525,6 +525,34 @@ ok('stats and categories are cacheable for a short time (Cache-Control public, m
   && /max-age=60/.test((await call('GET', '/api/categories')).headers.get('cache-control') ?? ''));
 ok('stats contain no price or customer data', !/price|email|company|client/i.test(stats.text));
 
+section('CONTACT FORM: anyone can write to the business; only an admin reads and handles the messages (on real Postgres)');
+const contactBody = (over = {}) => ({ name: '  Maria Teste  ', email: 'maria@contato.test', phone: '(11) 99999-0000', company: 'Padaria Teste', message: '  Gostaria de um orçamento de bebidas.  ', website: '', ...over });
+const contactOk = await call('POST', '/api/public/contact', { body: contactBody() });
+ok('an anonymous visitor can send a contact message (204)', contactOk.status === 204, String(contactOk.status));
+const contactRow = sql("select name || '|' || email || '|' || message || '|' || (handled_at is null) from contact_messages where email = 'maria@contato.test'");
+ok('it is stored trimmed, unhandled, with a UTC date', contactRow === 'Maria Teste|maria@contato.test|Gostaria de um orçamento de bebidas.|true' && sql("select data_type from information_schema.columns where table_name='contact_messages' and column_name='created_at'") === 'timestamp with time zone', contactRow);
+const contactBefore = Number(sql('select count(*) from contact_messages'));
+for (const [label, over] of [['no name', { name: ' ' }], ['a bad e-mail', { email: 'not-an-email' }], ['a too short message', { message: 'oi' }], ['a too long message', { message: 'x'.repeat(2001) }], ['a too long name', { name: 'n'.repeat(101) }], ['a NUL character', { message: 'texto com nul \u0000 no meio' }]]) {
+  const r = await call('POST', '/api/public/contact', { body: contactBody(over) });
+  ok(`invalid contact (${label}) is refused with 400 and field problems`, r.status === 400 && r.json?.errors && !r.text.includes('not-an-email'), `${r.status} ${r.text.slice(0, 120)}`);
+}
+const honeypot = await call('POST', '/api/public/contact', { body: contactBody({ email: 'bot@spam.test', website: 'http://spam.test' }) });
+ok('a filled honeypot answers 204 but stores nothing', honeypot.status === 204 && sql("select count(*) from contact_messages where email = 'bot@spam.test'") === '0');
+ok('none of the refused messages was stored', Number(sql('select count(*) from contact_messages')) === contactBefore);
+ok('the contact messages are not readable anonymously, by a customer or by an employee', (await call('GET', '/api/admin/contact-messages')).status === 401 && (await call('GET', '/api/admin/contact-messages', { token: clientA.token })).status === 403 && (await call('GET', '/api/admin/contact-messages', { token: emp })).status === 403);
+const contactList = (await call('GET', '/api/admin/contact-messages?handled=false', { token: admin })).json;
+const contactMine = contactList.items.find((m) => m.email === 'maria@contato.test');
+ok('an admin lists the waiting messages, newest first, with the total', !!contactMine && contactList.totalCount >= 1 && contactList.items.every((m, i) => i === 0 || Date.parse(contactList.items[i - 1].createdAt) >= Date.parse(m.createdAt)));
+const contactInbox = (await call('GET', '/api/admin/pending-actions', { token: admin })).json;
+ok('the pending-actions inbox has the message in its contactMessages group, counted in the total', contactInbox.contactMessages.items.some((m) => m.id === contactMine.id) && contactInbox.total === [contactInbox.customers, contactInbox.quotes, contactInbox.lowStock, contactInbox.unpricedProducts, contactInbox.unstockedProducts, contactInbox.contactMessages].reduce((sum, g) => sum + g.count, 0));
+ok('only an admin can handle it: anonymous 401, employee 403', (await call('POST', `/api/admin/contact-messages/${contactMine.id}/handle`)).status === 401 && (await call('POST', `/api/admin/contact-messages/${contactMine.id}/handle`, { token: emp })).status === 403);
+ok('an admin marks it handled (204)', (await call('POST', `/api/admin/contact-messages/${contactMine.id}/handle`, { token: admin })).status === 204);
+ok('handling it again is a 409, an unknown id a 404', (await call('POST', `/api/admin/contact-messages/${contactMine.id}/handle`, { token: admin })).status === 409 && (await call('POST', `/api/admin/contact-messages/${crypto.randomUUID()}/handle`, { token: admin })).status === 404);
+ok('the handled message leaves the waiting list and the inbox but stays stored', !(await call('GET', '/api/admin/contact-messages?handled=false', { token: admin })).json.items.some((m) => m.id === contactMine.id)
+  && (await call('GET', '/api/admin/contact-messages?handled=true', { token: admin })).json.items.some((m) => m.id === contactMine.id && m.handledAt)
+  && !(await call('GET', '/api/admin/pending-actions', { token: admin })).json.contactMessages.items.some((m) => m.id === contactMine.id));
+ok('handling it was audited', sql(`select count(*) from audit_log_entries where entity_name = 'ContactMessage' and entity_id = '${contactMine.id}'`) === '1');
+
 section('GOOGLE REVIEWS: public, and simply absent (204) while no Google key is configured');
 const googleReviews = await call('GET', '/api/public/reviews');
 ok('the reviews endpoint is public and answers 204 without a Google key (the section hides)', googleReviews.status === 204, String(googleReviews.status));
@@ -625,6 +653,7 @@ const endpoints = [
   ['POST', '/api/admin/products/import', undefined, ['admin']],
   ['GET', '/api/employee/clients', undefined, ['employee', 'admin']],
   ['GET', '/api/admin/pending-actions', undefined, ['admin']],
+  ['GET', '/api/admin/contact-messages', undefined, ['admin']], ['POST', `/api/admin/contact-messages/${ID}/handle`, undefined, ['admin']],
   ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
 ];
 let matrixBad = [];
