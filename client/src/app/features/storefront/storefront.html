@@ -3,11 +3,11 @@
     <h1>{{ t.title }}</h1>
     <p class="muted">{{ t.intro }}</p>
     @if (isAuthenticated()) {
-      <a class="btn btn--primary" [routerLink]="homeUrl()">{{ areaLabel() }}</a>
+      <a class="btn btn--primary" [routerLink]="homeUrl()"><app-icon name="user" />{{ areaLabel() }}</a>
     } @else {
       <p>
         {{ t.registerPrompt }}
-        <a class="btn btn--primary btn--small" routerLink="/register">{{ t.registerCta }}</a>
+        <a class="btn btn--primary btn--small" routerLink="/register"><app-icon name="user-plus" />{{ t.registerCta }}</a>
       </p>
     }
   </header>
@@ -17,7 +17,10 @@
     <form class="toolbar" data-testid="filters" (ngSubmit)="applyFilters()">
       <div class="field">
         <label for="search">{{ t.search }}</label>
-        <input id="search" name="search" type="search" [(ngModel)]="searchText" [placeholder]="t.searchPlaceholder" />
+        <div class="field__control">
+          <app-icon name="search" />
+          <input id="search" name="search" type="search" [(ngModel)]="searchText" [placeholder]="t.searchPlaceholder" />
+        </div>
       </div>
       <div class="field">
         <label for="category">{{ t.category }}</label>
@@ -28,7 +31,7 @@
           }
         </select>
       </div>
-      <button type="submit" class="btn btn--outline btn--small">{{ t.applyFilters }}</button>
+      <button type="submit" class="btn btn--outline btn--small"><app-icon name="filter" />{{ t.applyFilters }}</button>
     </form>
 
     <app-load-state [state]="products" [emptyText]="t.noProducts" />
@@ -48,6 +51,7 @@
             <span class="badge badge--warn">{{ product.dealName }}</span>
           }
           <span class="badge" [class.badge--ok]="product.inStock" [class.badge--warn]="!product.inStock">
+            <app-icon [name]="product.inStock ? 'check-circle' : 'alert-triangle'" />
             {{ product.inStock ? t.inStock : t.outOfStock }}
           </span>
         </li>
@@ -60,13 +64,18 @@
     <form class="toolbar" data-testid="coverage" (ngSubmit)="checkCoverage()">
       <div class="field">
         <label for="coverageAddress">{{ t.addressLabel }}</label>
-        <input id="coverageAddress" name="coverageAddress" type="text" [(ngModel)]="coverageAddress" [placeholder]="t.addressPlaceholder" />
+        <div class="field__control">
+          <app-icon name="map-pin" />
+          <input id="coverageAddress" name="coverageAddress" type="text" [(ngModel)]="coverageAddress" [placeholder]="t.addressPlaceholder" />
+        </div>
       </div>
-      <button type="submit" class="btn btn--outline btn--small" [disabled]="coverageAction.busy()">{{ t.check }}</button>
+      <button type="submit" class="btn btn--outline btn--small" [disabled]="coverageAction.busy()">
+        <app-icon [name]="coverageAction.busy() ? 'loader' : 'search'" [class.icon-spin]="coverageAction.busy()" />{{ t.check }}</button>
     </form>
     <app-error-alert [error]="coverageAction.error()" />
     @if (coverageResult(); as result) {
       <p class="alert" [class.alert--success]="result.supported" data-testid="coverage-result" role="status">
+        <app-icon [name]="result.supported ? 'check-circle' : 'info'" />
         @if (result.supported) {
           {{ t.coveredBy }} {{ result.warehouseName }}
         } @else {

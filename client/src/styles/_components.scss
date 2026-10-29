@@ -267,6 +267,12 @@
   &__price { font-size: 1.25rem; font-weight: 800; }
 }
 
+// A spinning icon (the busy / loading mark). It only rotates when motion is allowed; otherwise it stays still.
+@media (prefers-reduced-motion: no-preference) {
+  .icon-spin { animation: icon-spin 1s linear infinite; }
+}
+@keyframes icon-spin { to { transform: rotate(360deg); } }
+
 .visually-hidden {
   position: absolute;
   width: 1px;

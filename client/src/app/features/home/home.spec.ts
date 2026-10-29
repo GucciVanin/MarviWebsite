@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { fakeToken } from '../../core/auth/testing/fake-token';
+import { iconNames } from '../../shared/ui/app-icon/testing/icon-names';
 import { Home } from './home';
 
 const category = (n: number) => ({ id: `c${n}`, name: `Categoria ${n}`, productCount: n });
@@ -220,5 +221,17 @@ describe('Home (landing page)', () => {
     for (const section of Array.from(root.querySelectorAll('section'))) {
       expect(section.getAttribute('aria-labelledby') ?? section.getAttribute('aria-label'), section.className).toBeTruthy();
     }
+  });
+
+  // ---- icons (MRV-7.2)
+
+  it('draws the flow, stats and call-to-action marks with the app icon, all decorative', async () => {
+    const { fixture, root, withApi } = render();
+    await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+
+    expect(iconNames(fixture, '.flow')).toEqual(['clipboard-list', 'package', 'truck']);
+    expect(iconNames(fixture, '[data-testid="stats"]')).toEqual(['package', 'map-pin', 'clock', 'shield-check']);
+    expect(iconNames(fixture, '.hero__actions')).toEqual(['arrow-right', 'user-plus']);
+    expect(root.querySelectorAll('app-icon:not([aria-hidden="true"])').length).toBe(0);
   });
 });

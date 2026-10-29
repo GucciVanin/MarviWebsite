@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { BehaviorSubject } from 'rxjs';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { fakeToken } from '../../core/auth/testing/fake-token';
+import { iconNames } from '../../shared/ui/app-icon/testing/icon-names';
 import { Storefront } from './storefront';
 
 const CAT = '11111111-1111-1111-1111-111111111111';
@@ -269,5 +270,37 @@ describe('Storefront (public catalog)', () => {
     expect(deals).toContain('10%');
     expect(deals).toContain('R$');
     expect(deals).not.toContain('Percent');
+  });
+
+  // ---- icons (MRV-7.2)
+
+  it('gives the search field, filter button, coverage check and stock badges their icons', async () => {
+    const { fixture, http, loadWith } = setup();
+    await loadWith({ products: [product('a', 'Cafe', 5), product('b', 'Acucar', 3, { inStock: false })] });
+    http.verify();
+
+    expect(iconNames(fixture, '[data-testid="filters"]')).toEqual(['search', 'filter']);
+    expect(iconNames(fixture, '[data-testid="coverage"]')).toEqual(['map-pin', 'search']);
+    expect(iconNames(fixture, '.product-grid')).toEqual(['check-circle', 'alert-triangle']);
+  });
+
+  it('swaps the coverage check icon for a spinning loader while the check is in flight', async () => {
+    const { fixture, http, root, settle, loadWith } = setup();
+    await loadWith();
+    const address = root.querySelector<HTMLInputElement>('input[name="coverageAddress"]')!;
+    address.value = 'Rua A, 100';
+    address.dispatchEvent(new Event('input'));
+    await settle();
+    expect(iconNames(fixture, '[data-testid="coverage"]')).toEqual(['map-pin', 'search']);
+
+    root.querySelector<HTMLFormElement>('form[data-testid="coverage"]')!.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+    expect(iconNames(fixture, '[data-testid="coverage"]')).toEqual(['map-pin', 'loader']);
+    expect(root.querySelector('[data-testid="coverage"] button app-icon')?.classList).toContain('icon-spin');
+
+    http.expectOne('/api/coverage/check').flush({ supported: true, warehouseName: 'Depósito Central' });
+    await settle();
+    expect(iconNames(fixture, '[data-testid="coverage"]')).toEqual(['map-pin', 'search']);
+    expect(iconNames(fixture, '[data-testid="coverage-result"]')).toEqual(['check-circle']);
   });
 });

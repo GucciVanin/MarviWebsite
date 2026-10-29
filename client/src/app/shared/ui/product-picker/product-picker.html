@@ -12,7 +12,7 @@
       }
     </select>
   </div>
-  <button type="submit" class="btn btn--outline btn--small">{{ t.applyFilters }}</button>
+  <button type="submit" class="btn btn--outline btn--small"><app-icon name="filter" />{{ t.applyFilters }}</button>
 </form>
 
 <app-load-state [state]="catalog" [emptyText]="t.noProductsFound" />
@@ -42,7 +42,7 @@
               {{ product.inStock ? t.inStock : t.outOfStock }}
             </span>
           </td>
-          <td><button type="button" class="btn btn--outline btn--small" (click)="picked.emit(product)">{{ t.add }}</button></td>
+          <td><button type="button" class="btn btn--outline btn--small" (click)="picked.emit(product)"><app-icon name="shopping-cart" />{{ t.add }}</button></td>
         </tr>
       }
     </tbody>

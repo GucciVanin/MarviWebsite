@@ -25,6 +25,10 @@ import { ICONS, type IconName } from './icons';
       height: var(--icon-size, 1em);
       vertical-align: -0.125em;
     }
+    // Opt in with class="icon-filled" (e.g. a rating star): the shape is filled with the text colour.
+    :host(.icon-filled) svg {
+      fill: currentColor;
+    }
     svg {
       width: 100%;
       height: 100%;

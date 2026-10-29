@@ -18,12 +18,10 @@
     <div class="hero__actions">
       <a class="btn btn--ghost btn--cta" routerLink="/storefront">
         {{ t.explore }}
-        <span class="btn__arrow" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="18" height="18" focusable="false" aria-hidden="true"><path d="M5 12h14m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
-        </span>
+        <span class="btn__arrow" aria-hidden="true"><app-icon name="arrow-right" size="1.1rem" /></span>
       </a>
       @if (!isAuthenticated()) {
-        <a class="btn btn--ghost" routerLink="/register">{{ t.register }}</a>
+        <a class="btn btn--ghost" routerLink="/register"><app-icon name="user-plus" />{{ t.register }}</a>
       }
     </div>
   </div>
@@ -36,14 +34,14 @@
     <ol class="flow__steps">
       <li class="flow__step" data-testid="flow-step">
         <span class="flow__node flow__node--navy" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="34" height="34" focusable="false" aria-hidden="true"><path d="M6 26V14m7 12V8m7 18V16m6 10H4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" /></svg>
+          <app-icon name="clipboard-list" size="2.1rem" />
         </span>
         <h3>{{ t.flow[0].title }}</h3>
         <p>{{ t.flow[0].text }}</p>
       </li>
       <li class="flow__step" data-testid="flow-step">
         <span class="flow__node flow__node--gold" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="34" height="34" focusable="false" aria-hidden="true"><path d="M16 4 5 10v12l11 6 11-6V10Zm0 0v24M5 10l11 6 11-6" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" /></svg>
+          <app-icon name="package" size="2.1rem" />
         </span>
         <h3>{{ t.flow[1].title }}</h3>
         <p>{{ t.flow[1].text }}</p>
@@ -55,7 +53,7 @@
       </li>
       <li class="flow__step" data-testid="flow-step">
         <span class="flow__node flow__node--red" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="34" height="34" focusable="false" aria-hidden="true"><path d="M3 9h16v12H3Zm16 4h6l4 4v4h-10M9 25a2.5 2.5 0 1 0 0 .01M23 25a2.5 2.5 0 1 0 0 .01" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" /></svg>
+          <app-icon name="truck" size="2.1rem" />
         </span>
         <h3>{{ t.flow[3].title }}</h3>
         <p>{{ t.flow[3].text }}</p>
@@ -69,7 +67,7 @@
     <h2 id="stats-title" class="stats__title">{{ t.statsTitle }}</h2>
     <ul class="stats__list" data-testid="stats">
       <li class="stat">
-        <svg class="stat__icon" viewBox="0 0 32 32" width="40" height="40" focusable="false" aria-hidden="true"><path d="M11 4h4v6l2 3v15h-8V13l2-3Zm9 8h4v4l2 2v10h-8V18l2-2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+        <app-icon class="stat__icon" name="package" size="2.5rem" />
         <div>
           <p class="stat__label">{{ t.assortmentLabel }}</p>
           @if (hasProducts()) {
@@ -82,7 +80,7 @@
         </div>
       </li>
       <li class="stat" id="rede">
-        <svg class="stat__icon" viewBox="0 0 32 32" width="40" height="40" focusable="false" aria-hidden="true"><path d="M16 29s9-8.5 9-15a9 9 0 1 0-18 0c0 6.5 9 15 9 15Zm0-11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+        <app-icon class="stat__icon" name="map-pin" size="2.5rem" />
         <div>
           <p class="stat__label">{{ t.coverageLabel }}</p>
           @if (hasAreas()) {
@@ -95,7 +93,7 @@
         </div>
       </li>
       <li class="stat">
-        <svg class="stat__icon" viewBox="0 0 32 32" width="40" height="40" focusable="false" aria-hidden="true"><path d="M16 4a12 12 0 1 0 0 24 12 12 0 0 0 0-24Zm0 6v7l5 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        <app-icon class="stat__icon" name="clock" size="2.5rem" />
         <div>
           <p class="stat__label">{{ t.responseLabel }}</p>
           <p class="stat__value">{{ t.responseTitle }}</p>
@@ -103,7 +101,7 @@
         </div>
       </li>
       <li class="stat">
-        <svg class="stat__icon" viewBox="0 0 32 32" width="40" height="40" focusable="false" aria-hidden="true"><path d="M16 4 6 8v8c0 6 4 10 10 12 6-2 10-6 10-12V8Zm-4 12 3 3 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <app-icon class="stat__icon" name="shield-check" size="2.5rem" />
         <div>
           <p class="stat__label">{{ t.reliabilityLabel }}</p>
           <p class="stat__value">{{ t.reliabilityTitle }}</p>
@@ -123,7 +121,7 @@
       </div>
       <div>
         <p>{{ t.productsText }}</p>
-        <a class="products__link" routerLink="/storefront">{{ t.productsLink }} →</a>
+        <a class="products__link" routerLink="/storefront">{{ t.productsLink }} <app-icon name="arrow-right" /></a>
       </div>
     </div>
     <ul class="tiles">
@@ -140,7 +138,7 @@
             @if (tile.productCount !== null) {
               <span class="tile__count">{{ tile.productCount }} {{ t.tileProducts }}</span>
             }
-            <span class="tile__arrow" aria-hidden="true">→</span>
+            <app-icon class="tile__arrow" name="arrow-right" />
           </a>
         </li>
       }
@@ -156,12 +154,12 @@
     <h2 id="banner-title" class="banner__title">{{ t.bannerTitle1 }} <span class="hero__accent">{{ t.bannerTitle2 }}</span></h2>
     <p class="banner__text">{{ t.bannerText }}</p>
     @if (isAuthenticated()) {
-      <a class="btn btn--ghost btn--cta" routerLink="/storefront">{{ t.bannerCtaSignedIn }}</a>
+      <a class="btn btn--ghost btn--cta" routerLink="/storefront"><app-icon name="store" />{{ t.bannerCtaSignedIn }}</a>
     } @else {
       <a class="btn btn--ghost btn--cta" routerLink="/register">
         {{ t.bannerCta }}
         <span class="btn__arrow" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="18" height="18" focusable="false" aria-hidden="true"><path d="M5 12h14m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          <app-icon name="arrow-right" size="1.1rem" />
         </span>
       </a>
     }

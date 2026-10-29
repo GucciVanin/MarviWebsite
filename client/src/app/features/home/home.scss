@@ -138,6 +138,7 @@ h1 {
 }
 
 .flow__node {
+  color: #fff;
   display: grid;
   place-items: center;
   width: 4.5rem;
@@ -220,7 +221,7 @@ h1 {
   @media (min-width: 1024px) { grid-template-columns: 1.4fr 1fr; gap: var(--space-5); }
 }
 
-.products__link { display: inline-block; margin-top: var(--space-1); font-weight: 700; color: var(--color-navy-900); }
+.products__link { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: var(--space-1); font-weight: 700; color: var(--color-navy-900); }
 
 .tiles {
   display: grid;

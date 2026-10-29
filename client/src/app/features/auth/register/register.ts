@@ -5,11 +5,12 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { translateIdentityErrors } from '../../../core/i18n/identity-errors';
 import { describeApiError } from '../../../core/http/api-error';
+import { AppIcon } from '../../../shared/ui/app-icon/app-icon';
 import { PT } from '../../../core/i18n/pt-br';
 
 @Component({
   selector: 'app-register',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, AppIcon],
   templateUrl: './register.html',
   styleUrl: '../auth.scss',
 })

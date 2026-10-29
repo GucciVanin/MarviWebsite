@@ -5,54 +5,67 @@
     <form (ngSubmit)="submit()">
       <div class="field">
         <label for="companyName">{{ t.companyName }}</label>
-        <input
-          id="companyName"
-          type="text"
-          name="companyName"
-          [(ngModel)]="companyName"
-          autocomplete="organization"
-          required
-        />
+        <div class="field__control">
+          <app-icon name="building" />
+          <input
+            id="companyName"
+            type="text"
+            name="companyName"
+            [(ngModel)]="companyName"
+            autocomplete="organization"
+            required
+          />
+        </div>
       </div>
       <div class="field">
         <label for="billingAddress">{{ t.billingAddress }}</label>
-        <input
-          id="billingAddress"
-          type="text"
-          name="billingAddress"
-          [(ngModel)]="billingAddress"
-          autocomplete="street-address"
-          required
-        />
+        <div class="field__control">
+          <app-icon name="map-pin" />
+          <input
+            id="billingAddress"
+            type="text"
+            name="billingAddress"
+            [(ngModel)]="billingAddress"
+            autocomplete="street-address"
+            required
+          />
+        </div>
       </div>
       <div class="field">
         <label for="email">{{ t.email }}</label>
-        <input
-          id="email"
-          type="email"
-          name="email"
-          [(ngModel)]="email"
-          autocomplete="email"
-          required
-        />
+        <div class="field__control">
+          <app-icon name="mail" />
+          <input
+            id="email"
+            type="email"
+            name="email"
+            [(ngModel)]="email"
+            autocomplete="email"
+            required
+          />
+        </div>
       </div>
       <div class="field">
         <label for="password">{{ t.password }}</label>
-        <input
-          id="password"
-          type="password"
-          name="password"
-          [(ngModel)]="password"
-          autocomplete="new-password"
-          required
-        />
+        <div class="field__control">
+          <app-icon name="lock" />
+          <input
+            id="password"
+            type="password"
+            name="password"
+            [(ngModel)]="password"
+            autocomplete="new-password"
+            required
+          />
+        </div>
       </div>
 
       @if (error(); as message) {
-        <p class="alert alert--error" role="alert">{{ message }}</p>
+        <p class="alert alert--error" role="alert"><app-icon name="alert-circle" />{{ message }}</p>
       }
 
       <button type="submit" class="btn btn--primary" [disabled]="busy()">
+        <app-icon name="user-plus" />
         {{ t.submitRegister }}
       </button>
     </form>

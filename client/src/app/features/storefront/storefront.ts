@@ -10,6 +10,7 @@ import { PT } from '../../core/i18n/pt-br';
 import { BrlPipe } from '../../shared/format/brl.pipe';
 import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import type { Category, ProductListItem } from '../../shared/models/catalog.model';
+import { AppIcon } from '../../shared/ui/app-icon/app-icon';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import { Deal, DealsService } from './api/deals.service';
@@ -20,7 +21,7 @@ const validCategory = (value: string | null): string => (value && GUID.test(valu
 
 @Component({
   selector: 'app-storefront',
-  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, BrlPipe, PtDatePipe],
+  imports: [FormsModule, RouterLink, AppIcon, ErrorAlert, LoadState, BrlPipe, PtDatePipe],
   templateUrl: './storefront.html',
 })
 export class Storefront implements OnInit {

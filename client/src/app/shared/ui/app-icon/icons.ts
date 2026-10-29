@@ -1,6 +1,6 @@
 import {
-  LucideArrowRight, LucideBuilding, LucideCheck, LucideChevronDown, LucideCircleAlert, LucideCircleCheck,
-  LucideClipboardList, LucideExternalLink, LucideFunnel, LucideHouse, LucideInbox, LucideInfo, LucideLoaderCircle,
+  LucideArrowLeft, LucideArrowRight, LucideBuilding, LucideCheck, LucideChevronDown, LucideCircleAlert, LucideCircleCheck,
+  LucideClipboardList, LucideClock, LucideExternalLink, LucideFunnel, LucideHouse, LucideInbox, LucideInfo, LucideLoaderCircle,
   LucideLock, LucideLogIn, LucideLogOut, LucideMail, LucideMapPin, LucideMenu, LucideMessageCircle, LucidePackage,
   LucidePhone, LucideRefreshCw, LucideSearch, LucideSend, LucideShieldCheck, LucideShoppingCart, LucideStar,
   LucideStore, LucideTriangleAlert, LucideTruck, LucideUser, LucideUserPlus, LucideX,
@@ -28,12 +28,14 @@ const instagram: LucideIconData = {
 export const ICONS = {
   'alert-circle': LucideCircleAlert.icon,
   'alert-triangle': LucideTriangleAlert.icon,
+  'arrow-left': LucideArrowLeft.icon,
   'arrow-right': LucideArrowRight.icon,
   building: LucideBuilding.icon,
   check: LucideCheck.icon,
   'check-circle': LucideCircleCheck.icon,
   'chevron-down': LucideChevronDown.icon,
   'clipboard-list': LucideClipboardList.icon,
+  clock: LucideClock.icon,
   'external-link': LucideExternalLink.icon,
   facebook,
   filter: LucideFunnel.icon,

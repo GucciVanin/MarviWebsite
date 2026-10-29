@@ -1,11 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
+import { AppIcon } from '../app-icon/app-icon';
 import { PT } from '../../../core/i18n/pt-br';
 
 @Component({
   selector: 'app-header',
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, AppIcon],
   templateUrl: './app-header.html',
   styleUrl: './app-header.scss',
 })

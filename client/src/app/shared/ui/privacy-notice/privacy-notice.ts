@@ -1,19 +1,20 @@
 import { Component, ElementRef, afterNextRender, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AppIcon } from '../app-icon/app-icon';
 import { PT } from '../../../core/i18n/pt-br';
 import { PrivacyNoticeState } from './privacy-notice-state';
 
 /** Informational privacy notice fixed at the bottom (MRV-2.7). It does not block the page or trap focus. */
 @Component({
   selector: 'app-privacy-notice',
-  imports: [RouterLink],
+  imports: [RouterLink, AppIcon],
   template: `
     @if (state.visible()) {
       <div class="notice" role="region" [attr.aria-label]="t.label" data-testid="privacy-notice">
         <p class="notice__text">
           {{ t.text }} <a routerLink="/privacidade">{{ link }}</a>.
         </p>
-        <button type="button" class="btn btn--primary notice__ok" (click)="state.dismiss()">{{ t.ok }}</button>
+        <button type="button" class="btn btn--primary notice__ok" (click)="state.dismiss()"><app-icon name="check" />{{ t.ok }}</button>
       </div>
     }
   `,

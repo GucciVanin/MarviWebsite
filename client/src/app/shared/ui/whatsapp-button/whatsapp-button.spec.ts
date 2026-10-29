@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { CONTACT, CONTACT_INFO, ContactInfo } from '../../../core/contact/contact-info';
 import { PrivacyNoticeState } from '../privacy-notice/privacy-notice-state';
+import { iconNames } from '../app-icon/testing/icon-names';
 import { WhatsappButton } from './whatsapp-button';
 
 describe('WhatsappButton', () => {
@@ -39,5 +40,20 @@ describe('WhatsappButton', () => {
     state.dismiss();
     fixture.detectChanges();
     expect(link().style.bottom).toBe('');
+  });
+});
+
+describe('WhatsappButton icon', () => {
+  afterEach(() => localStorage.clear());
+
+  it('draws the message icon with the app icon, decorative, while the link carries the accessible name', () => {
+    TestBed.configureTestingModule({ imports: [WhatsappButton], providers: [{ provide: CONTACT_INFO, useValue: { ...CONTACT, whatsapp: '(11) 91234-5678' } }] });
+    const fixture = TestBed.createComponent(WhatsappButton);
+    fixture.detectChanges();
+    const link = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="whatsapp-button"]')!;
+
+    expect(iconNames(fixture)).toEqual(['message-circle']);
+    expect(link.getAttribute('aria-label')).toBe('Falar no WhatsApp');
+    expect(link.querySelector('app-icon')?.getAttribute('aria-hidden')).toBe('true');
   });
 });

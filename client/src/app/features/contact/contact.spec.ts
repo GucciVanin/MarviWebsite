@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { CONTACT, CONTACT_INFO, ContactInfo } from '../../core/contact/contact-info';
+import { iconNames } from '../../shared/ui/app-icon/testing/icon-names';
 import { Contact } from './contact';
 
 describe('Contact page', () => {
@@ -135,6 +136,21 @@ describe('Contact page', () => {
     for (const field of ['name', 'email', 'phone', 'company', 'message']) {
       expect(el.querySelector<HTMLInputElement>(`#contact-${field}`)!.value).toBe('');
     }
+  });
+
+  it('swaps the send icon for a spinning loader while the message is in flight, then back', async () => {
+    render();
+    await fill();
+    expect(iconNames(fixture, 'button[type="submit"]')).toEqual(['send']);
+
+    await submit();
+    expect(iconNames(fixture, 'button[type="submit"]')).toEqual(['loader']);
+    expect(button().querySelector('app-icon')?.classList).toContain('icon-spin');
+    http.expectOne('/api/public/contact').flush({}, { status: 202, statusText: 'Accepted' });
+    await settle();
+
+    expect(iconNames(fixture, 'button[type="submit"]')).toEqual(['send']);
+    expect(button().querySelector('app-icon')?.classList).not.toContain('icon-spin');
   });
 
   it('does not send a second request while one is in flight', async () => {
@@ -302,5 +318,54 @@ describe('Contact page', () => {
 
     expect(el.querySelector('a[href="mailto:vendas@marvi.com.br"]')).not.toBeNull();
     expect(el.querySelector('a[href="tel:+551134567890"]')).not.toBeNull();
+  });
+});
+
+describe('Contact page icons', () => {
+  function setup() {
+    TestBed.configureTestingModule({ imports: [Contact], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    const fixture = TestBed.createComponent(Contact);
+    fixture.detectChanges();
+    return { fixture, root: fixture.nativeElement as HTMLElement };
+  }
+
+  it('shows a leading icon on each field, and keeps the field ids and labels', () => {
+    const { fixture, root } = setup();
+
+    expect(iconNames(fixture, 'form')).toEqual(['user', 'mail', 'phone', 'building', 'message-circle', 'send']);
+    for (const id of ['name', 'email', 'phone', 'company', 'message']) {
+      expect(root.querySelector(`.field__control > #contact-${id}`)).not.toBeNull();
+      expect(root.querySelector(`label[for="contact-${id}"]`)).not.toBeNull();
+    }
+  });
+
+  it('puts a send icon on the submit button, decorative, with the button text as its name', () => {
+    const { fixture, root } = setup();
+    const button = root.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+
+    expect(iconNames(fixture, 'button[type="submit"]')).toEqual(['send']);
+    expect(button.textContent?.trim()).toBe('Enviar mensagem');
+    expect(button.querySelector('app-icon')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('shows an alert-circle in each inline validation message', async () => {
+    const { fixture, root } = setup();
+    await fixture.whenStable();
+    root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const messages = Array.from(root.querySelectorAll('small.contact__error'));
+    expect(messages.length).toBeGreaterThan(0);
+    for (const message of messages) {
+      expect(message.querySelector('app-icon')).not.toBeNull();
+    }
+    expect(iconNames(fixture, '[data-testid="error-name"]')).toEqual(['alert-circle']);
+  });
+
+  it('labels the contact details with their icons', () => {
+    const { fixture } = setup();
+
+    expect(iconNames(fixture, '.contact__details')).toEqual(['phone', 'message-circle', 'mail', 'map-pin']);
   });
 });

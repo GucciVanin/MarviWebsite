@@ -15,6 +15,7 @@
       aria-controls="main-nav"
       (click)="toggleMenu()"
     >
+      <app-icon [name]="menuOpen() ? 'x' : 'menu'" />
       {{ t.nav.menu }}
     </button>
 
@@ -31,34 +32,35 @@
             routerLinkActive="is-active"
             [routerLinkActiveOptions]="{ exact: true }"
             (click)="closeMenu()"
-            >{{ t.nav.home }}</a
+            ><app-icon name="home" />{{ t.nav.home }}</a
           >
         </li>
         <li>
-          <a routerLink="/storefront" routerLinkActive="is-active" (click)="closeMenu()">{{
+          <a routerLink="/storefront" routerLinkActive="is-active" (click)="closeMenu()"><app-icon name="store" />{{
             t.nav.products
           }}</a>
         </li>
-        <li><a routerLink="/" fragment="rede" (click)="closeMenu()">{{ t.nav.network }}</a></li>
-        <li><a routerLink="/" fragment="sobre" (click)="closeMenu()">{{ t.nav.about }}</a></li>
-        <li><a routerLink="/" fragment="por-que" (click)="closeMenu()">{{ t.nav.why }}</a></li>
-        <li><a routerLink="/contato" routerLinkActive="is-active" (click)="closeMenu()">{{ t.nav.contact }}</a></li>
+        <li><a routerLink="/" fragment="rede" (click)="closeMenu()"><app-icon name="truck" />{{ t.nav.network }}</a></li>
+        <li><a routerLink="/" fragment="sobre" (click)="closeMenu()"><app-icon name="info" />{{ t.nav.about }}</a></li>
+        <li><a routerLink="/" fragment="por-que" (click)="closeMenu()"><app-icon name="shield-check" />{{ t.nav.why }}</a></li>
+        <li><a routerLink="/contato" routerLinkActive="is-active" (click)="closeMenu()"><app-icon name="mail" />{{ t.nav.contact }}</a></li>
       </ul>
       <p class="header__slogan">{{ t.nav.slogan }}</p>
 
       <div class="header__actions">
         @if (isAuthenticated()) {
-          <a class="btn btn--ghost" [routerLink]="homeUrl()" (click)="closeMenu()">{{
+          <a class="btn btn--ghost" [routerLink]="homeUrl()" (click)="closeMenu()"><app-icon name="user" />{{
             areaLabel()
           }}</a>
           <button type="button" class="header__logout" (click)="logout()">
+            <app-icon name="log-out" />
             {{ t.nav.logout }}
           </button>
         } @else {
-          <a class="btn btn--ghost" routerLink="/login" (click)="closeMenu()">{{
+          <a class="btn btn--ghost" routerLink="/login" (click)="closeMenu()"><app-icon name="log-in" />{{
             t.nav.login
           }}</a>
-          <a class="btn btn--primary" routerLink="/register" (click)="closeMenu()">{{
+          <a class="btn btn--primary" routerLink="/register" (click)="closeMenu()"><app-icon name="user-plus" />{{
             t.nav.register
           }}</a>
         }

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { GoogleReviews } from '../api/google-reviews.service';
+import { iconNames } from '../../../shared/ui/app-icon/testing/icon-names';
 import { GoogleReviewsSection } from './google-reviews';
 
 const LONG = 'Muito bom. '.repeat(30);
@@ -43,7 +44,7 @@ describe('GoogleReviewsSection (MRV-2.5b)', () => {
     const cards = Array.from(root.querySelectorAll('[data-testid="review"]'));
     expect(cards.length).toBe(2);
     expect(cards[0].textContent).toContain('Livia Marques');
-    expect(cards[1].querySelectorAll('svg:not(.stars__off)').length).toBe(1);
+    expect(cards[1].querySelectorAll('app-icon:not(.stars__off)').length).toBe(1);
     expect(cards[1].textContent).toContain('S'); // avatar initial, upper-cased
   });
 
@@ -95,5 +96,23 @@ describe('GoogleReviewsSection (MRV-2.5b)', () => {
       expect(root.querySelector('[data-testid="reviews"]')).toBeNull();
       expect(text(root)).toBe('');
     }
+  });
+
+  it('draws the carousel arrows with arrow icons and names them for assistive technology', async () => {
+    const { fixture, root, answer } = render();
+    await answer(reviews());
+    const arrows = Array.from(root.querySelectorAll('.reviews__arrow'));
+
+    expect(iconNames(fixture, '.reviews__nav')).toEqual(['arrow-left', 'arrow-right']);
+    expect(arrows.map((a) => a.getAttribute('aria-label'))).toEqual(['Avaliações anteriores', 'Próximas avaliações']);
+    expect(arrows.every((a) => a.querySelector('app-icon')?.getAttribute('aria-hidden') === 'true')).toBe(true);
+  });
+
+  it('marks filled and empty stars with the star icon', async () => {
+    const { fixture, root, answer } = render();
+    await answer(reviews());
+
+    expect(iconNames(fixture, '[data-testid="reviews-score"]')).toEqual(['star', 'star', 'star', 'star', 'star']);
+    expect(root.querySelectorAll('[data-testid="reviews-score"] app-icon.icon-filled').length).toBe(5);
   });
 });

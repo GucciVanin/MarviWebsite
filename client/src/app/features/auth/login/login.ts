@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { describeApiError, hasStatus } from '../../../core/http/api-error';
+import { AppIcon } from '../../../shared/ui/app-icon/app-icon';
 import { PT } from '../../../core/i18n/pt-br';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, AppIcon],
   templateUrl: './login.html',
   styleUrl: '../auth.scss',
 })
