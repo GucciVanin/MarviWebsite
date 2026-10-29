@@ -1,6 +1,39 @@
 // All user-facing copy lives here (pt-BR only, per project.md §10.1). Edit text here, not in templates.
 export const PT = {
   brand: { name: 'MARVI', tagline: 'Exímia Distribuidora de Bebidas' },
+  // Page titles and meta descriptions (MRV-2.9). index.html repeats the home wording in its og: tags; a spec keeps them equal.
+  seo: {
+    siteTitle: 'MARVI | Exímia Distribuidora de Bebidas',
+    description:
+      'Distribuidora de bebidas para bares, restaurantes e mercados: catálogo, cotações e pedidos com entrega na sua região.',
+    titles: {
+      home: 'Início',
+      storefront: 'Catálogo',
+      contact: 'Contato',
+      privacy: 'Política de Privacidade',
+      login: 'Entrar',
+      register: 'Cadastro',
+      client: 'Minha área',
+      employee: 'Painel do funcionário',
+      employeeHistory: 'Histórico',
+      admin: 'Administração',
+      adminOverview: 'Visão geral',
+      adminCatalog: 'Catálogo de produtos',
+      adminPricing: 'Preços',
+      adminOperations: 'Operação',
+      adminCustomers: 'Clientes',
+      adminImport: 'Importação de produtos',
+      adminAudit: 'Auditoria',
+    },
+    descriptions: {
+      home: 'MARVI, exímia distribuidora de bebidas: demanda, fornecimento, distribuição e reposição para o seu negócio.',
+      storefront: 'Veja o catálogo de bebidas da MARVI e peça uma cotação com preços para o seu negócio.',
+      contact: 'Fale com a MARVI: envie uma mensagem ou use nossos canais de atendimento para pedidos e dúvidas.',
+      privacy: 'Política de Privacidade da MARVI: quais dados coletamos, para que usamos e como exercer seus direitos (LGPD).',
+      login: 'Entre na sua conta MARVI para acompanhar cotações e pedidos de bebidas do seu negócio.',
+      register: 'Cadastre o seu negócio na MARVI e solicite acesso a preços, cotações e pedidos de bebidas.',
+    },
+  },
   nav: {
     skipToContent: 'Ir para o conteúdo',
     home: 'Início',

@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { Title } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { CONTACT, CONTACT_INFO, ContactInfo } from '../../core/contact/contact-info';
 import { Privacy } from './privacy';
@@ -15,11 +14,10 @@ describe('Privacy policy page', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('sets the page title and has a heading for every required section', () => {
+  it('has a heading for every required section', () => {
     const el = render();
     const headings = Array.from(el.querySelectorAll('h2')).map((h) => h.textContent ?? '');
 
-    expect(TestBed.inject(Title).getTitle()).toContain('Política de Privacidade');
     for (const expected of ['responsável', 'dados coletamos', 'Para que', 'art. 18', 'dispositivo', 'Terceiros', 'Última atualização']) {
       expect(headings.some((h) => h.includes(expected))).toBe(true);
     }

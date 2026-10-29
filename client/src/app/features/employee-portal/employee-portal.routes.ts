@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { employeeGuard } from '../../core/auth/role.guard';
+import { PT } from '../../core/i18n/pt-br';
 
 export const EMPLOYEE_PORTAL_ROUTES: Routes = [
   {
@@ -9,6 +10,7 @@ export const EMPLOYEE_PORTAL_ROUTES: Routes = [
   },
   {
     path: 'historico',
+    title: PT.seo.titles.employeeHistory,
     canActivate: [employeeGuard],
     loadComponent: () => import('./history/employee-history').then((m) => m.EmployeeHistory),
   },

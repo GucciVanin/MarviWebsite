@@ -1,7 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Title } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { CONTACT, CONTACT_INFO, ContactInfo } from '../../core/contact/contact-info';
 import { Contact } from './contact';
@@ -58,10 +57,9 @@ describe('Contact page', () => {
     await fixture.whenStable();
   };
 
-  it('sets the page title and labels every field', () => {
+  it('labels every field', () => {
     render();
 
-    expect(TestBed.inject(Title).getTitle()).toContain('Contato');
     for (const [id, label, autocomplete] of [
       ['contact-name', 'Nome', 'name'],
       ['contact-email', 'E-mail', 'email'],

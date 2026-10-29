@@ -1,7 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, ElementRef, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Title } from '@angular/platform-browser';
 import { catchError, throwError } from 'rxjs';
 import { CONTACT_INFO, CONTACT_PLACEHOLDER, contactLinks } from '../../core/contact/contact-info';
 import { action } from '../../core/http/action';
@@ -54,10 +53,6 @@ export class Contact {
     // The server's own text is never shown: only ours, in pt-BR.
     return error ? { ...error, message: error.status === 429 ? this.t.rateLimited : error.message, detail: null } : null;
   });
-
-  constructor() {
-    inject(Title).setTitle(`${this.t.title} | ${PT.brand.name}`);
-  }
 
   protected submit(): void {
     if (this.sendAction.busy()) {
