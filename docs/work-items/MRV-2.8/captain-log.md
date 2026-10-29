@@ -9,3 +9,10 @@
 ## 2.8b (O2)
 - Worker O2 (contact page): complete (292). Reviewer and Security ran in parallel (Captain deviation, front-end only, recorded). Reviewer: accurate, gap: no focus management, no boundary specs, dangling aria-describedby. Security: pass (low: server detail shown in alert; honeypot autofill residual). Action: return-worker.
 - Worker round 1: complete (299). Action: route-verify. Testing: client x3 = 299 pass. Not verified in a real browser. Action: next-order.
+## 2.8c (O3)
+- Worker O3 (admin inbox): complete (310). Reviewer: not accurate on one point (identical button names). Security: pass with a medium (mailto parameter/CRLF injection via the visitor's e-mail). Action: return-worker.
+- Worker round 1: complete (314): mailto regex tightened + 254/64 caps, aria-labels, missing-group tolerance. Action: route-verify (no second review round: all findings were mechanical and covered by specs). Testing: client x3 pass.
+## Follow-ups from this item
+- API port 8080 is published by the dev compose and the rate limiter trusts X-Forwarded-For: do not publish it in production (documented).
+- No retention or global cap on contact_messages; rate limit is per IPv6 address, not /64.
+- Server e-mail validator vs mailto regex differ; the server accepts addresses the admin screen shows as text only.

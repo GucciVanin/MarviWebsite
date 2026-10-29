@@ -39,6 +39,17 @@ export interface ProductRef {
   name: string;
 }
 
+/** A contact-form message nobody has handled yet. Every text field is a visitor's: show it as plain text only. */
+export interface PendingContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  company: string | null;
+  message: string;
+  createdAt: string;
+}
+
 /** Everything waiting on an admin (`GET /api/admin/pending-actions`). `total` is the sum of the counts. */
 export interface PendingActions {
   total: number;
@@ -47,6 +58,7 @@ export interface PendingActions {
   lowStock: PendingGroup<LowStock>;
   unpricedProducts: PendingGroup<ProductRef>;
   unstockedProducts: PendingGroup<ProductRef>;
+  contactMessages: PendingGroup<PendingContactMessage>;
 }
 
 /**
