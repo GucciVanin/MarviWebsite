@@ -26,28 +26,68 @@
   text-decoration: none;
   border-radius: var(--radius-pill);
   border: 2px solid transparent;
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1.2;
   cursor: pointer;
-  transition: background var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
+  // Only transform and opacity move; the rest are colour changes.
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-out);
+
+  &:hover { transform: translateY(-1px); }
+  &:active { transform: translateY(0) scale(0.98); transition-duration: var(--motion-press); }
+
+  // The base focus ring is a box-shadow; keep the button's own elevation next to it.
+  &:focus-visible { box-shadow: var(--focus-ring), var(--btn-shadow, none); }
+
+  &:disabled,
+  &[aria-disabled='true'],
+  &.is-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  // Icon slot: an <app-icon> (or svg) as the first or last child, or marked .icon-leading / .icon-trailing.
+  > app-icon,
+  > svg,
+  .icon-leading,
+  .icon-trailing { font-size: 1.15em; }
+  > app-icon:first-child,
+  .icon-leading { margin-inline-end: -0.15rem; }
+  > app-icon:last-child:not(:only-child),
+  .icon-trailing { margin-inline-start: -0.15rem; }
 
   &--primary {
+    --btn-shadow: var(--shadow-xs);
     color: var(--color-navy-900);
     background: var(--color-gold-500);
-    &:hover { background: var(--color-gold-600); }
+    box-shadow: var(--btn-shadow);
+    &:hover { background: var(--color-gold-600); --btn-shadow: var(--shadow-gold); box-shadow: var(--btn-shadow); }
+    &:active { --btn-shadow: var(--shadow-xs); box-shadow: var(--btn-shadow); }
   }
 
   &--ghost {
     color: var(--color-text-inverse);
     background: transparent;
     border-color: rgba(255, 255, 255, 0.55);
-    &:hover { border-color: var(--color-gold-500); color: var(--color-gold-500); }
+    &:hover { border-color: var(--color-gold-500); color: var(--color-gold-500); background: rgba(255, 255, 255, 0.08); }
   }
 
   &--outline {
     color: var(--color-navy-900);
     background: transparent;
     border-color: var(--color-navy-900);
-    &:hover { background: var(--color-navy-900); color: var(--color-text-inverse); }
+    &:hover { background: var(--color-navy-900); color: var(--color-text-inverse); --btn-shadow: var(--shadow-sm); box-shadow: var(--btn-shadow); }
   }
+
+  // A square button holding only an icon; give it an aria-label.
+  &--icon { padding: 0.7rem; aspect-ratio: 1; justify-content: center; }
 }
 
 .card {
@@ -55,6 +95,14 @@
   background: var(--color-surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+  transition: box-shadow var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-out);
+
+  // Cards that are links or actions lift on hover and press back down.
+  &--interactive {
+    cursor: pointer;
+    &:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    &:active { transform: translateY(-1px); box-shadow: var(--shadow-sm); transition-duration: var(--motion-press); }
+  }
 }
 
 .field {
@@ -63,21 +111,65 @@
   margin-bottom: var(--space-2);
 
   label {
-    font-size: 0.9rem;
+    font-size: var(--text-sm);
     font-weight: 600;
   }
 
   input,
   select,
   textarea { max-width: none; }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible { border-color: var(--color-gold-500); }
+
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    color: var(--color-text-muted);
+    background: var(--color-paper);
+    cursor: not-allowed;
+  }
+
+  // Validation state, from the Angular classes or aria-invalid.
+  input[aria-invalid='true'],
+  select[aria-invalid='true'],
+  textarea[aria-invalid='true'],
+  input.ng-invalid.ng-touched,
+  select.ng-invalid.ng-touched,
+  textarea.ng-invalid.ng-touched { border-color: var(--color-red-500); }
+
+  // Optional leading icon: wrap the input and the icon in .field__control.
+  &__control {
+    position: relative;
+    display: block;
+
+    > app-icon {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0.85rem;
+      margin-block: auto;
+      font-size: 1.1em;
+      color: var(--color-text-muted);
+      pointer-events: none;
+    }
+
+    > input,
+    > select { padding-inline-start: 2.6rem; }
+    > textarea { padding-inline-start: 2.6rem; }
+  }
 }
 
+// An alert with a leading <app-icon> lays out as icon + message; without one it stays plain flowing text.
 .alert {
   margin-block: var(--space-2);
   padding: 0.75rem 1rem;
   border-radius: var(--radius-field);
   border-left: 4px solid var(--color-blue-600);
   background: #eaeefb;
+
+  &:has(> app-icon) { display: flex; align-items: flex-start; gap: 0.6rem; }
+  > app-icon { margin-top: 0.2em; font-size: 1.15em; }
 
   &--error { border-color: var(--color-red-500); background: #fde8ea; color: #7a111b; }
   &--success { border-color: var(--color-success); background: #e4f4ea; color: #0f4a2b; }
@@ -117,13 +209,18 @@
 .pre-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   padding: 0.1rem 0.6rem;
   border-radius: var(--radius-pill);
   font-size: 0.8rem;
   font-weight: 700;
   background: #eaeefb;
   color: var(--color-navy-900);
+  line-height: 1.5;
+
+  > app-icon { font-size: 1.1em; }
 
   &--ok { background: #e4f4ea; color: #0f4a2b; }
   &--warn { background: #fff3d6; color: #6b4a00; }
