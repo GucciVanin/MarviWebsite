@@ -1,0 +1,1 @@
+Slice 8.2 of MRV-8 (spec docs/specs/MRV-8.0-layout-box-model.md, issue #47): fix header, footer and public pages until the layout audit reports zero violations for the `public`, `public-notice` and `public-as-employee` groups at all eight widths.
