@@ -29,9 +29,10 @@ import { PrivacyNoticeState } from '../privacy-notice/privacy-notice-state';
       color: #fff;
       background: #167a3e;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-      transition: transform 0.15s ease;
+      transition: transform var(--motion-fast) var(--ease-out);
 
       &:hover { transform: scale(1.06); }
+      &:active { transform: scale(0.96); transition-duration: var(--motion-press); }
       &:focus-visible { outline: 3px solid var(--color-gold-500); outline-offset: 3px; }
     }
 

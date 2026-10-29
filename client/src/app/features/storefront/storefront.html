@@ -34,10 +34,10 @@
       <button type="submit" class="btn btn--outline btn--small"><app-icon name="filter" />{{ t.applyFilters }}</button>
     </form>
 
-    <app-load-state [state]="products" [emptyText]="t.noProducts" />
+    <app-load-state [state]="products" [emptyText]="t.noProducts" variant="cards" />
     <ul class="product-grid">
       @for (product of products.data(); track product.id) {
-        <li class="card product" data-testid="product">
+        <li class="card product" data-testid="product" [appReveal]="$index % 4">
           <h3>{{ product.name }}</h3>
           <p class="muted">{{ product.sku }}</p>
           <p class="product__price">

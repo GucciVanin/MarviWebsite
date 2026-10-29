@@ -8,7 +8,6 @@ main {
   flex: 1;
   // Focused by code after the skip link; a ring around the whole page would only be noise.
   outline: none;
-  scroll-margin-top: 6rem; // keep the target clear of the sticky header
 
   &:focus-visible {
     box-shadow: none;

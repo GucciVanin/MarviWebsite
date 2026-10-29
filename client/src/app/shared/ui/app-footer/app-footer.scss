@@ -1,3 +1,8 @@
+:host {
+  display: block;
+  view-transition-name: site-footer; // stays still while the page above it cross-fades (MRV-7.3)
+}
+
 .footer {
   margin-top: auto;
   padding-block: var(--space-4) var(--space-2);
@@ -47,9 +52,14 @@ a {
 
   &:has(> app-icon) { display: inline-flex; align-items: center; gap: 0.4rem; }
 
+  // Links nudge right on hover and settle back on press; only colour and transform change.
+  transition: color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-out);
+
   &:hover {
     color: var(--color-gold-500);
   }
+  &:has(> app-icon):hover { transform: translateX(3px); }
+  &:has(> app-icon):active { transform: translateX(1px); transition-duration: var(--motion-press); }
 }
 
 .footer__legal {
@@ -71,6 +81,15 @@ a {
   margin-top: var(--space-2);
 
   li { margin: 0; }
-  a { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 50%; }
-  a:hover { border-color: var(--color-gold-500); }
+  a {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-out);
+  }
+  a:hover { border-color: var(--color-gold-500); background-color: rgba(255, 255, 255, 0.08); transform: translateY(-2px); }
+  a:active { transform: translateY(0) scale(0.94); transition-duration: var(--motion-press); }
 }

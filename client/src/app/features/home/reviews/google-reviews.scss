@@ -5,7 +5,6 @@
 .reviews {
   padding-block: var(--section-padding);
   background: var(--color-paper);
-  scroll-margin-top: 5.5rem;
 }
 
 .reviews__layout {
@@ -147,10 +146,23 @@ a.review__name:hover { text-decoration: underline; }
   color: var(--color-navy-900);
   background: var(--color-surface);
   cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-out);
 
-  &:hover { border-color: var(--color-gold-600); background: var(--color-gold-500); }
+  &:hover { border-color: var(--color-gold-600); background: var(--color-gold-500); transform: translateY(-1px); }
+  &:active { transform: scale(0.94); transition-duration: var(--motion-press); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .reviews__track { scroll-behavior: auto; }
+}
+
+// Loading skeleton: same two-column layout as the real section, so the swap keeps the page where it is.
+.reviews__sk-title { margin-block: var(--space-2); width: 80%; }
+.reviews__sk-line { width: 55%; }
+.reviews__summary > .skeleton { display: block; }
+.reviews__sk-row {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  min-height: 12rem;
 }

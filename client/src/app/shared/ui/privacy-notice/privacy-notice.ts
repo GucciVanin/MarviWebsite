@@ -10,7 +10,7 @@ import { PrivacyNoticeState } from './privacy-notice-state';
   imports: [RouterLink, AppIcon],
   template: `
     @if (state.visible()) {
-      <div class="notice" role="region" [attr.aria-label]="t.label" data-testid="privacy-notice">
+      <div class="notice" animate.enter="notice--enter" animate.leave="notice--leave" role="region" [attr.aria-label]="t.label" data-testid="privacy-notice">
         <p class="notice__text">
           {{ t.text }} <a routerLink="/privacidade">{{ link }}</a>.
         </p>
@@ -36,6 +36,14 @@ import { PrivacyNoticeState } from './privacy-notice-state';
     .notice__text { margin: 0; flex: 1 1 18rem; font-size: 0.9rem; }
     .notice__text a { color: var(--color-gold-500); }
     .notice__ok { flex: 0 0 auto; }
+    /* Slides up on arrival and back down when dismissed (transform and opacity). Angular keeps the element until the leave animation ends. */
+    .notice--enter { animation: notice-in var(--motion-base) var(--ease-out) both; }
+    .notice--leave { animation: notice-out var(--motion-base) var(--ease-standard) both; }
+    @keyframes notice-in { from { opacity: 0; transform: translateY(100%); } }
+    @keyframes notice-out { to { opacity: 0; transform: translateY(100%); } }
+    @media (prefers-reduced-motion: reduce) {
+      .notice--enter, .notice--leave { animation: none; }
+    }
   `,
 })
 export class PrivacyNotice {

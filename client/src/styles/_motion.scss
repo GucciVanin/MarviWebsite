@@ -1,0 +1,85 @@
+// Motion layer (MRV-7.3). Only transform and opacity move (colour, background and shadow may change on hover); every
+// duration and easing comes from the tokens, and everything here is off under prefers-reduced-motion.
+
+// ---- anchors: land below the sticky header; smooth only for fragment navigation (class set by core/motion/anchor-scroll) ----
+html { scroll-padding-top: var(--scroll-offset); }
+
+@media (prefers-reduced-motion: no-preference) {
+  html.anchor-nav { scroll-behavior: smooth; }
+}
+
+// ---- route View Transitions (withViewTransitions) ----
+// The header and footer have their own view-transition-name (set on their hosts), so they stay put while the page between
+// them cross-fades with a slight rise. Browsers without the API never reach these rules.
+@keyframes vt-page-out { to { opacity: 0; } }
+@keyframes vt-page-in { from { opacity: 0; transform: translateY(0.6rem); } }
+
+::view-transition-old(root) { animation: vt-page-out var(--motion-base) var(--ease-standard) both; }
+::view-transition-new(root) { animation: vt-page-in var(--motion-base) var(--ease-out) both; }
+
+::view-transition-group(site-header),
+::view-transition-group(site-footer) { animation-duration: 0s; }
+::view-transition-old(site-header),
+::view-transition-old(site-footer) { display: none; }
+::view-transition-new(site-header),
+::view-transition-new(site-footer) { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+
+// ---- reveal on scroll (appReveal directive) ----
+// .reveal is added by the directive only when it can also reveal, so content is never hidden without a way back.
+// The animation uses fill-mode backwards: it holds the hidden frame during the stagger delay and then lets go, so hover
+// transforms on the same element keep working.
+@keyframes reveal-in {
+  from { opacity: 0; transform: translateY(var(--reveal-distance)); }
+}
+
+.reveal:not(.reveal--in) { opacity: 0; transform: translateY(var(--reveal-distance)); }
+.reveal--in { animation: reveal-in var(--motion-slow) var(--ease-out) calc(var(--reveal-index, 0) * var(--reveal-step)) backwards; }
+
+@media (prefers-reduced-motion: reduce), print {
+  .reveal:not(.reveal--in) { opacity: 1; transform: none; }
+  .reveal--in { animation: none; }
+}
+
+// ---- skeleton placeholders (load-state variant "cards", reviews) ----
+// A calm grey block with a light band that slides across it (transform only). Static under reduced motion.
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    transform: translateX(-100%);
+  }
+
+  &--line { height: 0.9rem; }
+  &--title { height: 1.2rem; width: 70%; }
+  &--short { width: 40%; }
+  &--pill { height: 1.6rem; width: 6rem; border-radius: var(--radius-pill); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton::after { animation: skeleton-sweep 1.4s var(--ease-in-out) infinite; }
+}
+@keyframes skeleton-sweep { to { transform: translateX(100%); } }
+
+.skeleton-card {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  min-height: 9.5rem; // about the height of a real product card, so the swap does not move the page
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}

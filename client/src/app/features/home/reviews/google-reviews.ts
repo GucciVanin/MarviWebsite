@@ -22,10 +22,15 @@ const STARS = [1, 2, 3, 4, 5];
 export class GoogleReviewsSection implements OnInit {
   protected readonly t = PT.home.reviews;
   protected readonly stars = STARS;
+  protected readonly loadingText = PT.state.loading;
+  protected readonly placeholders = [1, 2, 3];
   private readonly service = inject(GoogleReviewsService);
   private readonly source = loadable(() => this.service.get(), null as GoogleReviews | null);
   private readonly track = viewChild<ElementRef<HTMLElement>>('track');
   private readonly expanded = signal<ReadonlySet<number>>(new Set());
+
+  /** True only while the request is in flight: the section shows a skeleton then, and vanishes if nothing comes back. */
+  protected readonly loading = computed(() => this.source.loading() && !this.source.loaded());
 
   /** The reviews to show, or null while loading, on failure and when there is nothing to show. */
   protected readonly reviews = computed(() => {

@@ -101,7 +101,8 @@
   &--interactive {
     cursor: pointer;
     &:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
-    &:active { transform: translateY(-1px); box-shadow: var(--shadow-sm); transition-duration: var(--motion-press); }
+    &:active { transform: translateY(-1px) scale(0.99); box-shadow: var(--shadow-sm); transition-duration: var(--motion-press); }
+    &:focus-visible { transform: translateY(-3px); box-shadow: var(--focus-ring), var(--shadow-lg); }
   }
 }
 
@@ -257,6 +258,9 @@
   list-style: none;
 }
 
+// Catalog cards lift a little under the pointer. The reveal animation does not hold a transform, so this still applies.
+.product-grid > .product:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
 .product {
   display: grid;
   gap: 0.35rem;
@@ -270,6 +274,10 @@
 // A spinning icon (the busy / loading mark). It only rotates when motion is allowed; otherwise it stays still.
 @media (prefers-reduced-motion: no-preference) {
   .icon-spin { animation: icon-spin 1s linear infinite; }
+}
+// Belt and braces for AC-18: nothing keeps animating if the preference is reduce.
+@media (prefers-reduced-motion: reduce) {
+  .icon-spin { animation: none; }
 }
 @keyframes icon-spin { to { transform: rotate(360deg); } }
 

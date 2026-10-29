@@ -1,3 +1,4 @@
+import { REVEAL_ROOT_MARGIN } from '../../../core/motion/viewport';
 import { Component, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
 
 const DURATION_MS = 800; // --motion-slow
@@ -60,7 +61,7 @@ export class CountUp {
           this.animate(target);
         }
       }
-    });
+    }, { rootMargin: REVEAL_ROOT_MARGIN }); // same trigger line as appReveal, so a stat and its number wake up together
     observer.observe(this.host.nativeElement);
   }
 

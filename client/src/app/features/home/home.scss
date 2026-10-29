@@ -1,11 +1,7 @@
 // Landing page (project.md section 10.3). Mobile-first; breakpoints 640 / 1024 / 1280.
 :host { display: block; }
 
-// Anchor targets land just below the sticky header.
-#sobre,
-#por-que,
-#rede,
-#produtos { scroll-margin-top: 5.5rem; }
+// Anchor targets land just below the sticky header: html carries scroll-padding-top (--scroll-offset, styles/_motion.scss).
 
 .section-title {
   margin: 0 0 var(--space-4);
@@ -247,7 +243,7 @@ h1 {
   text-decoration: none;
   overflow: hidden;
   background: var(--tile-bg, var(--color-navy-700));
-  transition: transform var(--motion-base);
+  transition: transform var(--motion-base) var(--ease-out), box-shadow var(--motion-base) var(--ease-standard);
 
   &::before {
     content: '';
@@ -256,8 +252,11 @@ h1 {
     background: linear-gradient(180deg, transparent 35%, rgba(10, 18, 48, 0.78));
   }
 
-  &:hover { transform: translateY(-3px); }
+  &:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  &:active { transform: translateY(-1px) scale(0.99); transition-duration: var(--motion-press); }
   > * { position: relative; }
+  > .tile__arrow { transition: transform var(--motion-base) var(--ease-out); }
+  &:hover > .tile__arrow { transform: translateX(4px); }
 
   &--0 { --tile-bg: linear-gradient(150deg, #c98a10, #5a3c06); }
   &--1 { --tile-bg: linear-gradient(150deg, #d8202f, #5c0f17); }

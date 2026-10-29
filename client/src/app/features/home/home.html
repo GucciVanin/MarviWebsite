@@ -30,28 +30,28 @@
 <section class="flow" id="sobre" aria-labelledby="flow-title">
   <div class="container">
     <p class="eyebrow eyebrow--center">{{ t.flowEyebrow }}</p>
-    <h2 id="flow-title" class="section-title">{{ t.flowTitle }}</h2>
+    <h2 id="flow-title" class="section-title" appReveal>{{ t.flowTitle }}</h2>
     <ol class="flow__steps">
-      <li class="flow__step" data-testid="flow-step">
+      <li class="flow__step" data-testid="flow-step" [appReveal]="0">
         <span class="flow__node flow__node--navy" aria-hidden="true">
           <app-icon name="clipboard-list" size="2.1rem" />
         </span>
         <h3>{{ t.flow[0].title }}</h3>
         <p>{{ t.flow[0].text }}</p>
       </li>
-      <li class="flow__step" data-testid="flow-step">
+      <li class="flow__step" data-testid="flow-step" [appReveal]="1">
         <span class="flow__node flow__node--gold" aria-hidden="true">
           <app-icon name="package" size="2.1rem" />
         </span>
         <h3>{{ t.flow[1].title }}</h3>
         <p>{{ t.flow[1].text }}</p>
       </li>
-      <li class="flow__step" data-testid="flow-step">
+      <li class="flow__step" data-testid="flow-step" [appReveal]="2">
         <span class="flow__node flow__node--crest" aria-hidden="true"><span class="flow__crest">M</span></span>
         <h3>{{ t.flow[2].title }}</h3>
         <p>{{ t.flow[2].text }}</p>
       </li>
-      <li class="flow__step" data-testid="flow-step">
+      <li class="flow__step" data-testid="flow-step" [appReveal]="3">
         <span class="flow__node flow__node--red" aria-hidden="true">
           <app-icon name="truck" size="2.1rem" />
         </span>
@@ -66,7 +66,7 @@
   <div class="container">
     <h2 id="stats-title" class="stats__title">{{ t.statsTitle }}</h2>
     <ul class="stats__list" data-testid="stats">
-      <li class="stat">
+      <li class="stat" [appReveal]="0">
         <app-icon class="stat__icon" name="package" size="2.5rem" />
         <div>
           <p class="stat__label">{{ t.assortmentLabel }}</p>
@@ -80,8 +80,9 @@
         </div>
       </li>
       <li class="stat" id="rede">
-        <app-icon class="stat__icon" name="map-pin" size="2.5rem" />
-        <div>
+        <!-- An anchor target is never transformed itself (a pending reveal would offset where #rede lands): its children reveal. -->
+        <app-icon class="stat__icon" name="map-pin" size="2.5rem" [appReveal]="1" />
+        <div [appReveal]="1">
           <p class="stat__label">{{ t.coverageLabel }}</p>
           @if (hasAreas()) {
             <p class="stat__value"><app-count-up [value]="stats()!.coverageAreaCount" /> {{ areasWord() }}</p>
@@ -92,7 +93,7 @@
           }
         </div>
       </li>
-      <li class="stat">
+      <li class="stat" [appReveal]="2">
         <app-icon class="stat__icon" name="clock" size="2.5rem" />
         <div>
           <p class="stat__label">{{ t.responseLabel }}</p>
@@ -100,7 +101,7 @@
           <p class="stat__sub">{{ t.responseSub }}</p>
         </div>
       </li>
-      <li class="stat">
+      <li class="stat" [appReveal]="3">
         <app-icon class="stat__icon" name="shield-check" size="2.5rem" />
         <div>
           <p class="stat__label">{{ t.reliabilityLabel }}</p>
@@ -114,7 +115,7 @@
 
 <section class="products" id="produtos" aria-labelledby="products-title">
   <div class="container">
-    <div class="products__intro">
+    <div class="products__intro" appReveal>
       <div>
         <p class="eyebrow">{{ t.productsEyebrow }}</p>
         <h2 id="products-title" class="section-title section-title--left">{{ t.productsTitle }}</h2>
@@ -126,7 +127,7 @@
     </div>
     <ul class="tiles">
       @for (tile of tiles(); track tile.name; let i = $index) {
-        <li>
+        <li [appReveal]="i % 6">
           <a
             class="tile"
             [class]="'tile tile--' + i"
@@ -149,7 +150,7 @@
 <app-google-reviews />
 
 <section class="banner" data-testid="banner" aria-labelledby="banner-title">
-  <div class="container banner__content">
+  <div class="container banner__content" appReveal>
     <p class="eyebrow">{{ t.bannerEyebrow }}</p>
     <h2 id="banner-title" class="banner__title">{{ t.bannerTitle1 }} <span class="hero__accent">{{ t.bannerTitle2 }}</span></h2>
     <p class="banner__text">{{ t.bannerText }}</p>

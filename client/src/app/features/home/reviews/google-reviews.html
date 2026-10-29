@@ -56,4 +56,21 @@
       </div>
     </div>
   </section>
+} @else if (loading()) {
+  <!-- Placeholder while Google answers. It is not the real section (no test id, no heading); if nothing comes back it simply goes away. -->
+  <section class="reviews" data-testid="reviews-skeleton">
+    <p class="visually-hidden" role="status">{{ loadingText }}</p>
+    <div class="container reviews__layout" aria-hidden="true">
+      <div class="reviews__summary">
+        <span class="skeleton skeleton--pill"></span>
+        <span class="skeleton skeleton--title reviews__sk-title"></span>
+        <span class="skeleton skeleton--line reviews__sk-line"></span>
+      </div>
+      <div class="reviews__sk-row">
+        @for (n of placeholders; track n) {
+          <div class="skeleton-card"><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--line"></span><span class="skeleton skeleton--line"></span><span class="skeleton skeleton--line skeleton--short"></span></div>
+        }
+      </div>
+    </div>
+  </section>
 }

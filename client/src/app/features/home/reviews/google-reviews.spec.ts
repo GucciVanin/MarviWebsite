@@ -115,4 +115,25 @@ describe('GoogleReviewsSection (MRV-2.5b)', () => {
     expect(iconNames(fixture, '[data-testid="reviews-score"]')).toEqual(['star', 'star', 'star', 'star', 'star']);
     expect(root.querySelectorAll('[data-testid="reviews-score"] app-icon.icon-filled').length).toBe(5);
   });
+
+  it('shows a skeleton with the loading status while Google answers, and removes it when nothing comes back (MRV-7.3)', async () => {
+    const { root, answer } = render();
+
+    expect(root.querySelector('[data-testid="reviews-skeleton"]')).not.toBeNull();
+    expect(root.querySelector('[role="status"]')?.textContent?.trim()).toBe('Carregando…');
+    expect(root.querySelector('[data-testid="reviews"]')).toBeNull();
+
+    await answer('down');
+
+    expect(root.querySelector('[data-testid="reviews-skeleton"]')).toBeNull();
+    expect(root.querySelector('[data-testid="reviews"]')).toBeNull();
+  });
+
+  it('replaces the skeleton with the real section when the reviews arrive (MRV-7.3)', async () => {
+    const { root, answer } = render();
+    await answer(reviews());
+
+    expect(root.querySelector('[data-testid="reviews-skeleton"]')).toBeNull();
+    expect(root.querySelector('[data-testid="reviews"]')).not.toBeNull();
+  });
 });

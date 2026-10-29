@@ -115,3 +115,38 @@ describe('AppHeader icons', () => {
     expect(icons.every((icon) => icon.getAttribute('aria-hidden') === 'true' && !icon.hasAttribute('aria-label'))).toBe(true);
   });
 });
+
+describe('AppHeader menu motion states (MRV-7.3)', () => {
+  function setup() {
+    TestBed.configureTestingModule({ imports: [AppHeader], providers: [provideRouter([]), provideHttpClient()] });
+    const fixture = TestBed.createComponent(AppHeader);
+    fixture.detectChanges();
+    return { fixture, element: fixture.nativeElement as HTMLElement };
+  }
+
+  it('adds the open class on the nav while open and removes it when closed, so the slide runs both ways', () => {
+    const { fixture, element } = setup();
+    const nav = element.querySelector<HTMLElement>('#main-nav')!;
+    const toggle = element.querySelector<HTMLButtonElement>('.header__toggle')!;
+
+    expect(nav.classList.contains('header__nav--open')).toBe(false);
+    toggle.click();
+    fixture.detectChanges();
+    expect(nav.classList.contains('header__nav--open')).toBe(true);
+    toggle.click();
+    fixture.detectChanges();
+    expect(nav.classList.contains('header__nav--open')).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('closes the open menu when a navigation link is chosen', () => {
+    const { fixture, element } = setup();
+    element.querySelector<HTMLButtonElement>('.header__toggle')!.click();
+    fixture.detectChanges();
+
+    element.querySelector<HTMLAnchorElement>('.header__links a')!.click();
+    fixture.detectChanges();
+
+    expect(element.querySelector('.header__nav--open')).toBeNull();
+  });
+});

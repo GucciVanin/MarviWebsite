@@ -13,6 +13,7 @@ import type { Category, ProductListItem } from '../../shared/models/catalog.mode
 import { AppIcon } from '../../shared/ui/app-icon/app-icon';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
+import { Reveal } from '../../shared/ui/reveal/reveal';
 import { Deal, DealsService } from './api/deals.service';
 import { CoverageCheckResult, CoverageService } from './api/coverage.service';
 
@@ -21,7 +22,7 @@ const validCategory = (value: string | null): string => (value && GUID.test(valu
 
 @Component({
   selector: 'app-storefront',
-  imports: [FormsModule, RouterLink, AppIcon, ErrorAlert, LoadState, BrlPipe, PtDatePipe],
+  imports: [FormsModule, RouterLink, AppIcon, ErrorAlert, LoadState, Reveal, BrlPipe, PtDatePipe],
   templateUrl: './storefront.html',
 })
 export class Storefront implements OnInit {

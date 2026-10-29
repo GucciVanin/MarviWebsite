@@ -38,6 +38,7 @@
   --radius-sm: 6px;
   --radius-lg: 24px;
 
+  --scroll-offset: 5.5rem; // sticky header height plus a little air: anchors land below it
   --space-1: 0.5rem;
   --space-2: 1rem;
   --space-3: 1.5rem;
@@ -49,6 +50,8 @@
   --motion-base: 300ms;
   --motion-slow: 800ms;
   --motion-press: 90ms;
+  --reveal-distance: 1.25rem; // how far a revealed block rises from
+  --reveal-step: 80ms; // stagger between siblings
 
   // Easing: standard for state changes, out for things entering, in-out for movement across the screen.
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -76,5 +79,6 @@
     --motion-base: 0ms;
     --motion-slow: 0ms;
     --motion-press: 0ms;
+    --reveal-step: 0ms;
   }
 }

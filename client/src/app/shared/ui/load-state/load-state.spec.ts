@@ -15,16 +15,18 @@ function fake(over: { loading?: boolean; loaded?: boolean; data?: unknown; error
   };
 }
 
-@Component({ imports: [LoadState], template: '<app-load-state [state]="state()" emptyText="Nada por aqui" />' })
+@Component({ imports: [LoadState], template: '<app-load-state [state]="state()" emptyText="Nada por aqui" [variant]="variant()" [skeletonCount]="3" />' })
 class Host {
   readonly state = signal<Loadable<unknown>>(fake());
+  readonly variant = signal<'text' | 'cards'>('text');
 }
 
 describe('LoadState', () => {
-  function setup(state: Loadable<unknown>) {
+  function setup(state: Loadable<unknown>, variant: 'text' | 'cards' = 'text') {
     TestBed.configureTestingModule({ imports: [Host] });
     const fixture = TestBed.createComponent(Host);
     fixture.componentInstance.state.set(state);
+    fixture.componentInstance.variant.set(variant);
     fixture.detectChanges();
     return { fixture, root: fixture.nativeElement as HTMLElement };
   }
@@ -49,5 +51,34 @@ describe('LoadState', () => {
 
     expect(iconNames(fixture)).toEqual(['alert-circle', 'refresh-cw']);
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('Sem conexão');
+  });
+
+  describe('cards variant (MRV-7.3)', () => {
+    it('shows skeleton cards while loading, with the loading text kept as a status for assistive technology', () => {
+      const { root } = setup(fake({ loading: true }), 'cards');
+
+      expect(root.querySelectorAll('.skeleton-card').length).toBe(3);
+      expect(root.querySelector('[role="status"]')?.textContent?.trim()).toBe('Carregando…');
+      expect(root.querySelector('.skeleton-card')?.getAttribute('aria-hidden')).toBe('true');
+      expect(root.querySelector('app-icon')).toBeNull();
+    });
+
+    it('shows no skeleton once loaded: the empty text takes over', () => {
+      expect(setup(fake({ loaded: true, data: [] }), 'cards').root.textContent?.trim()).toBe('Nada por aqui');
+    });
+
+    it('shows the error, not the skeleton, on a failure', () => {
+      const { root } = setup(fake({ loading: true, error: { status: 0, message: 'Sem conexão', detail: null } }), 'cards');
+
+      expect(root.querySelector('.skeleton-card')).toBeNull();
+      expect(root.querySelector('[role="alert"]')).not.toBeNull();
+    });
+
+    it('keeps the default variant a plain spinner line', () => {
+      const { root } = setup(fake({ loading: true }));
+
+      expect(root.querySelector('.skeleton-card')).toBeNull();
+      expect(root.querySelector('app-icon')).not.toBeNull();
+    });
   });
 });
