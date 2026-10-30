@@ -9,6 +9,13 @@ export function formatCustomerNumber(value: number | null | undefined): string {
   return formatNumber('C', value);
 }
 
+/** Reads `C-000042` (or plain digits) back into the number; null for anything else, so a hand-typed address cannot reach the API. */
+export function parseCustomerNumber(text: string | null | undefined): number | null {
+  const match = /^(?:C-)?(\d{1,9})$/i.exec((text ?? '').trim());
+  const value = match ? Number(match[1]) : 0;
+  return value > 0 ? value : null;
+}
+
 export type DocumentKind = 'quote' | 'order';
 
 export function formatDocumentNumber(value: number | null | undefined, kind: DocumentKind): string {

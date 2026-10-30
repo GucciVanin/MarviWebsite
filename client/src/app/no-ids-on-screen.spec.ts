@@ -2,7 +2,7 @@ import { Type } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, TestRequest, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { fakeToken } from './core/auth/testing/fake-token';
 import { App } from './app';
 import { Login } from './features/auth/login/login';
@@ -13,6 +13,7 @@ import { Home } from './features/home/home';
 import { Storefront } from './features/storefront/storefront';
 import { ClientPortal } from './features/client-portal/client-portal';
 import { EmployeePortal } from './features/employee-portal/employee-portal';
+import { CustomerPage } from './features/employee-portal/customer/customer-page';
 import { EmployeeHistory } from './features/employee-portal/history/employee-history';
 import { AdminShell } from './features/admin-portal/admin-shell';
 import { AdminInbox } from './features/admin-portal/inbox/admin-inbox';
@@ -165,13 +166,19 @@ describe('No internal ids on screen (MRV-9.1)', () => {
     vi.unstubAllGlobals();
   });
 
-  async function render<T>(component: Type<T>, role: string | null = null) {
+  async function render<T>(component: Type<T>, role: string | null = null, route: { number?: string } = {}) {
     if (role) {
       localStorage.setItem('marvi_auth_token', fakeToken(role));
     }
     TestBed.configureTestingModule({
       imports: [component],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        // A routed page reads its address; the scan renders it for the customer number the page is addressed by.
+        ...(route.number ? [{ provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap(route), queryParamMap: convertToParamMap({}) } } }] : []),
+      ],
     });
     vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(component);
@@ -213,6 +220,7 @@ describe('No internal ids on screen (MRV-9.1)', () => {
     ['the customer portal', async () => render(ClientPortal, 'Client')],
     ['the employee portal', async () => render(EmployeePortal, 'Employee')],
     ['the employee history', async () => render(EmployeeHistory, 'Employee')],
+    ['the customer page', async () => render(CustomerPage, 'Employee', { number: 'C-000042' })],
     ['the admin shell', async () => render(AdminShell, 'Admin')],
     ['the admin inbox', async () => render(AdminInbox, 'Admin')],
     ['the admin overview', async () => render(AdminPortal, 'Admin')],
@@ -245,8 +253,12 @@ describe('No internal ids on screen (MRV-9.1)', () => {
     const { fixture, http, root } = await render(EmployeePortal, 'Employee');
     const portal = fixture.componentInstance as EmployeePortal;
 
-    portal.useCustomer(CUSTOMER.id);
+    // The lookup widget opens first (its pop-up and its page link are scanned too), then the order form works with that customer.
+    root.querySelector<HTMLButtonElement>('[data-testid="queue-quote"] button[aria-haspopup="dialog"]')!.click();
     await drain(fixture, http);
+    expect(root.querySelector('[role="dialog"]')?.textContent).toContain('Bar do Zé');
+    expect(root.querySelector('[data-testid="open-customer-page"]')?.getAttribute('href')).toBe('/employee/clientes/C-000042');
+    expect(guidsIn(root)).toEqual([]);
     portal.addOrderLine(product(1) as never);
     fixture.detectChanges();
     expect(root.querySelector('[data-testid="customer"]')?.textContent).toContain('C-000042');

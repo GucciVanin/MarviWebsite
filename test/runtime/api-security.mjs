@@ -385,6 +385,8 @@ const byNumber = await call('GET', `/api/employee/clients/by-number/${numA}`, { 
 ok('GET /api/employee/clients/by-number/{n} returns the same body as GET by id', byNumber.status === 200
   && byNumber.text === (await call('GET', `/api/employee/clients/${clientA.id}`, { token: emp })).text);
 const adminByNumber = await call('GET', `/api/admin/customers/by-number/${numA}`, { token: admin });
+ok('...it carries the login e-mail of the customer for staff (MRV-9.2), and the own profile of the customer does not', byNumber.json.contactEmail === 'ze@bar.test'
+  && !JSON.stringify((await call('GET', '/api/client/profile', { token: clientA.token })).json).includes('ze@bar.test'));
 ok('...and the admin endpoint returns the customers-tab line', adminByNumber.status === 200 && adminByNumber.json.id === clientA.id && adminByNumber.json.customerNumber === numA);
 ok('...an unknown number is a 404, a non-numeric one a 400, a customer a 403, a visitor a 401',
   (await call('GET', '/api/employee/clients/by-number/999999999', { token: emp })).status === 404

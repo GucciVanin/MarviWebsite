@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { AdminCustomers } from './admin-customers';
 
 const customer = (id: string, companyName: string, status = 'Approved', tierId: string | null = 't-std') => ({
@@ -11,7 +12,7 @@ const tiers = [{ id: 't-std', name: 'Standard', isDefault: true }, { id: 't-gold
 
 describe('AdminCustomers', () => {
   function setup(items: object[] = [customer('c1', 'Bar do Zé'), customer('c2', 'Mercado Sol', 'Suspended', 't-gold')], total?: number) {
-    TestBed.configureTestingModule({ imports: [AdminCustomers], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [AdminCustomers], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
     const fixture = TestBed.createComponent(AdminCustomers);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
@@ -36,6 +37,14 @@ describe('AdminCustomers', () => {
     return { fixture, http, root, settle, button, row, set, reload };
   }
   const text = (root: HTMLElement) => (root.textContent ?? '').replace(/\s+/g, ' ');
+
+  it('links each number to the customer page, by number', async () => {
+    const { settle, row } = setup();
+    await settle();
+
+    expect(row('Bar do Zé').querySelector('a')?.getAttribute('href')).toBe('/employee/clientes/C-000042');
+    expect(row('Mercado Sol').querySelector('a')?.getAttribute('href')).toBe('/employee/clientes/C-000043');
+  });
 
   it('lists the customers with status and pricing tier, and no credit anywhere', async () => {
     const { root, settle, row } = setup();
@@ -262,7 +271,7 @@ describe('AdminCustomers', () => {
   });
 
   it('shows a failed customer list as an error with a retry, not as an empty list', async () => {
-    TestBed.configureTestingModule({ imports: [AdminCustomers], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [AdminCustomers], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
     const fixture = TestBed.createComponent(AdminCustomers);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);

@@ -1,0 +1,122 @@
+<div class="container page stack">
+  <header class="toolbar">
+    <a class="btn btn--outline btn--small" routerLink="/employee">{{ t.back }}</a>
+  </header>
+
+  @if (missing()) {
+    <section class="card" aria-labelledby="customer-missing-title" data-testid="customer-not-found">
+      <h1 id="customer-missing-title">{{ t.notFoundTitle }}</h1>
+      <p>{{ t.notFoundText }}</p>
+    </section>
+  } @else {
+    <app-error-alert [error]="loadAction.error()" [retryable]="true" (retry)="load()" />
+    @if (loadAction.busy() && !profile()) {
+      <p role="status" class="muted">{{ t.loading }}</p>
+    }
+
+    @if (profile(); as customer) {
+      <section class="card stack" aria-labelledby="customer-title" data-testid="customer-detail">
+        <div class="toolbar">
+          <h1 id="customer-title">{{ customer.companyName }}</h1>
+          <span class="muted">{{ customer.customerNumber | customerNumber }}</span>
+          <span class="badge" [class.badge--ok]="customer.status === 'Approved'" [class.badge--bad]="customer.status !== 'Approved'">
+            {{ clientStatus[customer.status] ?? customer.status }}
+          </span>
+        </div>
+
+        <h2>{{ t.registration }}</h2>
+        <dl class="facts">
+          <div><dt>{{ l.number }}</dt><dd>{{ customer.customerNumber | customerNumber }}</dd></div>
+          <div><dt>{{ l.since }}</dt><dd>{{ customer.createdAt | ptDate }}</dd></div>
+          <div><dt>{{ l.tier }}</dt><dd>{{ customer.pricingTierName ?? l.none }}</dd></div>
+          <div><dt>{{ l.accountType }}</dt><dd>{{ l.none }}</dd></div>
+          <div><dt>{{ l.document }}</dt><dd>{{ l.none }}</dd></div>
+          <div><dt>{{ l.email }}</dt><dd>{{ customer.contactEmail || l.none }}</dd></div>
+          <div><dt>{{ l.openQuotes }}</dt><dd>{{ counts()?.quotes }}</dd></div>
+          <div><dt>{{ l.openOrders }}</dt><dd>{{ counts()?.orders }}</dd></div>
+        </dl>
+
+        <h2>{{ t.addresses }}</h2>
+        <dl class="facts">
+          <div><dt>{{ l.billing }}</dt><dd>{{ customer.billingAddress || l.none }}</dd></div>
+        </dl>
+        <h3>{{ t.shipping }}</h3>
+        @if (customer.shippingAddresses.length === 0) {
+          <p class="muted">{{ t.noShipping }}</p>
+        } @else {
+          <ul>
+            @for (address of customer.shippingAddresses; track $index) {
+              <li>{{ address }}</li>
+            }
+          </ul>
+        }
+
+        @if (customer.status === 'Approved') {
+          <div>
+            <a class="btn btn--primary" routerLink="/employee" [queryParams]="{ cliente: (customer.customerNumber | customerNumber) }">{{ t.startOrder }}</a>
+          </div>
+        } @else {
+          <p class="alert alert--error" role="alert">{{ t.notEligible }}</p>
+        }
+      </section>
+
+      <section class="card" aria-labelledby="customer-quotes-title">
+        <h2 id="customer-quotes-title">{{ t.quotes }}</h2>
+        @if (customer.quotes.length === 0) {
+          <p class="muted">{{ t.noQuotes }}</p>
+        } @else {
+          <div class="table-wrap" tabindex="0" role="group" aria-labelledby="customer-quotes-title">
+            <table class="table" data-testid="customer-quotes">
+              <thead>
+                <tr>
+                  <th>{{ refs.quote }}</th>
+                  <th>{{ t.sentOn }}</th>
+                  <th>{{ t.status }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (quote of customer.quotes; track quote.id) {
+                  <tr>
+                    <td>{{ quote.number | documentNumber: 'quote' }}</td>
+                    <td>{{ quote.createdAt | ptDate }}</td>
+                    <td>{{ statuses.quote[quote.status] ?? quote.status }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      <section class="card" aria-labelledby="customer-orders-title">
+        <h2 id="customer-orders-title">{{ t.orders }}</h2>
+        @if (customer.orders.length === 0) {
+          <p class="muted">{{ t.noOrders }}</p>
+        } @else {
+          <div class="table-wrap" tabindex="0" role="group" aria-labelledby="customer-orders-title">
+            <table class="table" data-testid="customer-orders">
+              <thead>
+                <tr>
+                  <th>{{ refs.order }}</th>
+                  <th>{{ t.placedOn }}</th>
+                  <th>{{ t.status }}</th>
+                  <th class="num">{{ t.total }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (order of customer.orders; track order.id) {
+                  <tr>
+                    <td>{{ order.number | documentNumber: 'order' }}</td>
+                    <td>{{ order.placedAt | ptDate }}</td>
+                    <td>{{ statuses.order[order.status] ?? order.status }}</td>
+                    <td class="num">{{ order.totalAmount | brl }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+  }
+</div>

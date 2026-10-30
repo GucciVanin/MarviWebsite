@@ -1,15 +1,16 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
 import { BrlPipe } from '../../shared/format/brl.pipe';
-import { CustomerNumberPipe, DocumentNumberPipe } from '../../shared/format/number.pipes';
+import { CustomerNumberPipe, DocumentNumberPipe, parseCustomerNumber } from '../../shared/format/number.pipes';
 import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import type { ProductListItem } from '../../shared/models/catalog.model';
 import type { Order } from '../../shared/models/order.model';
 import type { Quote } from '../../shared/models/quote.model';
+import { CustomerLookup } from '../../shared/ui/customer-lookup/customer-lookup';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import { ProductPicker } from '../../shared/ui/product-picker/product-picker';
@@ -24,13 +25,14 @@ interface OrderLine {
 
 @Component({
   selector: 'app-employee-portal',
-  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
+  imports: [FormsModule, RouterLink, CustomerLookup, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
   templateUrl: './employee-portal.html',
 })
 export class EmployeePortal implements OnInit {
   protected readonly t = PT.employeePortal;
   protected readonly refs = PT.numbers;
   private readonly employeeService = inject(EmployeeService);
+  private readonly route = inject(ActivatedRoute);
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
   protected readonly quoteQueue = loadable(() => this.employeeService.getQuoteQueue(), [] as Quote[]);
@@ -57,6 +59,11 @@ export class EmployeePortal implements OnInit {
   ngOnInit(): void {
     this.quoteQueue.load();
     this.inventory.load();
+    // "Iniciar pedido" on the customer page arrives as ?cliente=C-000042: open that customer's order form.
+    const number = parseCustomerNumber(this.route.snapshot.queryParamMap.get('cliente'));
+    if (number !== null) {
+      this.lookupAction.run(this.employeeService.getClientByNumber(number), (profile) => this.useCustomer(profile));
+    }
   }
 
   // ---- pricing quotes
@@ -101,12 +108,17 @@ export class EmployeePortal implements OnInit {
     this.searchAction.run(this.employeeService.searchClients(this.clientSearch().trim()), (page) => this.clientMatches.set(page));
   }
 
-  /** Opens a customer: from a search match, or from a queued quote's "Consultar cliente". */
-  useCustomer(id: string): void {
-    this.placedOrder.set(null);
-    this.clientProfile.set(null);
-    this.orderLines.set([]);
-    this.lookupAction.run(this.employeeService.getClient(id), (profile) => this.clientProfile.set(profile));
+  /**
+   * The customer the lookup widget is showing (from a queued quote's "Consultar cliente" or a search match) becomes the customer of the
+   * order form below, with a fresh basket.
+   */
+  useCustomer(profile: ClientProfile): void {
+    // Looking at the customer already in the order form again must not empty the basket.
+    if (this.clientProfile()?.customerNumber !== profile.customerNumber) {
+      this.placedOrder.set(null);
+      this.orderLines.set([]);
+    }
+    this.clientProfile.set(profile);
   }
 
   addOrderLine(product: ProductListItem): void {

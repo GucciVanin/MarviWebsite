@@ -78,6 +78,29 @@ public class CustomerNumberTests : IClassFixture<MarviApiFactory>
     }
 
     [Fact]
+    public async Task StaffSeeTheCustomersLoginEmail_ByIdAndByNumber_ButTheCustomerNeverGetsItFromAStaffRoute()
+    {
+        var admin = await _factory.AdminAsync();
+        var email = $"{Guid.NewGuid()}@contato.example.com";
+        var register = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        register.EnsureSuccessStatusCode();
+        var id = (await register.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
+        var customer = await _factory.LoginAsync(email, "Test1234!");
+
+        var byId = await ProfileAsync(admin, id);
+        var byNumber = await OkAsync<ClientProfileDto>(await admin.GetAsync($"/api/employee/clients/by-number/{byId.CustomerNumber}"));
+
+        Assert.Equal(email, byId.ContactEmail);
+        Assert.Equal(email, byNumber.ContactEmail);
+        // Another customer cannot read it: both staff routes refuse them.
+        Assert.Equal(HttpStatusCode.Forbidden, (await customer.GetAsync($"/api/employee/clients/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await customer.GetAsync($"/api/employee/clients/by-number/{byId.CustomerNumber}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _factory.CreateClient().GetAsync($"/api/employee/clients/{id}")).StatusCode);
+        // The customer's own profile has no e-mail field of its own to leak anything else.
+        Assert.DoesNotContain("ContactEmail", await customer.GetStringAsync("/api/client/profile"), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ByNumber_ReturnsTheSameBodyAsById()
     {
         var admin = await _factory.AdminAsync();

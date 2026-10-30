@@ -47,7 +47,7 @@ const GROUPS = [
   { name: 'client-portal-wholesale', account: 'mercado', notice: false, routes: ['/portal'] },
   { name: 'client-portal-pending', account: 'pendente', notice: false, routes: ['/portal'] },
   { name: 'client-portal-suspended', account: 'suspenso', notice: false, routes: ['/portal'] },
-  { name: 'employee-portal', account: 'employee', notice: false, routes: ['/employee', '/employee/historico'] },
+  { name: 'employee-portal', account: 'employee', notice: false, routes: ['/employee', '/employee#widget', '/employee/historico', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
   { name: 'admin-portal', account: 'admin', notice: false, routes: ADMIN },
 ];
 
@@ -95,10 +95,21 @@ async function settle(page) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
+// A route written `/path#widget` is audited with the customer lookup widget open (MRV-9.2): the first "Consultar cliente" button is
+// clicked and the page is audited once the dialog shows the customer. The part after # is never sent to the server.
+async function openWidget(page) {
+  await page.locator('button[aria-haspopup="dialog"]').first().click();
+  await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
 async function auditUrl(page, url) {
-  await page.goto(url, { waitUntil: 'networkidle' });
+  const [address, step] = url.split('#');
+  await page.goto(address, { waitUntil: 'networkidle' });
   await page.addStyleTag({ content: NO_MOTION });
   await settle(page);
+  if (step === 'widget') await openWidget(page);
   const landed = new URL(page.url());
   const violations = await page.evaluate(auditDom);
   return { landed: landed.pathname, violations };
@@ -155,7 +166,7 @@ async function runSite() {
           pages++;
           try {
             const { landed, violations: found } = await auditUrl(page, BASE + route);
-            if (landed !== route && !(route === '/admin' && landed.startsWith('/admin'))) {
+            if (landed !== route.split('#')[0] && !(route === '/admin' && landed.startsWith('/admin'))) {
               skipped.push({ group: group.name, route, width, reason: `landed on ${landed}` });
             }
             for (const v of found) violations.push({ group: group.name, route, width, ...v });

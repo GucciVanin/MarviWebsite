@@ -81,6 +81,8 @@ export interface ClientProfile {
   status: ClientAccountStatus;
   quotes: Quote[];
   orders: Order[];
+  /** The customer's login e-mail, for staff only (MRV-9.2). */
+  contactEmail: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -126,5 +128,10 @@ export class EmployeeService {
 
   getClient(id: string): Observable<ClientProfile> {
     return this.http.get<ClientProfile>(`/api/employee/clients/${id}`);
+  }
+
+  /** The same customer found by the number staff read out (MRV-9.1), so a screen never needs the id. */
+  getClientByNumber(number: number): Observable<ClientProfile> {
+    return this.http.get<ClientProfile>(`/api/employee/clients/by-number/${number}`);
   }
 }

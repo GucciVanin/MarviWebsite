@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EmployeePortal } from './employee-portal';
@@ -78,7 +78,7 @@ describe('EmployeePortal', () => {
       await settle();
       button('Selecionar').click();
       fixture.detectChanges();
-      http.expectOne((r) => r.url.includes(`/clients/${id}`)).flush(profile(status));
+      http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile(status));
       await settle();
     };
     return { fixture, http, root, settle, button, type, openCustomer };
@@ -261,7 +261,7 @@ describe('EmployeePortal', () => {
 
     button('Selecionar', rows[0]).click();
     fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/c-123')).flush(profile('Approved'));
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile('Approved'));
     await settle();
 
     const card = root.querySelector('[data-testid="customer"]')!;
@@ -324,7 +324,7 @@ describe('EmployeePortal', () => {
 
     button('Selecionar').click();
     fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/gone')).flush('Not found', { status: 404, statusText: 'Not Found' });
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush('Not found', { status: 404, statusText: 'Not Found' });
     await settle();
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('Não encontramos');
@@ -336,10 +336,49 @@ describe('EmployeePortal', () => {
 
     button('Consultar cliente', root.querySelector('[data-testid="queue-quote"]')!).click();
     fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/c-123')).flush(profile('Approved'));
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile('Approved'));
     await settle();
 
     expect(root.querySelector('[data-testid="customer"]')!.textContent).toContain('Bar do Zé');
+  });
+
+  it('shows the customer of a queued quote in a pop-up next to the button, with the order form following the same customer', async () => {
+    const { fixture, http, root, settle, button } = setup({ queue: [quote('q1', [line('l1', 'Cola 2L', 1, 8.5)])] });
+    await settle();
+    const card = root.querySelector('[data-testid="queue-quote"]')!;
+
+    button('Consultar cliente', card).click();
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile('Approved'));
+    await settle();
+
+    const dialog = card.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain('Bar do Zé');
+    expect(dialog.querySelector('a[target="_blank"]')?.getAttribute('href')).toBe('/employee/clientes/C-000042');
+    expect(root.querySelector('[data-testid="order-form"]')).not.toBeNull();
+  });
+
+  it('opens the customer named by ?cliente= (from "Iniciar pedido" on the customer page) with the order form ready', async () => {
+    TestBed.configureTestingModule({
+      imports: [EmployeePortal],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ cliente: 'C-000042' }) } } },
+      ],
+    });
+    const fixture = TestBed.createComponent(EmployeePortal);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((r) => r.url.includes('/quotes/queue')).flush([]);
+    http.expectOne((r) => r.url.includes('/inventory')).flush([]);
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile('Approved'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="customer"]').textContent).toContain('Bar do Zé');
+    expect(fixture.nativeElement.querySelector('[data-testid="order-form"]')).not.toBeNull();
   });
 
   it('offers no order form for a customer who is not approved', async () => {

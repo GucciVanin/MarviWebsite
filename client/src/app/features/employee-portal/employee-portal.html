@@ -15,7 +15,7 @@
         <header class="toolbar">
           <strong [id]="'queue-quote-' + quote.number">{{ t.customer }}: {{ quote.companyName }} ({{ quote.customerNumber | customerNumber }})</strong>
           <span class="muted">{{ refs.quote }} {{ quote.number | documentNumber: 'quote' }} · {{ t.sentOn }} {{ quote.createdAt | ptDate }}</span>
-          <button type="button" class="btn btn--outline btn--small" (click)="useCustomer(quote.clientAccountId)">{{ t.useCustomer }}</button>
+          <app-customer-lookup [number]="quote.customerNumber" [label]="t.useCustomer" (shown)="useCustomer($event)" />
         </header>
         <form class="stack" (ngSubmit)="sendPrices(quote)">
         <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'queue-quote-' + quote.number">
@@ -84,7 +84,7 @@
               <span class="badge" [class.badge--ok]="match.status === 'Approved'" [class.badge--bad]="match.status !== 'Approved'">
                 {{ t.clientStatus[match.status] ?? match.status }}
               </span>
-              <button type="button" class="btn btn--outline btn--small" [disabled]="lookupAction.busy()" (click)="useCustomer(match.id)">{{ t.select }}</button>
+              <app-customer-lookup [number]="match.customerNumber" [label]="t.select" (shown)="useCustomer($event)" />
             </li>
           }
         </ul>

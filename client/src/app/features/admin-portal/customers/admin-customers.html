@@ -35,7 +35,7 @@
           <tbody>
             @for (customer of customers.data().items; track customer.id) {
               <tr data-testid="customer">
-                <td>{{ customer.customerNumber | customerNumber }}</td>
+                <td><a data-testid="customer-page-link" [routerLink]="['/employee/clientes', customer.customerNumber | customerNumber]">{{ customer.customerNumber | customerNumber }}</a></td>
                 <td>{{ customer.companyName }}</td>
                 <td>
                   <span class="badge" [class.badge--ok]="customer.status === 'Approved'" [class.badge--bad]="customer.status !== 'Approved'">

@@ -7,12 +7,14 @@
 //   wrapped-control, button-row-height                        AC-4
 //   form-left-edge, form-column-width, form-row, card-height, container-edge   AC-5
 //   exceeds-parent, box-sizing                                AC-6
+//   popover                                                   MRV-9.2 AC-5 (an open pop-up widget, marked [data-popover])
 export const RULES = [
   'overflow-page', 'overflow-element', 'fixed-outside-viewport',
   'overlap', 'covered-text',
   'wrapped-control', 'button-row-height',
   'form-left-edge', 'form-column-width', 'form-row', 'card-height', 'container-edge',
   'exceeds-parent', 'box-sizing',
+  'popover',
 ];
 
 export function auditDom() {
@@ -127,7 +129,9 @@ export function auditDom() {
   }
 
   // ---- AC-3 overlap between in-flow siblings --------------------------------------------------------------------------
-  const layoutKid = (el) => allSet.has(el) && inFlow(el) && !isInlineMultiLine(el) && !TABLE_PARTS.has(el.tagName);
+  // A sticky box pinned by a scrolled page sits over its siblings by design (the 'popover' rule and covered-text judge that case), so while the
+  // page is scrolled with a pop-up open (it scrolls itself into view, MRV-9.2) it is not a sibling box to compare.
+  const layoutKid = (el) => allSet.has(el) && inFlow(el) && !isInlineMultiLine(el) && !TABLE_PARTS.has(el.tagName) && !(cs(el).position === 'sticky' && window.scrollY > 0 && document.querySelector('[data-popover]'));
   for (const parent of [document.body, ...all]) {
     const kids = [...parent.children].filter(layoutKid);
     for (let i = 0; i < kids.length; i++) {
@@ -359,6 +363,25 @@ export function auditDom() {
     }
   }
 
+  // ---- MRV-9.2 AC-5 open pop-up widget -------------------------------------------------------------------------------------------
+  // A pop-up marked [data-popover] hides the page behind it on purpose, so it is judged on where it sits: inside the viewport sideways,
+  // no taller than the viewport (it scrolls its own content), and clear of every visible fixed or sticky layer (the header, the privacy
+  // notice, the WhatsApp button) at the scroll position the page was left in.
+  for (const pop of all.filter((e) => e.hasAttribute('data-popover'))) {
+    const r = rectOf(pop);
+    if (r.left < -TOL || r.right > vw + TOL) add('popover', pop, 'x ' + r1(r.left) + '..' + r1(r.right) + ' outside 0..' + vw);
+    else if (r.height > vh + TOL) add('popover', pop, 'height ' + r1(r.height) + ' taller than the viewport ' + vh);
+    else {
+      for (const layer of all) {
+        if (layer === pop || pop.contains(layer) || layer.contains(pop) || !['fixed', 'sticky'].includes(cs(layer).position)) continue;
+        const l = rectOf(layer);
+        const w = Math.min(r.right, l.right) - Math.max(r.left, l.left);
+        const h = Math.min(r.bottom, l.bottom) - Math.max(r.top, l.top);
+        if (w > TOL && h > TOL) { add('popover', pop, 'overlaps ' + sel(layer) + ' by ' + r1(w) + 'x' + r1(h)); break; }
+      }
+    }
+  }
+
   // ---- AC-3 covered text -------------------------------------------------------------------------------------------------------
   const textOwners = all.filter((el) => inFlow(el) && [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim()) && !el.closest('select, option, textarea'));
   const fixedOrSticky = (e) => { for (let p = e; p && p.nodeType === 1; p = p.parentElement) { const pos = cs(p).position; if (pos === 'fixed' || pos === 'sticky') return true; } return false; };
@@ -392,6 +415,8 @@ export function auditDom() {
       if (cx < c.l || cx > c.r || cy < c.t || cy > c.b) continue;
       const top = document.elementFromPoint(cx, cy);
       if (!top || top === el || el.contains(top) || top.contains(el)) continue;
+      // An open pop-up widget covers the page behind it on purpose (the 'popover' rule judges where it may sit).
+      if (top.closest('[data-popover]')) continue;
       if (fixedOrSticky(top)) {
         // A sticky header or a fixed layer passing over content mid-scroll is normal. At rest it must not cover a control or field:
         // at the top of the page any such layer counts; at the very bottom only a layer anchored in the lower half (a notice, a floating button),

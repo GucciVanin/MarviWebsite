@@ -14,7 +14,7 @@ const PRIVACY_KEY = 'marvi.privacy-notice';
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
 
 const ACCOUNTS = {
-  employee: { email: 'funcionario@demo.marvi.test', password: 'Demo-Func-1!', routes: ['/employee', '/employee/historico'] },
+  employee: { email: 'funcionario@demo.marvi.test', password: 'Demo-Func-1!', routes: ['/employee', '/employee#widget', '/employee/historico', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
   cliente: { email: 'cliente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   mercado: { email: 'mercado@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   pendente: { email: 'pendente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
@@ -39,8 +39,14 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
     for (const route of account.routes) {
       if (ONLY && !ONLY.test(`${role} ${route}`)) continue;
       const page = await ctx.newPage();
-      await page.goto(BASE + route, { waitUntil: 'networkidle' });
+      // `/path#widget`: audited with the customer lookup widget open (MRV-9.2).
+      const [address, step] = route.split('#');
+      await page.goto(BASE + address, { waitUntil: 'networkidle' });
       await page.waitForFunction(() => !document.querySelector('.skeleton, [aria-busy="true"]'), null, { timeout: 8000 }).catch(() => {});
+      if (step === 'widget') {
+        await page.locator('button[aria-haspopup="dialog"]').first().click();
+        await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
+      }
       await page.waitForTimeout(500);
       const landed = new URL(page.url()).pathname;
       await page.addScriptTag({ content: axeSrc });
@@ -49,7 +55,7 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
         return r.violations.map((v) => `${v.id}[${v.impact}] x${v.nodes.length} ${v.nodes.map((n) => n.target.join('>')).join(',').slice(0, 160)}`);
       }, TAGS);
       checked++;
-      if (landed !== route && !(route === '/admin' && landed.startsWith('/admin'))) { console.log(`${role}\t${route}\t${width}\tREDIRECTED to ${landed}`); failures++; }
+      if (landed !== address && !(route === '/admin' && landed.startsWith('/admin'))) { console.log(`${role}\t${route}\t${width}\tREDIRECTED to ${landed}`); failures++; }
       if (result.length) failures += result.length;
       console.log(`${role}\t${route}\t${width}\t${result.length ? result.join('; ') : 'none'}`);
       await page.close();

@@ -38,6 +38,7 @@ Route groups (who is signed in): `public` (anonymous, privacy notice dismissed),
 | `container-edge` | 5 | a direct child of a `main`/`section`/`article`/`.container`-like block starts off the parent's content edge and is not centred |
 | `exceeds-parent` | 6 | an in-flow box extends outside its parent's content box and the parent is not a scroll container (`overflow: auto/scroll`); a taller child counts only when the parent has a set height and really overflows |
 | `box-sizing` | 6 | computed `box-sizing` is not `border-box` (SVG and checkbox/radio inputs excepted) |
+| `popover` | MRV-9.2 AC-5 | an open pop-up marked `[data-popover]` sticks out of the viewport sideways, is taller than the viewport, or intersects a visible fixed or sticky layer (header, privacy notice, WhatsApp button) at the scroll position the page was left in. Covered text under such a pop-up is intended and is not a `covered-text` finding; while the page is scrolled a pinned sticky box is not compared as a sibling by `overlap` |
 
 Scrollable containers are exempt from overflow inside themselves. Known limits: an overlay with `pointer-events: none` is invisible to the covered-text check (it uses `elementFromPoint`); the sample is the dev demo data, so very long real content is not exercised.
 
@@ -159,3 +160,7 @@ Text zoom 200% (`WIDTHS=320,375 bash test/layout/run.sh --text-zoom 2`, all grou
 Accessibility: `bash test/layout/axe.sh` (axe-core 4.10.2): **0 violations** on 28 route/width pairs (employee 2 routes, four customer states on `/portal`, admin 8 routes, at 375 and 1280). Before the hidden header texts: `empty-table-header` (minor) on the product picker table, `/portal` for both approved customers.
 
 Final record: audit run, `--text-zoom 2` run, axe run and fixtures were each run against the rebuilt dev stack (`docker compose -f deploy/docker-compose.yml up -d --build client`).
+
+## After MRV-9.2 (2026-10-30): the customer lookup widget and page
+
+A route written `/path#widget` is audited with the widget open: the first `button[aria-haspopup="dialog"]` is clicked and the page is audited once the dialog shows the customer (`employee-portal` group: `/employee#widget`, plus the pages `/employee/clientes/C-000001` and `/employee/clientes/C-999999`, the not-found state; the demo data has customers 1 to 4). New rule `popover` (above) and two fixtures (`popover.html` flagged, `clean-popover.html` clean: a pop-up over page text, with a sticky header and a scrolled page): 23 fixtures, 0 failed. `bash test/layout/run.sh`: **0 violations over 240 page loads** (30 group/route pairs). axe: `/employee#widget` and the two customer pages at 375 and 1280, **0 violations on 34 pairs**. Lighthouse (femtopixel/google-lighthouse): accessibility 100 and CLS 0 on home, storefront and contact, mobile and desktop.

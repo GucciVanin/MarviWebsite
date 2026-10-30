@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
@@ -21,7 +22,7 @@ const PAGE_SIZE = 20;
  */
 @Component({
   selector: 'app-admin-customers',
-  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, ApprovalForm],
+  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, ApprovalForm],
   templateUrl: './admin-customers.html',
 })
 export class AdminCustomers implements OnInit {
