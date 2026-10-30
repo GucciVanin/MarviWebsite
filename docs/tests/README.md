@@ -10,3 +10,5 @@
 Determinism: each suite runs three times per item; any difference is a fail "nondeterministic". Test data is pinned inside the tests (fixed dates and values; no random seeds in use). Environment is recorded in each report (OS, dotnet and node versions).
 
 Reports: `docs/work-items/<id>/test-report.md`.
+
+Note (MRV-8.5): run the client suite alone, not concurrently with other Docker jobs (a concurrent batch once returned a stale spec count).

@@ -209,7 +209,9 @@
 
 // A wide table sits in its own scroll container (MRV-8.4): the card and the page keep the viewport's width and the table scrolls
 // sideways inside this box. Long words in cells break at a space or, failing that, anywhere (a cell never widens the page).
+// It is also a containing block, so a visually hidden header text (position: absolute) is clipped with the table instead of widening the page.
 .table-wrap {
+  position: relative;
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -252,6 +254,8 @@
 
   // A card header (title + action) shrinks its title and breaks a long word rather than spill (MRV-8.4).
   > :is(h1, h2, h3) { min-width: 0; }
+  // A card header's name and date break a long word (an id, an address) instead of spilling at 200% text (MRV-8.5).
+  > :is(strong, .muted) { min-width: 0; overflow-wrap: anywhere; }
 }
 
 .stack > * + * { margin-top: var(--space-3); }
@@ -408,14 +412,7 @@
 }
 @keyframes icon-spin { to { transform: rotate(360deg); } }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
+// .visually-hidden lives in _base.scss (single source).
 
 // A button or chip label stays on one line (MRV-8.2). On the public pages, below 40em, a label may still wrap rather than push
 // its card or the page wider (a narrow phone, or text enlarged to 200%); the labels there fit one line at 320 px at normal size.
@@ -428,10 +425,11 @@
     .btn:not(.btn--wrap), .chip { white-space: normal; }
   }
 }
-// The admin pages (MRV-8.4) join them for form and toolbar buttons only (a long label is wider than a 320 px card at 200% text).
-// Buttons in table cells never wrap (row actions, AC-8: the table scrolls); the tab strip (app-admin-shell, unlisted) scrolls.
+// The admin pages (MRV-8.4) and the employee and client portals (MRV-8.5) join them for form and toolbar buttons only (a long label
+// is wider than a 320 px card at 200% text). Buttons in table cells never wrap (row actions, AC-8: the table scrolls); the tab strip
+// (app-admin-shell, unlisted) scrolls.
 @media (max-width: 39.99em) {
-  :is(app-admin-portal, app-admin-inbox, app-admin-catalog, app-admin-pricing, app-admin-operations, app-admin-customers, app-admin-import, app-admin-audit) {
+  :is(app-admin-portal, app-admin-inbox, app-admin-catalog, app-admin-pricing, app-admin-operations, app-admin-customers, app-admin-import, app-admin-audit, app-employee-portal, app-employee-history, app-client-portal, app-client-profile, app-product-picker) {
     .btn:not(.btn--wrap):not(td *), .chip:not(td *) { white-space: normal; }
   }
 }

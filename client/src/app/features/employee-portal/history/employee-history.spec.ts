@@ -62,6 +62,22 @@ describe('EmployeeHistory', () => {
     expect(cards[1].textContent).toContain('Recusada');
   });
 
+  it('keeps every history table in its own scroll box, focusable and uniquely named (MRV-8.5)', async () => {
+    const { root, settle, quotes } = setup();
+    quotes().flush(page([quote('q1', 'Bar do Zé', 'Priced'), quote('q2', 'Mercado Sol', 'Rejected')]));
+    await settle();
+
+    const wraps = Array.from(root.querySelectorAll('table')).map((table) => table.parentElement as HTMLElement);
+    expect(wraps.length).toBe(2);
+    for (const wrap of wraps) {
+      expect(wrap.classList.contains('table-wrap')).toBe(true);
+      expect(wrap.getAttribute('tabindex')).toBe('0');
+      expect(wrap.getAttribute('role')).toBe('group');
+    }
+    const names = wraps.map((wrap) => root.querySelector('#' + wrap.getAttribute('aria-labelledby'))?.textContent);
+    expect(names).toEqual(['Bar do Zé', 'Mercado Sol']);
+  });
+
   it('switches to the orders history, showing total, delivery address and when it was placed', async () => {
     const { root, settle, button, quotes, orders } = setup();
     quotes().flush(page([]));

@@ -75,11 +75,12 @@
       @for (item of quotes.data().items; track item.id) {
         <article class="card" data-testid="history-item">
           <header class="toolbar">
-            <strong>{{ item.companyName }}</strong>
+            <strong [id]="'history-item-' + item.id">{{ item.companyName }}</strong>
             <span class="muted">{{ t.sentOn }} {{ item.createdAt | ptDate }}</span>
             <span class="badge" [class.badge--ok]="item.status === 'Accepted'" [class.badge--warn]="item.status === 'Priced'">{{ statuses.quote[item.status] ?? item.status }}</span>
           </header>
-          <table class="table">
+          <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'history-item-' + item.id">
+<table class="table">
             <thead>
               <tr>
                 <th>{{ portal.product }}</th>
@@ -99,18 +100,20 @@
               }
             </tbody>
           </table>
+</div>
         </article>
       }
     } @else {
       @for (item of orders.data().items; track item.id) {
         <article class="card" data-testid="history-item">
           <header class="toolbar">
-            <strong>{{ item.companyName }}</strong>
+            <strong [id]="'history-item-' + item.id">{{ item.companyName }}</strong>
             <span class="muted">{{ t.placedOn }} {{ item.placedAt | ptDate }}</span>
             <span class="badge badge--ok">{{ statuses.order[item.status] ?? item.status }}</span>
           </header>
           <p class="muted">{{ item.deliveryAddress || t.noAddress }}</p>
-          <table class="table">
+          <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'history-item-' + item.id">
+<table class="table">
             <thead>
               <tr>
                 <th>{{ portal.product }}</th>
@@ -128,6 +131,7 @@
               }
             </tbody>
           </table>
+</div>
           <p><strong>{{ t.total }}: {{ item.totalAmount | brl }}</strong></p>
         </article>
       }

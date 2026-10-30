@@ -186,6 +186,26 @@ describe('EmployeePortal', () => {
     expect(text(root)).toContain('Nenhuma cotação aguardando preço');
   });
 
+  it('keeps the queue and inventory tables in their own scroll boxes, focusable and named (MRV-8.5)', async () => {
+    const { root, settle } = setup({
+      queue: [quote('q1', [line('l1', 'Cola 2L', 6, 8.5)]), quote('q2', [line('l2', 'Água', 1, 2)])],
+      inventory: [{ id: 'i1', productId: 'p1', productName: 'Cola 2L', warehouseId: 'w1', warehouseName: 'CD São Paulo', qtyOnHand: 5, qtyReserved: 1, reorderPoint: 2 }],
+    });
+    await settle();
+
+    const tables = Array.from(root.querySelectorAll('table'));
+    expect(tables.length).toBe(3);
+    const ids = tables.map((table) => {
+      const wrap = table.parentElement as HTMLElement;
+      expect(wrap.classList.contains('table-wrap')).toBe(true);
+      expect(wrap.getAttribute('tabindex')).toBe('0');
+      expect(wrap.getAttribute('role')).toBe('group');
+      expect(root.querySelector('#' + wrap.getAttribute('aria-labelledby'))).not.toBeNull();
+      return wrap.getAttribute('aria-labelledby');
+    });
+    expect(new Set(ids).size).toBe(3);
+  });
+
   // ---- inventory
 
   it('shows the stock and reports a failed inventory load', async () => {

@@ -17,6 +17,17 @@ describe('ProductPicker icons', () => {
     return { fixture, root: fixture.nativeElement as HTMLElement };
   }
 
+  it('keeps the catalog in a focusable scroll box with a name and a named actions column (MRV-8.5)', async () => {
+    const { root } = await setup();
+
+    const wrap = root.querySelector('[data-testid="catalog"]')!.parentElement!;
+    expect(wrap.classList.contains('table-wrap')).toBe(true);
+    expect(wrap.getAttribute('tabindex')).toBe('0');
+    expect(wrap.getAttribute('role')).toBe('group');
+    expect(wrap.getAttribute('aria-label')).toBe('Catálogo de produtos');
+    expect(root.querySelector('[data-testid="catalog"] thead th:last-child')?.textContent?.trim()).toBe('Ações');
+  });
+
   it('marks the filter button with a funnel and each add button with a cart, keeping their text as names', async () => {
     const { fixture, root } = await setup();
 

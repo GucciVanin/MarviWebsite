@@ -22,12 +22,13 @@
     @if (basket().length === 0) {
       <p class="muted">{{ t.basketEmpty }}</p>
     } @else {
-      <table class="table" data-testid="basket">
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="basket-title">
+<table class="table" data-testid="basket">
         <thead>
           <tr>
             <th>{{ t.product }}</th>
             <th>{{ t.quantity }}</th>
-            <th></th>
+            <th><span class="visually-hidden">{{ t.actions }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -49,6 +50,7 @@
           }
         </tbody>
       </table>
+</div>
     }
     <button type="button" class="btn btn--primary" [disabled]="basket().length === 0 || requestAction.busy()" (click)="requestQuote()">
       {{ t.requestQuote }}
@@ -68,12 +70,13 @@
     @for (quote of quotes.data(); track quote.id) {
       <article class="card" data-testid="quote">
         <header class="toolbar">
-          <strong>{{ t.sentOn }} {{ quote.createdAt | ptDate }}</strong>
+          <strong [id]="'quote-' + quote.id">{{ t.sentOn }} {{ quote.createdAt | ptDate }}</strong>
           <span class="badge" [class.badge--ok]="quote.status === 'Accepted'" [class.badge--warn]="quote.status === 'Priced'">
             {{ statuses.quote[quote.status] ?? quote.status }}
           </span>
         </header>
-        <table class="table">
+        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'quote-' + quote.id">
+<table class="table">
           <thead>
             <tr>
               <th>{{ t.product }}</th>
@@ -93,6 +96,7 @@
             }
           </tbody>
         </table>
+</div>
         @if (quote.status === 'Priced') {
           <div class="toolbar">
             <button type="button" class="btn btn--primary" [disabled]="acceptAction.busy() || rejectAction.busy()" (click)="acceptQuote(quote.id)">
@@ -118,11 +122,12 @@
     @for (order of orders.data(); track order.id) {
       <article class="card" data-testid="order">
         <header class="toolbar">
-          <strong>{{ order.deliveryAddress || t.noAddress }}</strong>
+          <strong [id]="'order-' + order.id">{{ order.deliveryAddress || t.noAddress }}</strong>
           <span class="muted">{{ t.placedOn }} {{ order.placedAt | ptDate }}</span>
           <span class="badge badge--ok">{{ statuses.order[order.status] ?? order.status }}</span>
         </header>
-        <table class="table">
+        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'order-' + order.id">
+<table class="table">
           <thead>
             <tr>
               <th>{{ t.product }}</th>
@@ -142,6 +147,7 @@
             }
           </tbody>
         </table>
+</div>
         <p><strong>{{ t.total }}: {{ order.totalAmount | brl }}</strong></p>
       </article>
     }
