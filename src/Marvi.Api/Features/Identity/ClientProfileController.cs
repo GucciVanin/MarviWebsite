@@ -28,8 +28,8 @@ public class ClientProfileController : ControllerBase
     }
 
     /// <summary>
-    /// Replaces the company name, billing address and the whole list of shipping addresses. Allowed for a suspended
-    /// customer too: it changes no price and creates nothing. Customer self-edits are not admin mutations, so they are not audited.
+    /// Changes the company name (addresses have their own endpoints, MRV-9.3). Allowed for a suspended customer too: it changes no price and
+    /// creates nothing. A customer's self-edit of the company name is not an admin mutation, so it is not audited.
     /// </summary>
     [HttpPut]
     public async Task<ActionResult<ClientOwnProfileDto>> Update(UpdateClientProfileRequest request)
@@ -40,7 +40,7 @@ public class ClientProfileController : ControllerBase
             return Forbid();
         }
 
-        var (profile, problem) = ClientProfileRules.Check(request.CompanyName, request.BillingAddress, request.ShippingAddresses);
+        var (profile, problem) = ClientProfileRules.Check(request.CompanyName);
         if (profile is null)
         {
             return BadRequest(problem);
@@ -51,8 +51,6 @@ public class ClientProfileController : ControllerBase
         for (var attempt = 0; ; attempt++)
         {
             account.CompanyName = profile.CompanyName;
-            account.BillingAddress = profile.BillingAddress;
-            account.ShippingAddresses = profile.ShippingAddresses.ToList();
             try
             {
                 await _dbContext.SaveChangesAsync();
@@ -72,9 +70,10 @@ public class ClientProfileController : ControllerBase
     private async Task<ClientAccount?> FindOwnAccountAsync()
     {
         var clientId = User.ClientId();
-        return clientId is null ? null : await _dbContext.ClientAccounts.FirstOrDefaultAsync(c => c.Id == clientId.Value);
+        return clientId is null ? null : await _dbContext.ClientAccounts.Include(c => c.Addresses).FirstOrDefaultAsync(c => c.Id == clientId.Value);
     }
 
     private static ClientOwnProfileDto ToDto(ClientAccount account) =>
-        new(account.Id, account.Number, account.CompanyName, account.BillingAddress, account.ShippingAddresses, account.Status, account.CreatedAt);
+        new(account.Id, account.Number, account.CompanyName, ClientAddressDto.ListOf(account.Addresses),
+            account.Addresses.FirstOrDefault(a => a.IsBilling)?.Key, account.Addresses.FirstOrDefault(a => a.IsDefault)?.Key, account.Status, account.CreatedAt);
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, Injector, OnInit, afterNextRender, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { action } from '../../../core/http/action';
@@ -7,10 +7,15 @@ import { PT } from '../../../core/i18n/pt-br';
 import { ApprovalForm } from '../shared/approval-form';
 import { CustomerNumberPipe } from '../../../shared/format/number.pipes';
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
+import type { ClientAddress } from '../../../shared/models/client-address.model';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
+import { AddressDraft } from '../../../shared/ui/address-fields/address-draft';
+import { AddressFields } from '../../../shared/ui/address-fields/address-fields';
+import { AddressSummary } from '../../../shared/ui/address-summary/address-summary';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
+import { EmployeeService } from '../../employee-portal/api/employee.service';
 import { AdminService, PricingTier } from '../api/admin.service';
 import { PendingActionsService } from '../api/pending-actions.service';
 
@@ -22,14 +27,18 @@ const PAGE_SIZE = 20;
  */
 @Component({
   selector: 'app-admin-customers',
-  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, ApprovalForm],
+  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, ApprovalForm, AddressFields, AddressSummary],
   templateUrl: './admin-customers.html',
 })
 export class AdminCustomers implements OnInit {
   protected readonly t = PT.adminCustomers;
   protected readonly portal = PT.employeePortal;
   protected readonly refs = PT.numbers;
+  protected readonly a = PT.address;
   private readonly admin = inject(AdminService);
+  private readonly staff = inject(EmployeeService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   private readonly pendingActions = inject(PendingActionsService);
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
@@ -50,6 +59,15 @@ export class AdminCustomers implements OnInit {
   protected readonly suggestedTierId = signal<string | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly saveAction = action();
+
+  /** The addresses of the customer being edited, and the one being fixed (MRV-9.3). The key is only passed to the API, never shown. */
+  protected readonly addresses = signal<ClientAddress[]>([]);
+  protected readonly fixingKey = signal<string | null>(null);
+  protected readonly draft = new AddressDraft();
+  protected readonly addressesAction = action({ latestOnly: true });
+  protected readonly fixAction = action();
+  protected readonly addressMessage = signal<string | null>(null);
+  protected readonly canFix = computed(() => this.draft.canSubmit() && !this.fixAction.busy());
 
   protected readonly canSave = computed(() => this.editTierId() !== '' && !this.saveAction.busy());
 
@@ -74,6 +92,76 @@ export class AdminCustomers implements OnInit {
     this.confirmingSuspendId.set(null);
     this.editingId.set(customer.id);
     this.editTierId.set(customer.pricingTierId ?? '');
+    this.loadAddresses(customer);
+  }
+
+  private loadAddresses(customer: ClientSummary, returnKey: string | null = null): void {
+    this.addresses.set([]);
+    this.fixingKey.set(null);
+    this.addressMessage.set(null);
+    this.fixAction.reset();
+    if (returnKey) {
+      // If the reload fails the form is gone and so is its trigger: focus rests on the section heading, not on the page body.
+      this.focusSoon('#admin-addresses-title');
+    }
+    this.addressesAction.run(this.staff.getClient(customer.id), (profile) => {
+      this.addresses.set(profile.addresses);
+      if (returnKey) {
+        this.focusSoon(this.fixButton(returnKey));
+      }
+    });
+  }
+
+  /** The types an address may be changed to: the billing one must stay able to bill, the default delivery one able to deliver. */
+  protected allowedKinds(address: ClientAddress): readonly string[] | null {
+    if (address.isBilling && address.isDefaultDelivery) return ['Both'];
+    if (address.isBilling) return ['Billing', 'Both'];
+    if (address.isDefaultDelivery) return ['Delivery', 'Both'];
+    return null;
+  }
+
+  protected startFix(address: ClientAddress): void {
+    this.fixAction.reset();
+    this.addressMessage.set(null);
+    this.draft.load(address);
+    this.fixingKey.set(address.key);
+    this.focusSoon('#admin-address-label');
+  }
+
+  protected cancelFix(): void {
+    const key = this.fixingKey();
+    this.fixingKey.set(null);
+    this.fixAction.reset();
+    if (key) {
+      this.focusSoon(this.fixButton(key));
+    }
+  }
+
+  private fixButton(key: string): string {
+    return `#admin-fix-btn-${this.addresses().findIndex((a) => a.key === key)}`;
+  }
+
+  /** Moves keyboard focus once the next render has put the element on the page. */
+  private focusSoon(selector: string): void {
+    afterNextRender(() => {
+      const root = this.host.nativeElement;
+      (root.querySelector<HTMLElement>(selector) ?? root.querySelector<HTMLElement>('#admin-addresses-title'))?.focus();
+    }, { injector: this.injector });
+  }
+
+  protected saveFix(customer: ClientSummary): void {
+    const key = this.fixingKey();
+    if (key === null || !this.canFix()) {
+      return;
+    }
+    this.fixAction.run(this.admin.updateClientAddress(customer.id, key, this.draft.request()), () => {
+      // Another customer's editor opened meanwhile: this answer is no longer about what is shown.
+      if (this.editingId() !== customer.id) {
+        return;
+      }
+      this.loadAddresses(customer, key);
+      this.addressMessage.set(this.t.addressSaved);
+    });
   }
 
   protected stopEditing(): void {

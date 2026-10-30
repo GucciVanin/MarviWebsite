@@ -31,6 +31,7 @@ public static class IdentityModule
 
         services.AddAuthorization();
         services.AddScoped<JwtTokenService>();
+        services.AddScoped<ClientAddressService>();
         return services;
     }
 

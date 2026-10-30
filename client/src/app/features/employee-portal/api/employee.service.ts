@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import type { Quote, QuoteStatus } from '../../../shared/models/quote.model';
 import type { Order } from '../../../shared/models/order.model';
+import type { ClientAddress } from '../../../shared/models/client-address.model';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 
@@ -75,8 +76,9 @@ export interface ClientProfile {
   customerNumber: number;
   companyName: string;
   createdAt: string;
-  billingAddress: string;
-  shippingAddresses: string[];
+  addresses: ClientAddress[];
+  billingAddressKey: string | null;
+  defaultDeliveryKey: string | null;
   pricingTierName: string | null;
   status: ClientAccountStatus;
   quotes: Quote[];

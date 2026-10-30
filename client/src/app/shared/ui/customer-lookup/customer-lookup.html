@@ -45,8 +45,21 @@
         <div><dt>{{ t.tier }}</dt><dd>{{ customer.pricingTierName ?? t.none }}</dd></div>
         <div><dt>{{ t.accountType }}</dt><dd>{{ t.none }}</dd></div>
         <div><dt>{{ t.document }}</dt><dd>{{ t.none }}</dd></div>
-        <div class="lookup__wide"><dt>{{ t.billing }}</dt><dd>{{ customer.billingAddress || t.none }}</dd></div>
-        <div><dt>{{ t.deliveryAddresses }}</dt><dd>{{ customer.shippingAddresses.length }}</dd></div>
+        <div class="lookup__wide"><dt>{{ t.billing }}</dt><dd data-testid="lookup-billing">{{ billing() ? (billing() | address) : t.none }}</dd></div>
+        <div class="lookup__wide">
+          <dt>{{ t.deliveryAddresses }}</dt>
+          <dd>
+            @if (others().length === 0) {
+              {{ t.none }}
+            } @else {
+              <ul class="lookup__addresses" data-testid="lookup-others">
+                @for (other of others(); track other.key) {
+                  <li><strong>{{ other.label }}:</strong> {{ other | address }}</li>
+                }
+              </ul>
+            }
+          </dd>
+        </div>
         <div><dt>{{ t.email }}</dt><dd>{{ customer.contactEmail || t.none }}</dd></div>
         <div><dt>{{ t.openQuotes }}</dt><dd>{{ counts()?.quotes }}</dd></div>
         <div><dt>{{ t.openOrders }}</dt><dd>{{ counts()?.orders }}</dd></div>

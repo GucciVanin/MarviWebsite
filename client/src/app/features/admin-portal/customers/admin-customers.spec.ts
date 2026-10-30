@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { twoAddresses } from '../../../shared/models/testing/client-address';
 import { AdminCustomers } from './admin-customers';
 
 const customer = (id: string, companyName: string, status = 'Approved', tierId: string | null = 't-std') => ({
@@ -108,6 +109,93 @@ describe('AdminCustomers', () => {
 
     expect(text(root)).toContain('Dados salvos');
     expect(row('Bar do Zé').textContent).toContain('Ouro');
+  });
+
+  it('lists the addresses of the customer in the editor and lets an admin fix one, by key (MRV-9.3)', async () => {
+    const { fixture, http, root, settle, button, row, set } = setup();
+    await settle();
+
+    button('Editar', row('Bar do Zé')).click();
+    fixture.detectChanges();
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', customerNumber: 42, companyName: 'Bar do Zé', ...twoAddresses(), quotes: [], orders: [] });
+    await settle();
+    const section = root.querySelector<HTMLElement>('[data-testid="customer-addresses"]')!;
+    expect(text(section)).toContain('Matriz');
+    expect(text(section)).toContain('Filial Campinas');
+    expect(text(section)).toContain('Rua Barão de Jaguara, 200 - Sala 3');
+    expect(section.innerHTML).not.toContain('6f1c2a3e');
+
+    const filialCard = Array.from(section.querySelectorAll<HTMLElement>('li')).find((li) => li.textContent?.includes('Filial Campinas'))!;
+    button('Corrigir endereço', filialCard).click();
+    await settle();
+    expect(root.querySelector<HTMLInputElement>('#admin-address-street')!.value).toBe('Rua Barão de Jaguara');
+    await set('#admin-address-cep', '13010111');
+    expect(root.querySelector<HTMLInputElement>('#admin-address-cep')!.value).toBe('13010-111');
+    await set('#admin-address-street', 'Rua Corrigida');
+    button('Salvar endereço').click();
+    fixture.detectChanges();
+
+    const request = http.expectOne('/api/admin/clients/c1/addresses/6f1c2a3e-0000-4000-8000-0000000000b2');
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toMatchObject({ label: 'Filial Campinas', postalCode: '13010111', street: 'Rua Corrigida', number: '200', isBilling: false });
+    request.flush({});
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', ...twoAddresses(), quotes: [], orders: [] });
+    await settle();
+
+    expect(text(root)).toContain('Endereço corrigido.');
+    expect(root.querySelector('#admin-address-street')).toBeNull();
+  });
+
+  it('moves keyboard focus into the fix form, and back to its button when the admin cancels', async () => {
+    const { fixture, http, root, settle, button, row } = setup();
+    document.body.appendChild(root);
+    await settle();
+
+    button('Editar', row('Bar do Zé')).click();
+    fixture.detectChanges();
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', ...twoAddresses(), quotes: [], orders: [] });
+    await settle();
+    const filialCard = Array.from(root.querySelectorAll<HTMLElement>('[data-testid="customer-addresses"] li'))[1];
+    button('Corrigir endereço', filialCard).click();
+    await settle();
+    expect(document.activeElement?.id).toBe('admin-address-label');
+
+    button('Cancelar', root.querySelector<HTMLElement>('form[aria-label="Corrigir endereço"]')!).click();
+    await settle();
+    expect(document.activeElement?.id).toBe('admin-fix-btn-1');
+  });
+
+  it('puts focus on the addresses heading, not the page body, when the reload after a fix fails', async () => {
+    const { fixture, http, root, settle, button, row } = setup();
+    document.body.appendChild(root);
+    await settle();
+
+    button('Editar', row('Bar do Zé')).click();
+    fixture.detectChanges();
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', ...twoAddresses(), quotes: [], orders: [] });
+    await settle();
+    const filialCard = Array.from(root.querySelectorAll<HTMLElement>('[data-testid="customer-addresses"] li'))[1];
+    button('Corrigir endereço', filialCard).click();
+    await settle();
+    button('Salvar endereço', root.querySelector<HTMLElement>('form[aria-label="Corrigir endereço"]')!).click();
+    fixture.detectChanges();
+    http.expectOne('/api/admin/clients/c1/addresses/6f1c2a3e-0000-4000-8000-0000000000b2').flush({});
+    http.expectOne('/api/employee/clients/c1').flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+
+    expect(document.activeElement?.id).toBe('admin-addresses-title');
+  });
+
+  it('says so when the customer has no addresses', async () => {
+    const { fixture, http, root, settle, button, row } = setup();
+    await settle();
+
+    button('Editar', row('Bar do Zé')).click();
+    fixture.detectChanges();
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, quotes: [], orders: [] });
+    await settle();
+
+    expect(text(root)).toContain('Este cliente não tem endereços cadastrados.');
   });
 
   it('suspends an approved customer only after a confirming click', async () => {

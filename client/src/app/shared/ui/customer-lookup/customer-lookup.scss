@@ -49,3 +49,11 @@
 }
 
 .lookup__wide { grid-column: 1 / -1; }
+
+.lookup__addresses {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li + li { margin-top: 0.25rem; }
+}

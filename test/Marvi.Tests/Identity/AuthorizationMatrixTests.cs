@@ -78,6 +78,7 @@ public class AuthorizationMatrixTests : IClassFixture<MarviApiFactory>
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/approve", AdminOnly);
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/suspend", AdminOnly);
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/pricing-tier", AdminOnly);
+        yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/addresses/{OtherId}", AdminOnly);
         yield return (HttpMethod.Get, "/api/admin/customers/by-number/42", AdminOnly);
         yield return (HttpMethod.Get, "/api/admin/contact-messages", AdminOnly);
         yield return (HttpMethod.Post, $"/api/admin/contact-messages/{Id}/handle", AdminOnly);
@@ -96,6 +97,9 @@ public class AuthorizationMatrixTests : IClassFixture<MarviApiFactory>
         // Client
         yield return (HttpMethod.Get, "/api/client/profile", ClientOnly);
         yield return (HttpMethod.Put, "/api/client/profile", ClientOnly);
+        yield return (HttpMethod.Post, "/api/client/addresses", ClientOnly);
+        yield return (HttpMethod.Put, $"/api/client/addresses/{Id}", ClientOnly);
+        yield return (HttpMethod.Delete, $"/api/client/addresses/{Id}", ClientOnly);
         yield return (HttpMethod.Get, "/api/orders/mine", ClientOnly);
         yield return (HttpMethod.Post, "/api/quotes", ClientOnly);
         yield return (HttpMethod.Get, "/api/quotes/mine", ClientOnly);

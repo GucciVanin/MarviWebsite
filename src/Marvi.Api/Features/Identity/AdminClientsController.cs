@@ -1,9 +1,11 @@
+using Marvi.Api.Configuration;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Identity.Contracts;
 using Marvi.Domain.Identity;
 using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marvi.Api.Features.Identity;
@@ -15,11 +17,29 @@ public class AdminClientsController : ControllerBase
 {
     private readonly AppDbContext _dbContext;
     private readonly AuditLogger _auditLogger;
+    private readonly ClientAddressService _addresses;
 
-    public AdminClientsController(AppDbContext dbContext, AuditLogger auditLogger)
+    public AdminClientsController(AppDbContext dbContext, AuditLogger auditLogger, ClientAddressService addresses)
     {
         _dbContext = dbContext;
         _auditLogger = auditLogger;
+        _addresses = addresses;
+    }
+
+    /// <summary>
+    /// An admin fixes one of a customer's addresses (MRV-9.3), with the same rules as the customer's own edit. Audited as a <c>ClientAddress</c>
+    /// change by an admin. The address is found by its key AND this customer, so a key of another customer answers 404.
+    /// </summary>
+    [HttpPut("{id:guid}/addresses/{key:guid}")]
+    [EnableRateLimiting(RateLimiting.AddressesPolicy)]
+    public async Task<ActionResult<ClientAddressDto>> UpdateAddress(Guid id, Guid key, ClientAddressRequest request)
+    {
+        if (!await _dbContext.ClientAccounts.AnyAsync(c => c.Id == id))
+        {
+            return NotFound();
+        }
+
+        return (await _addresses.UpdateAsync(id, key, request, "Admin")).ToActionResult(this);
     }
 
     [HttpPut("{id:guid}/approve")]

@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, map, of, throwError } from 'rxjs';
+import type { ClientAddress, ClientAddressRequest } from '../../../shared/models/client-address.model';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 
@@ -204,6 +205,11 @@ export class AdminService {
 
   updateClientTier(id: string, request: UpdateClientTierRequest): Observable<void> {
     return this.http.put<void>(`/api/admin/clients/${id}/pricing-tier`, request);
+  }
+
+  /** An admin fixes one of a customer's addresses (MRV-9.3); the same rules as the customer's own edit, audited. */
+  updateClientAddress(id: string, key: string, request: ClientAddressRequest): Observable<ClientAddress> {
+    return this.http.put<ClientAddress>(`/api/admin/clients/${id}/addresses/${key}`, request);
   }
 
   /** The customer directory (`GET /api/employee/clients`, which admins may use too), one page. */

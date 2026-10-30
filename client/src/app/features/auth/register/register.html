@@ -1,6 +1,6 @@
 <div class="auth-page">
 <div class="container">
-  <div class="card auth-card">
+  <div class="card auth-card auth-card--wide">
     <h1 class="auth-title">{{ t.registerTitle }}</h1>
 
     <form (ngSubmit)="submit()">
@@ -18,20 +18,11 @@
           />
         </div>
       </div>
-      <div class="field">
-        <label for="billingAddress">{{ t.billingAddress }}</label>
-        <div class="field__control">
-          <app-icon name="map-pin" />
-          <input
-            id="billingAddress"
-            type="text"
-            name="billingAddress"
-            [(ngModel)]="billingAddress"
-            autocomplete="street-address"
-            required
-          />
-        </div>
-      </div>
+      <fieldset class="address-group">
+        <legend><app-icon name="map-pin" />{{ t.billingAddress }}</legend>
+        <p class="muted">{{ t.billingAddressHint }}</p>
+        <app-address-fields idPrefix="register-address" [compact]="true" [draft]="address" [readOnly]="busy()" />
+      </fieldset>
       <div class="field">
         <label for="email">{{ t.email }}</label>
         <div class="field__control">

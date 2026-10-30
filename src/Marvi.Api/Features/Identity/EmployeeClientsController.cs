@@ -101,6 +101,8 @@ public class EmployeeClientsController : ControllerBase
             .Where(o => o.ClientAccountId == id)
             .ToListAsync();
 
+        var addresses = await _dbContext.ClientAddresses.Where(a => a.ClientAccountId == id).ToListAsync();
+
         var email = await _dbContext.Users.Where(u => u.Id == clientAccount.UserId).Select(u => u.Email).FirstOrDefaultAsync();
 
         return new ClientProfileDto(
@@ -108,8 +110,9 @@ public class EmployeeClientsController : ControllerBase
             clientAccount.Number,
             clientAccount.CompanyName,
             clientAccount.CreatedAt,
-            clientAccount.BillingAddress,
-            clientAccount.ShippingAddresses,
+            ClientAddressDto.ListOf(addresses),
+            addresses.FirstOrDefault(a => a.IsBilling)?.Key,
+            addresses.FirstOrDefault(a => a.IsDefault)?.Key,
             clientAccount.PricingTier?.Name,
             clientAccount.Status,
             quotes.Select(ToQuoteDto).ToList(),

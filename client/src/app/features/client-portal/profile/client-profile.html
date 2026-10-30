@@ -9,21 +9,82 @@
         <label for="profile-company">{{ t.company }}</label>
         <input id="profile-company" name="company" type="text" autocomplete="organization" required [maxLength]="maxCompany" [readOnly]="saveAction.busy()" [ngModel]="companyName()" (ngModelChange)="companyName.set($event); saved.set(false)" />
       </div>
-      <div class="field">
-        <label for="profile-billing">{{ t.billing }}</label>
-        <input id="profile-billing" name="billing" type="text" autocomplete="street-address" required [maxLength]="maxAddress" [readOnly]="saveAction.busy()" [ngModel]="billingAddress()" (ngModelChange)="billingAddress.set($event); saved.set(false)" />
-      </div>
-      <div class="field">
-        <label for="profile-shipping">{{ t.shipping }}</label>
-        <textarea id="profile-shipping" name="shipping" rows="4" aria-describedby="profile-shipping-hint profile-shipping-problem" [readOnly]="saveAction.busy()" [ngModel]="shippingText()" (ngModelChange)="shippingText.set($event); saved.set(false)"></textarea>
-        <p id="profile-shipping-hint" class="muted">{{ t.shippingHint }}</p>
-        <p id="profile-shipping-problem" role="status">{{ problem() }}</p>
-      </div>
       <button type="submit" class="btn btn--primary" [disabled]="!canSave()">{{ t.save }}</button>
     </form>
     <app-error-alert [error]="saveAction.error()" />
     @if (saved()) {
       <p class="alert alert--success" role="status">{{ t.saved }}</p>
     }
+
+    <section class="stack" aria-labelledby="addresses-title" data-testid="addresses">
+      <h3 id="addresses-title" tabindex="-1">{{ t.addressesTitle }}</h3>
+      <p class="muted">{{ t.addressesHint }}</p>
+
+      @if (addresses().length === 0) {
+        <p class="muted">{{ t.noAddresses }}</p>
+      } @else {
+        <ul class="address-list">
+          @for (address of addresses(); track address.key) {
+            <li class="address-card" data-testid="address">
+              @if (editingKey() === address.key) {
+                <form (ngSubmit)="submitAddress()" [attr.aria-label]="t.editTitle">
+                  <app-address-fields idPrefix="address-edit" [draft]="draft" [readOnly]="addressAction.busy()" [allowedKinds]="allowedKinds(address)" [offerBilling]="!address.isBilling" [offerDefault]="!address.isDefaultDelivery" />
+                  <p class="muted" role="status">{{ addressProblem() }}</p>
+                  <div class="toolbar">
+                    <button type="submit" class="btn btn--primary btn--small" [disabled]="!canSubmitAddress()">{{ t.saveAddress }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="cancelForm()">{{ t.cancel }}</button>
+                  </div>
+                </form>
+              } @else {
+                <app-address-summary [address]="address">
+                  @if (address.needsReview) {
+                    <p class="alert" role="status">{{ t.needsReview }}</p>
+                  }
+                  @if (removingKey() === address.key) {
+                    <div class="toolbar">
+                      <button type="button" class="btn btn--primary btn--small" [id]="'address-confirm-' + $index" [disabled]="addressAction.busy()" (click)="remove(address)">{{ t.confirmRemove }}</button>
+                      <button type="button" class="btn btn--outline btn--small" (click)="cancelRemoval()">{{ t.cancel }}</button>
+                    </div>
+                  } @else {
+                    <div class="toolbar">
+                      <button type="button" class="btn btn--outline btn--small" [id]="'address-edit-btn-' + $index" (click)="startEdit(address)">{{ t.edit }}</button>
+                      <button type="button" class="btn btn--outline btn--small" [id]="'address-remove-btn-' + $index" [disabled]="!canRemove(address)" [attr.aria-describedby]="canRemove(address) ? null : 'why-' + $index" (click)="askToRemove(address)">{{ t.remove }}</button>
+                    </div>
+                    @if (whyNotRemovable(address); as why) {
+                      <p class="muted" [id]="'why-' + $index">{{ why }}</p>
+                    }
+                  }
+                </app-address-summary>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      @if (adding()) {
+        <form class="address-card" (ngSubmit)="submitAddress()" [attr.aria-label]="t.addTitle" data-testid="address-form">
+          <strong>{{ t.addTitle }}</strong>
+          <app-address-fields idPrefix="address-new" [draft]="draft" [readOnly]="addressAction.busy()" />
+          <p class="muted" role="status">{{ addressProblem() }}</p>
+          <div class="toolbar">
+            <button type="submit" class="btn btn--primary btn--small" [disabled]="!canSubmitAddress()">{{ t.saveAddress }}</button>
+            <button type="button" class="btn btn--outline btn--small" (click)="cancelForm()">{{ t.cancel }}</button>
+          </div>
+        </form>
+      } @else if (canAddMore()) {
+        <div>
+          <button type="button" id="address-add-btn" class="btn btn--outline" (click)="startAdd()">{{ t.add }}</button>
+        </div>
+      } @else {
+        <p class="muted">{{ t.tooMany }}</p>
+      }
+
+      <app-error-alert [error]="addressAction.error()" />
+      <div role="status">
+        @if (addressMessage(); as message) {
+          <p class="alert alert--success">{{ message }}</p>
+        }
+      </div>
+    </section>
   }
 </section>

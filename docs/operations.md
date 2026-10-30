@@ -32,9 +32,9 @@ To see the check work: start the API image with the example values and without t
 
 Sign-in, registration (`/api/auth`), the public coverage check (`/api/coverage/check`, each call may reach the paid
 geocoding provider) and the public contact form (`POST /api/public/contact`, MRV-2.8: anyone can post to it, and each message is stored) are limited per client address, in fixed windows; over the limit the API answers `429` with `Retry-After`.
-Defaults: 10 requests per 60 s for `/api/auth`, 30 per 60 s for the coverage check, 5 per 60 s for the contact form. Tune with `RateLimiting__Auth__PermitLimit`,
+Defaults: 10 requests per 60 s for `/api/auth`, 30 per 60 s for the coverage check, 5 per 60 s for the contact form, 60 per 60 s for the address writes (`POST/PUT/DELETE /api/client/addresses`, the admin address fix; MRV-9.3). Tune with `RateLimiting__Auth__PermitLimit`,
 `RateLimiting__Auth__WindowSeconds`, `RateLimiting__Coverage__PermitLimit`, `RateLimiting__Coverage__WindowSeconds`,
-`RateLimiting__Contact__PermitLimit`, `RateLimiting__Contact__WindowSeconds`.
+`RateLimiting__Contact__PermitLimit`, `RateLimiting__Contact__WindowSeconds`, `RateLimiting__Addresses__PermitLimit`, `RateLimiting__Addresses__WindowSeconds`.
 
 The limits are keyed on the caller's address. Behind a reverse proxy (the bundled nginx, or your load balancer) the API sees the
 proxy's address unless it reads `X-Forwarded-For`; set `ForwardedHeaders__Enabled=true` **only if the API port is reachable

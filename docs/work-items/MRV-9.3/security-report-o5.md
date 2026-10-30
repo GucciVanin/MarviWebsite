@@ -1,0 +1,13 @@
+# MRV-9.3 Security review, O-5 delta
+
+Verdict: **pass** (no critical/high/medium; 2 low/info notes).
+
+1. Row lock (ClientAddressService.LockAccountAsync): `ExecuteSqlInterpolatedAsync` with `{accountId}` is parameterised (Guid, no concatenation): no SQL injection. Single-row lock keyed by the authenticated owner (admin path: id from route, Guid). Lock order is always client_accounts row then addresses; no other code path writes ClientAddresses (only AuthController registration, which creates the account and its address in one unit, never waiting on another account lock), so no lock-order inversion. Approval/profile updates on the same account just queue behind the short transaction. No external I/O inside the lock (only DB reads/saves and audit). No retrying execution strategy is configured, so manual BeginTransaction is valid. DoS by one user is bounded to that user's own row and by the new rate limit. Low/info: no lock_timeout/command timeout set explicitly (default 30 s command timeout applies); acceptable.
+2. `addresses` rate limit: partition = RemoteIpAddress, fixed window, QueueLimit 0, 429 + Retry-After; default 60/min. X-Forwarded-For is only honoured when `ForwardedHeaders:Enabled` (dev compose only, behind nginx, ForwardLimit 1), unchanged from existing policies. 100000 override appears only in MarviApiFactory and the dev compose (same as auth/coverage/contact); no production config changed. Low/info: partition is per IP, not per user (shared NAT users share the budget) - same design as the other policies.
+3. Audit fallback: CustomerNumber is written only server-side by ClientAddressService; the controller parses it with JsonDocument inside try/catch (JsonException), accepts only an int > 0, and never echoes the raw parse. Endpoint is admin-only. Customer number is already shown to staff everywhere; no new PII class (address text is not added; only Label, Kind, flags as before).
+4. 500->409: only fixed strings (AuditLogger.ConflictMessage, domain messages) are returned; DbUpdateException/concurrency exceptions are caught and not serialised. No stack/inner messages leaked.
+5. Runtime tests: use throwaway customers in the suite's own compose project/database (not the dev DB); test passwords are the suite's fixed throwaway fixtures, no real credentials; tests tear down with the project.
+6. test/layout/audit.mjs: only adds in-page navigation/click steps, fragment never sent to server, nothing submitted, no new credentials (existing demo accounts mechanism unchanged) and no outbound calls.
+7. SPA focus management: only element focus calls by fixed ids/ref, `role="status"` region bound with interpolation (Angular-escaped); no innerHTML, no keys/GUIDs rendered.
+
+No fixes required.

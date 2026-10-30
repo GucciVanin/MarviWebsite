@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import type { ClientProfile } from '../../../features/employee-portal/api/employee.service';
+import { twoAddresses } from '../../models/testing/client-address';
 import { CustomerLookup, openDocuments } from './customer-lookup';
 
 const profile = (patch: Partial<ClientProfile> = {}): ClientProfile => ({
@@ -11,8 +12,7 @@ const profile = (patch: Partial<ClientProfile> = {}): ClientProfile => ({
   customerNumber: 42,
   companyName: 'Bar do Zé',
   createdAt: '2026-10-14T13:42:00Z',
-  billingAddress: 'Rua A, 1',
-  shippingAddresses: ['Rua B, 2', 'Rua C, 3'],
+  ...twoAddresses(),
   pricingTierName: 'Atacado',
   contactEmail: 'ze@bar.example.com',
   status: 'Approved',
@@ -119,8 +119,10 @@ describe('CustomerLookup (the "Consultar cliente" widget)', () => {
     expect(shown).toContain('Situação Aprovado');
     expect(shown).toContain('Cliente desde 14/10/2026');
     expect(shown).toContain('Faixa de preço Atacado');
-    expect(shown).toContain('Endereço de cobrança Rua A, 1');
-    expect(shown).toContain('Endereços de entrega 2');
+    expect(shown).toContain('Endereço de cobrança Praça da Sé, 10, Sé, São Paulo/SP, CEP 01001-000');
+    // The other addresses are listed by label (MRV-9.3); no key is rendered.
+    expect(shown).toContain('Outros endereços Filial Campinas: Rua Barão de Jaguara, 200 - Sala 3, Centro, Campinas/SP, CEP 13010-000');
+    expect(dialog()!.innerHTML).not.toContain('6f1c2a3e');
     expect(shown).toContain('Cotações em aberto 2');
     expect(shown).toContain('Pedidos em aberto 1');
     // Not built yet (MRV-9.3, MRV-9.4) or not in the API: a dash, never an empty row.
@@ -133,7 +135,7 @@ describe('CustomerLookup (the "Consultar cliente" widget)', () => {
   it('shows "—" for a customer with no tier and no billing address', async () => {
     const { dialog, open } = setup();
 
-    await open(profile({ pricingTierName: null, billingAddress: '', contactEmail: null }));
+    await open(profile({ pricingTierName: null, addresses: [], billingAddressKey: null, defaultDeliveryKey: null, contactEmail: null }));
 
     const shown = facts(dialog()!);
     expect(shown).toContain('Faixa de preço —');

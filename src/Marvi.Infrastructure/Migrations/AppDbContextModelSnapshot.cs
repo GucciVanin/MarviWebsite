@@ -376,11 +376,6 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("BillingAddress")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("billing_address");
-
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasColumnType("text")
@@ -399,11 +394,6 @@ namespace Marvi.Infrastructure.Migrations
                     b.Property<Guid?>("PricingTierId")
                         .HasColumnType("uuid")
                         .HasColumnName("pricing_tier_id");
-
-                    b.PrimitiveCollection<List<string>>("ShippingAddresses")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("shipping_addresses");
 
                     b.Property<int>("Status")
                         .IsConcurrencyToken()
@@ -425,6 +415,122 @@ namespace Marvi.Infrastructure.Migrations
                         .HasDatabaseName("ix_client_accounts_pricing_tier_id");
 
                     b.ToTable("client_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("Marvi.Domain.Identity.ClientAddress", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
+                    b.Property<Guid>("ClientAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_account_id");
+
+                    b.Property<string>("Complement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("complement");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("country");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DeliveryNotes")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delivery_notes");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("district");
+
+                    b.Property<bool>("IsBilling")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_billing");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_default");
+
+                    b.Property<Guid>("Key")
+                        .HasColumnType("uuid")
+                        .HasColumnName("key");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("label");
+
+                    b.Property<bool>("NeedsReview")
+                        .HasColumnType("boolean")
+                        .HasColumnName("needs_review");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("number");
+
+                    b.Property<string>("PostalCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("postal_code");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("Street")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("street");
+
+                    b.HasKey("Id")
+                        .HasName("pk_client_addresses");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_addresses_key");
+
+                    b.HasIndex(new[] { "ClientAccountId" }, "billing")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_addresses_one_billing")
+                        .HasFilter("is_billing = true");
+
+                    b.HasIndex(new[] { "ClientAccountId" }, "default")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_addresses_one_default")
+                        .HasFilter("is_default = true");
+
+                    b.HasIndex(new[] { "ClientAccountId" }, "plain")
+                        .HasDatabaseName("ix_client_addresses_client_account_id");
+
+                    b.ToTable("client_addresses", (string)null);
                 });
 
             modelBuilder.Entity("Marvi.Domain.Identity.EmployeeAccount", b =>
@@ -979,6 +1085,18 @@ namespace Marvi.Infrastructure.Migrations
                     b.Navigation("PricingTier");
                 });
 
+            modelBuilder.Entity("Marvi.Domain.Identity.ClientAddress", b =>
+                {
+                    b.HasOne("Marvi.Domain.Identity.ClientAccount", "ClientAccount")
+                        .WithMany("Addresses")
+                        .HasForeignKey("ClientAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_client_addresses_client_accounts_client_account_id");
+
+                    b.Navigation("ClientAccount");
+                });
+
             modelBuilder.Entity("Marvi.Domain.Inventory.InventoryRecord", b =>
                 {
                     b.HasOne("Marvi.Domain.Catalog.Product", "Product")
@@ -1172,6 +1290,8 @@ namespace Marvi.Infrastructure.Migrations
 
             modelBuilder.Entity("Marvi.Domain.Identity.ClientAccount", b =>
                 {
+                    b.Navigation("Addresses");
+
                     b.Navigation("Orders");
 
                     b.Navigation("Quotes");

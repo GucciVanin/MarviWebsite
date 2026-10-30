@@ -5,7 +5,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { fakeToken } from '../../../core/auth/testing/fake-token';
 import { CustomerLookupService, LOOKUP_CACHE_MS } from './customer-lookup.service';
 
-const profile = { id: 'c-1', customerNumber: 42, companyName: 'Bar do Zé', quotes: [], orders: [], shippingAddresses: [] };
+const profile = { id: 'c-1', customerNumber: 42, companyName: 'Bar do Zé', quotes: [], orders: [], addresses: [] };
 
 describe('CustomerLookupService cache', () => {
   let service: CustomerLookupService;

@@ -183,7 +183,7 @@ public class QuoteFlowTests : IClassFixture<MarviApiFactory>
     {
         var email = $"{Guid.NewGuid()}@example.com";
         var anonymous = _factory.CreateClient();
-        var register = await anonymous.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        var register = await anonymous.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         register.EnsureSuccessStatusCode();
         var clientAccountId = JsonDocument.Parse(await register.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
         // A new customer is Pending: an admin approves them (with the default tier) before they can transact.

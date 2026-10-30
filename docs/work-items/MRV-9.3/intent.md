@@ -1,0 +1,1 @@
+Slice 9.3 of MRV-9 (spec docs/specs/MRV-9.3-multiple-addresses.md, issue #54): a customer can keep several named, structured Brazilian addresses on one account, one of them the billing address and one the default delivery address. Owner 2026-10-30: "Clients should be able to input multiple addresses in the same account".

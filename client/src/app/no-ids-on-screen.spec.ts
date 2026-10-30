@@ -76,9 +76,15 @@ const product = (n: number) => ({
 const category = (n: number) => ({ id: g(600 + n), name: `Categoria ${n}`, productCount: n, sortOrder: n, isActive: true });
 const tier = (n: number) => ({ id: g(700 + n), name: n === 1 ? 'Standard' : 'Ouro', isDefault: n === 1 });
 const warehouse = { id: g(500), name: 'CD São Paulo', address: 'Av. Brasil, 1', latitude: -23.5, longitude: -46.6 };
+// The addresses carry GUID-shaped keys (MRV-9.3): they are API handles, so no page may render them, with a form open or not.
+const addressOf = (n: number, over: object = {}) => ({
+  key: g(1400 + n), label: n === 0 ? 'Matriz' : 'Filial', kind: n === 0 ? 'Both' : 'Delivery', postalCode: '01001000', street: 'Praça da Sé', number: String(10 + n),
+  complement: null, district: 'Sé', city: 'São Paulo', state: 'SP', country: 'BR', deliveryNotes: n === 0 ? null : 'Entregar de manhã',
+  isBilling: n === 0, isDefaultDelivery: n === 0, needsReview: n === 1, ...over,
+});
 const profile = {
-  id: CUSTOMER.id, customerNumber: 42, companyName: CUSTOMER.companyName, createdAt: '2026-10-14T13:42:00Z', billingAddress: 'Rua A, 1',
-  shippingAddresses: ['Rua B, 2'], pricingTierName: 'Standard', status: 'Approved', quotes: [quote(1)], orders: [order(1)],
+  id: CUSTOMER.id, customerNumber: 42, companyName: CUSTOMER.companyName, createdAt: '2026-10-14T13:42:00Z',
+  addresses: [addressOf(0), addressOf(1)], billingAddressKey: g(1400), defaultDeliveryKey: g(1400), pricingTierName: 'Standard', status: 'Approved', quotes: [quote(1)], orders: [order(1)],
 };
 const deal = { id: g(1200), name: 'Verão', discountType: 'Percent', discountValue: 10, startDate: '2026-10-01T00:00:00Z', endDate: '2026-12-01T00:00:00Z', productIds: [g(201)], categoryIds: [g(601)], minQty: 1 };
 const stock = { id: g(800), productId: g(201), productName: 'Produto 1', warehouseId: g(500), warehouseName: 'CD São Paulo', qtyOnHand: 5, qtyReserved: 1, reorderPoint: 2 };
@@ -269,6 +275,52 @@ describe('No internal ids on screen (MRV-9.1)', () => {
     await drain(fixture, http);
 
     expect(root.querySelector('[data-testid="placed-order"]')?.textContent).toContain('P-000043');
+    expect(guidsIn(root)).toEqual([]);
+  });
+
+  const press = (root: HTMLElement, text: string) => {
+    const button = Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === text);
+    expect(button, `a button "${text}"`).toBeDefined();
+    button!.click();
+  };
+
+  it('stays clean with the address forms open: adding and editing on the customer profile (MRV-9.3)', async () => {
+    const { fixture, http, root } = await render(ClientPortal, 'Client');
+
+    press(root, 'Adicionar endereço');
+    await drain(fixture, http);
+    expect(root.querySelector('[data-testid="address-form"]')).not.toBeNull();
+    expect(guidsIn(root)).toEqual([]);
+
+    press(root, 'Cancelar');
+    await drain(fixture, http);
+    const edit = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-testid="address"] button')).find((b) => b.textContent?.trim() === 'Editar')!;
+    edit.click();
+    await drain(fixture, http);
+    expect(root.querySelector('#address-edit-cep')).not.toBeNull();
+    expect(guidsIn(root)).toEqual([]);
+    // The cards say what is wrong, in words, and show neither the key nor any id.
+    expect(root.textContent).toContain('Complete este endereço');
+  });
+
+  it('stays clean with the address editor open in the admin customers tab (MRV-9.3)', async () => {
+    const { fixture, http, root } = await render(AdminCustomers, 'Admin');
+
+    press(root, 'Editar');
+    await drain(fixture, http);
+    expect(root.querySelector('[data-testid="customer-addresses"]')?.textContent).toContain('Praça da Sé');
+    expect(guidsIn(root)).toEqual([]);
+
+    press(root, 'Corrigir endereço');
+    await drain(fixture, http);
+    expect(root.querySelector('#admin-address-cep')).not.toBeNull();
+    expect(guidsIn(root)).toEqual([]);
+  });
+
+  it('stays clean on the register page, whose billing address form is always open', async () => {
+    const { root } = await render(Register);
+
+    expect(root.querySelector('#register-address-cep')).not.toBeNull();
     expect(guidsIn(root)).toEqual([]);
   });
 

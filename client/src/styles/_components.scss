@@ -499,3 +499,36 @@
   dt { color: var(--color-text-muted, #5a6275); font-size: 0.85rem; }
   dd { margin: 0; overflow-wrap: anywhere; }
 }
+
+// An address form (MRV-9.3): one labelled field per part on a grid of equal columns, so fields on different rows line up on shared edges
+// at every width (the last row keeps the same columns); every field is one column wide, so fields that stack are one width (MRV-8.3).
+.address-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-2);
+  align-items: start;
+  margin-bottom: var(--space-2);
+
+  .field { min-width: 0; margin-bottom: 0; }
+}
+
+// A customer's addresses as a list of bordered boxes inside a card (MRV-9.3).
+.address-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.address-card {
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+
+  strong { min-width: 0; overflow-wrap: anywhere; }
+  p { margin: 0; overflow-wrap: anywhere; }
+  .toolbar { margin-bottom: 0; }
+  > * + * { margin-top: var(--space-1); }
+}

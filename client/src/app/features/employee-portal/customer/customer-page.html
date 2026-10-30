@@ -37,16 +37,21 @@
         </dl>
 
         <h2>{{ t.addresses }}</h2>
-        <dl class="facts">
-          <div><dt>{{ l.billing }}</dt><dd>{{ customer.billingAddress || l.none }}</dd></div>
-        </dl>
+        <h3>{{ l.billing }}</h3>
+        @if (billing(); as address) {
+          <div class="address-card" data-testid="billing-address">
+            <app-address-summary [address]="address" />
+          </div>
+        } @else {
+          <p class="muted">{{ t.noBilling }}</p>
+        }
         <h3>{{ t.shipping }}</h3>
-        @if (customer.shippingAddresses.length === 0) {
+        @if (others().length === 0) {
           <p class="muted">{{ t.noShipping }}</p>
         } @else {
-          <ul>
-            @for (address of customer.shippingAddresses; track $index) {
-              <li>{{ address }}</li>
+          <ul class="address-list" data-testid="other-addresses">
+            @for (address of others(); track address.key) {
+              <li class="address-card"><app-address-summary [address]="address" /></li>
             }
           </ul>
         }

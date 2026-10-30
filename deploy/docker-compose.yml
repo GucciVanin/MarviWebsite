@@ -34,6 +34,7 @@ services:
       RateLimiting__Auth__PermitLimit: "100000"
       RateLimiting__Coverage__PermitLimit: "100000"
       RateLimiting__Contact__PermitLimit: "100000"
+      RateLimiting__Addresses__PermitLimit: "100000"
       # The nginx proxy in front of the API forwards the real client address; trust it (the API is only meant to be reached through it).
       ForwardedHeaders__Enabled: "true"
       # Google reviews on the home page (MRV-2.5); both empty hides the section.

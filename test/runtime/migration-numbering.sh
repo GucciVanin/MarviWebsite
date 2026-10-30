@@ -41,8 +41,8 @@ $EF "$CONN" >/dev/null 2>&1 || { echo "FAIL  migration did not apply"; exit 2; }
 check "existing customers are numbered by created_at, then id (A=1, B=2, C=3)" "$(psqlc "SELECT string_agg(company_name || number, ',' ORDER BY number) FROM client_accounts")" "A1,B2,C3"
 check "existing quotes are numbered by created_at, then id" "$(psqlc "SELECT string_agg(right(id::text, 3) || ':' || number, ',' ORDER BY number) FROM quotes")" "f01:1,f02:2"
 check "existing orders are numbered by placed_at, then id" "$(psqlc "SELECT string_agg(right(id::text, 3) || ':' || number, ',' ORDER BY number) FROM orders")" "e01:1,e02:2"
-psqlc "INSERT INTO client_accounts (id, user_id, created_at, company_name, billing_address, shipping_addresses, status)
-VALUES (gen_random_uuid(), gen_random_uuid(), now(), 'D', '', '{}', 0);" >/dev/null
+psqlc "INSERT INTO client_accounts (id, user_id, created_at, company_name, status)
+VALUES (gen_random_uuid(), gen_random_uuid(), now(), 'D', 0);" >/dev/null
 check "the next customer continues after the last number (4)" "$(psqlc "SELECT number FROM client_accounts WHERE company_name='D'")" "4"
 check "the next quote and order continue too (3 and 3)" "$(psqlc "INSERT INTO quotes (id, client_account_id, status, created_at) VALUES (gen_random_uuid(), '00000000-0000-0000-0000-00000000000a', 1, now()) RETURNING number")|$(psqlc "INSERT INTO orders (id, client_account_id, status, delivery_address, placed_at, total_amount) VALUES (gen_random_uuid(), '00000000-0000-0000-0000-00000000000c', 0, 'x', now(), 1) RETURNING number")" "3|3"
 check "the number is unique (a duplicate is refused by the database)" "$(psqlc "UPDATE client_accounts SET number = 1 WHERE company_name='D'" 2>&1 | grep -c 'unique')" "1"
@@ -53,5 +53,5 @@ check "Down removes the columns and the sequences" "$(psqlc "SELECT (SELECT coun
 # A table with no rows: the sequence must still start at 1.
 psqlc "TRUNCATE orders, quotes, client_accounts CASCADE" >/dev/null
 $EF "$CONN" >/dev/null 2>&1
-check "an empty database starts numbering at 1" "$(psqlc "INSERT INTO client_accounts (id, user_id, created_at, company_name, billing_address, shipping_addresses, status) VALUES (gen_random_uuid(), gen_random_uuid(), now(), 'E', '', '{}', 0) RETURNING number")" "1"
+check "an empty database starts numbering at 1" "$(psqlc "INSERT INTO client_accounts (id, user_id, created_at, company_name, status) VALUES (gen_random_uuid(), gen_random_uuid(), now(), 'E', 0) RETURNING number")" "1"
 exit $fail

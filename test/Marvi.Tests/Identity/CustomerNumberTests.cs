@@ -66,7 +66,7 @@ public class CustomerNumberTests : IClassFixture<MarviApiFactory>
         Assert.Equal(number, (await OkAsync<ClientOwnProfileDto>(await customer.GetAsync("/api/client/profile"))).CustomerNumber);
 
         // Editing the profile, approving and changing the tier leave it alone.
-        (await customer.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest("Renamed Ltda", "Rua Nova, 2", []))).EnsureSuccessStatusCode();
+        (await customer.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest("Renamed Ltda"))).EnsureSuccessStatusCode();
         var tiers = await TiersAsync(admin);
         (await admin.PutAsJsonAsync($"/api/admin/clients/{id}/approve", new ApproveClientRequest(tiers[0].Id))).EnsureSuccessStatusCode();
         (await admin.PutAsJsonAsync($"/api/admin/clients/{id}/pricing-tier", new UpdateClientTierRequest(tiers[^1].Id))).EnsureSuccessStatusCode();
@@ -82,7 +82,7 @@ public class CustomerNumberTests : IClassFixture<MarviApiFactory>
     {
         var admin = await _factory.AdminAsync();
         var email = $"{Guid.NewGuid()}@contato.example.com";
-        var register = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        var register = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         register.EnsureSuccessStatusCode();
         var id = (await register.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
         var customer = await _factory.LoginAsync(email, "Test1234!");

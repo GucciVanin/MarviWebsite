@@ -82,7 +82,7 @@ export function auditEntityLabel(entry: AuditLogEntry): string {
     return entry.entityName;
   }
   const number =
-    entry.entityName === 'ClientAccount'
+    entry.entityName === 'ClientAccount' || entry.entityName === 'ClientAddress'
       ? formatCustomerNumber(entry.entityNumber)
       : formatDocumentNumber(entry.entityNumber, entry.entityName === 'Quote' ? 'quote' : 'order');
   return number ? `${kind} ${number}` : kind;

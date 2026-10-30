@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { EMPLOYEE_PORTAL_ROUTES } from '../employee-portal.routes';
 import { staffPageGuard } from '../../../core/auth/role.guard';
+import { twoAddresses } from '../../../shared/models/testing/client-address';
 import { CustomerPage } from './customer-page';
 
 const profile = (patch: object = {}) => ({
@@ -11,8 +12,7 @@ const profile = (patch: object = {}) => ({
   customerNumber: 42,
   companyName: 'Bar do Zé',
   createdAt: '2026-10-14T13:42:00Z',
-  billingAddress: 'Rua A, 1',
-  shippingAddresses: ['Rua B, 2', 'Rua C, 3'],
+  ...twoAddresses(),
   pricingTierName: 'Atacado',
   contactEmail: 'ze@bar.example.com',
   status: 'Approved',
@@ -62,9 +62,20 @@ describe('CustomerPage', () => {
     expect(text()).toContain('Aprovado');
     expect(text()).toContain('Cliente desde 14/10/2026');
     expect(text()).toContain('Faixa de preço Atacado');
-    expect(text()).toContain('Rua A, 1');
-    expect(root.querySelectorAll('li').length).toBe(2);
-    expect(text()).toContain('Rua B, 2');
+    // The billing address in full, then the other addresses as boxes (MRV-9.3): label, kind, lines and notes. No key anywhere.
+    const billing = root.querySelector('[data-testid="billing-address"]')?.textContent?.replace(/\s+/g, ' ') ?? '';
+    expect(billing).toContain('Matriz');
+    expect(billing).toContain('Principal');
+    expect(billing).toContain('Entrega padrão');
+    expect(billing).toContain('Praça da Sé, 10');
+    expect(billing).toContain('Sé, São Paulo/SP, CEP 01001-000');
+    const others = root.querySelectorAll('[data-testid="other-addresses"] li');
+    expect(others.length).toBe(1);
+    expect(others[0].textContent).toContain('Filial Campinas');
+    expect(others[0].textContent).toContain('Rua Barão de Jaguara, 200 - Sala 3');
+    expect(others[0].textContent).toContain('Centro, Campinas/SP, CEP 13010-000');
+    expect(others[0].textContent).toContain('Entregar de manhã');
+    expect(root.innerHTML).not.toContain('6f1c2a3e');
     expect(text()).toContain('E-mail de contato ze@bar.example.com');
     expect(text()).toContain('Cotações em aberto 1');
     expect(text()).toContain('Pedidos em aberto 1');
@@ -159,13 +170,13 @@ describe('CustomerPage', () => {
   it('shows "—" for a customer with no tier and no billing address', async () => {
     const { http, settle, text } = setup();
 
-    http.expectOne('/api/employee/clients/by-number/42').flush(profile({ pricingTierName: null, billingAddress: '', shippingAddresses: [], contactEmail: null }));
+    http.expectOne('/api/employee/clients/by-number/42').flush(profile({ pricingTierName: null, addresses: [], billingAddressKey: null, defaultDeliveryKey: null, contactEmail: null }));
     await settle();
 
     expect(text()).toContain('Faixa de preço —');
     expect(text()).toContain('E-mail de contato —');
-    expect(text()).toContain('Endereço de cobrança —');
-    expect(text()).toContain('Nenhum endereço de entrega cadastrado');
+    expect(text()).toContain('Nenhum endereço de cobrança cadastrado');
+    expect(text()).toContain('Nenhum outro endereço cadastrado');
   });
 });
 

@@ -2,9 +2,11 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { PT } from '../../../core/i18n/pt-br';
 import { action } from '../../../core/http/action';
+import { billingAddressOf, otherAddressesOf } from '../../../shared/format/address';
 import { BrlPipe } from '../../../shared/format/brl.pipe';
 import { CustomerNumberPipe, DocumentNumberPipe, parseCustomerNumber } from '../../../shared/format/number.pipes';
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
+import { AddressSummary } from '../../../shared/ui/address-summary/address-summary';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { openDocuments } from '../../../shared/ui/customer-lookup/customer-lookup';
 import { ClientProfile, EmployeeService } from '../api/employee.service';
@@ -15,7 +17,7 @@ import { ClientProfile, EmployeeService } from '../api/employee.service';
  */
 @Component({
   selector: 'app-customer-page',
-  imports: [RouterLink, ErrorAlert, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
+  imports: [RouterLink, ErrorAlert, AddressSummary, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
   templateUrl: './customer-page.html',
 })
 export class CustomerPage implements OnInit {
@@ -30,6 +32,14 @@ export class CustomerPage implements OnInit {
   protected readonly profile = signal<ClientProfile | null>(null);
   protected readonly notFound = signal(false);
   protected readonly loadAction = action({ latestOnly: true });
+  protected readonly billing = computed(() => {
+    const profile = this.profile();
+    return profile ? billingAddressOf(profile) : null;
+  });
+  protected readonly others = computed(() => {
+    const profile = this.profile();
+    return profile ? otherAddressesOf(profile) : [];
+  });
   protected readonly counts = computed(() => {
     const profile = this.profile();
     return profile ? openDocuments(profile) : null;

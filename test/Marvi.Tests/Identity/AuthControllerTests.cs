@@ -20,7 +20,7 @@ public class AuthControllerTests : IClassFixture<MarviApiFactory>
     public async Task RegisterThenLogin_ReturnsUsableJwt()
     {
         var email = $"{Guid.NewGuid()}@example.com";
-        var registerRequest = new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St");
+        var registerRequest = new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main);
 
         var registerResponse = await _client.PostAsJsonAsync("/api/auth/register", registerRequest);
         Assert.Equal(HttpStatusCode.Created, registerResponse.StatusCode);
@@ -47,7 +47,7 @@ public class AuthControllerTests : IClassFixture<MarviApiFactory>
     public async Task IssuedToken_CarriesTheRoleUnderTheMicrosoftClaimUri_TheSpaReads()
     {
         var email = $"{Guid.NewGuid()}@example.com";
-        await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         var login = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, "Test1234!"));
         var token = (await login.Content.ReadFromJsonAsync<AuthResponse>())!.Token;
 

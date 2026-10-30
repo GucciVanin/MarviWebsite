@@ -5,12 +5,14 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { translateIdentityErrors } from '../../../core/i18n/identity-errors';
 import { describeApiError } from '../../../core/http/api-error';
+import { AddressDraft } from '../../../shared/ui/address-fields/address-draft';
+import { AddressFields } from '../../../shared/ui/address-fields/address-fields';
 import { AppIcon } from '../../../shared/ui/app-icon/app-icon';
 import { PT } from '../../../core/i18n/pt-br';
 
 @Component({
   selector: 'app-register',
-  imports: [FormsModule, RouterLink, AppIcon],
+  imports: [FormsModule, RouterLink, AppIcon, AddressFields],
   templateUrl: './register.html',
   styleUrl: '../auth.scss',
 })
@@ -24,16 +26,21 @@ export class Register {
   email = '';
   password = '';
   companyName = '';
-  billingAddress = '';
+  /** The billing address, in the structured form (MRV-9.3): it becomes the customer's first address, billing and default delivery. */
+  protected readonly address = new AddressDraft(true);
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after async callbacks.
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
 
   submit(): void {
     this.error.set(null);
+    if (!this.address.canSubmit()) {
+      this.error.set(this.t.addressIncomplete);
+      return;
+    }
     this.busy.set(true);
-    const { email, password, companyName, billingAddress } = this;
-    this.authService.register({ email, password, companyName, billingAddress }).subscribe({
+    const { email, password, companyName } = this;
+    this.authService.register({ email, password, companyName, billingAddress: this.address.request() }).subscribe({
       // A new customer is Pending until an admin approves them, but can sign in at once to keep their details up to date;
       // the portal tells them their account awaits approval.
       next: () =>

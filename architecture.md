@@ -104,6 +104,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     subgraph Identity
+        I6[ClientAddressesController + ClientAddressService]
         I1[AuthController]
         I2[AdminClientsController]
         I3[AdminEmployeesController]
@@ -249,9 +250,27 @@ erDiagram
         int Number "customer number, sequence, unique (MRV-9.1)"
         guid UserId
         string CompanyName
-        string BillingAddress
         guid PricingTierId
         enum Status
+    }
+    ClientAddress {
+        guid Id "never leaves the server"
+        guid Key "opaque API handle (MRV-9.3)"
+        guid ClientAccountId
+        string Label
+        enum Kind "Billing, Delivery, Both"
+        string PostalCode "CEP, 8 digits"
+        string Street
+        string Number
+        string Complement
+        string Country "BR"
+        string DeliveryNotes
+        string District
+        string City
+        string State "UF"
+        bool IsBilling "one per customer"
+        bool IsDefault "default delivery, one per customer"
+        bool NeedsReview "migrated from free text"
     }
     EmployeeAccount {
         guid Id
@@ -345,8 +364,7 @@ erDiagram
 
 `Product.CategoryId` is a real foreign key to `Category` (restrict delete; nullable). Not drawn as
 relationships because they are plain id lists: `Deal.ProductIds` and `Deal.CategoryIds` (no foreign key, so
-`AdminCategoriesController` checks deals itself before deleting). `ClientAccount.ShippingAddresses`
-is a string list column. `AuditLogEntry.ActorUserId` is not a foreign key. `ContactMessage` (MRV-2.8) stands alone: no relationships; `HandledAt` is a concurrency token.
+`AdminCategoriesController` checks deals itself before deleting). `ClientAccount` has many `ClientAddress` (MRV-9.3, cascade; filtered unique indexes `ix_client_addresses_one_billing` and `ix_client_addresses_one_default`). `AuditLogEntry.ActorUserId` is not a foreign key. `ContactMessage` (MRV-2.8) stands alone: no relationships; `HandledAt` is a concurrency token.
 
 ## 6. Authentication and authorization
 
@@ -381,7 +399,7 @@ sequenceDiagram
   (`ClaimTypes.Role` on .NET 10; older frameworks used `xmlsoap.org/2005/...`), not `"role"`. The SPA's `AuthService` decodes it; any new JWT consumer must too.
   The SPA once used the old URI, so `role()` was always null and every portal bounced the user home; `auth.service.spec.ts` now pins a payload copied from a real login.
 - Settings: `Jwt:Key`, `Jwt:Issuer` (`Marvi.Api`), `Jwt:Audience` (`Marvi.Client`). No refresh tokens.
-- `ClientAccountStatus`: registration yields `Pending` (least privilege, MRV-5.3): nobody is approved by default, and "Aprovar" always needs an explicit pricing tier. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly. **Decisions are taken once** (`CustomerDecisions`, MRV-6.1): Pending or Suspended can be approved, Pending or Approved can be suspended, anything else is a 409 "already decided"; `ClientAccount.Status` is an EF concurrency token and `AuditLogger.TrySaveAsync` answers false (so 409) on a `DbUpdateConcurrencyException`; the customer's own profile save (which is not an audited admin mutation) reloads the row and retries, answering 409 only if it still collides, so two admins deciding at once cannot overwrite each other (on Postgres the losing save rolls back, audit entry included). There is no credit anywhere (MRV-5.1): customers pay directly. A customer edits their own company name, billing address and shipping addresses through `GET/PUT /api/client/profile` (MRV-2.2); `ClientProfileRules` (Domain/Identity) is the one definition of what those may be, used by registration and by the profile, and the account always comes from the token. An admin moves a customer to another pricing tier with `PUT /api/admin/clients/{id}/pricing-tier` (MRV-1.3, MRV-5.1): the status is untouched and the change is audited with the previous tier. Only an `Approved` customer gets their own tier's prices from the public catalog; anonymous visitors, `Pending` and `Suspended` customers get the default tier.
+- `ClientAccountStatus`: registration yields `Pending` (least privilege, MRV-5.3): nobody is approved by default, and "Aprovar" always needs an explicit pricing tier. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly. **Decisions are taken once** (`CustomerDecisions`, MRV-6.1): Pending or Suspended can be approved, Pending or Approved can be suspended, anything else is a 409 "already decided"; `ClientAccount.Status` is an EF concurrency token and `AuditLogger.TrySaveAsync` answers false (so 409) on a `DbUpdateConcurrencyException`; the customer's own profile save (which is not an audited admin mutation) reloads the row and retries, answering 409 only if it still collides, so two admins deciding at once cannot overwrite each other (on Postgres the losing save rolls back, audit entry included). There is no credit anywhere (MRV-5.1): customers pay directly. A customer edits their own company name through `GET/PUT /api/client/profile` (MRV-2.2; `ClientProfileRules` is the one definition, used by registration and the profile) and their addresses through `POST/PUT/DELETE /api/client/addresses[/{key}]` (MRV-9.3); the account always comes from the token. **Addresses (MRV-9.3):** `ClientAddressRules` (Domain/Identity) is the one definition of a valid address (registration, profile and the admin fix all use it); `ClientAddressService` (Api/Identity) is the one place addresses are created, changed and removed, for the customer and for `PUT /api/admin/clients/{id}/addresses/{key}`. An address is always looked up by its opaque `Key` AND its owning account (another customer's key is 404), the database id is never in a DTO, exactly one address is the billing address and one the default delivery address (two flags with filtered unique indexes; moving a flag is two saves in one transaction, the second carrying the audit entry), the billing/default address cannot be removed or made unable to serve (409), and every change writes a `ClientAddress` audit entry (`By`: Customer or Admin; `CustomerNumber`, so a removed address is still named by its owner). Every operation locks the owning `client_accounts` row (`SELECT ... FOR UPDATE`) in its transaction, so parallel requests take turns (`FOR NO KEY UPDATE`, so quote/order inserts for the same customer are not blocked; the limit of 20 is a 409). The customer's address writes and the admin's fix use the `addresses` rate-limit policy (`RateLimiting:Addresses`: `PermitLimit` default 60 and `WindowSeconds` default 60 per client address; 100000 in the test factory and the dev compose). The first capable address becomes billing/default by itself; registration creates the first address (`Both`, billing and default). Migration `ClientAddresses` converted the old free text (rows flagged `NeedsReview`); `test/runtime/migration-addresses.sh` proves it and `Down` on a throwaway Postgres. An admin moves a customer to another pricing tier with `PUT /api/admin/clients/{id}/pricing-tier` (MRV-1.3, MRV-5.1): the status is untouched and the change is audited with the previous tier. Only an `Approved` customer gets their own tier's prices from the public catalog; anonymous visitors, `Pending` and `Suspended` customers get the default tier.
 - **Admins have no employee account**, so no `employee_id` claim. Employee-area endpoints accept Admin and record a null employee (`Quote.PricedByEmployeeId`, `Order.PlacedByEmployeeId`).
 - **First admin:** created at startup from `Seed:AdminEmail` / `Seed:AdminPassword` (dev values in `appsettings.Development.json` and `deploy/docker-compose.yml`; set your own elsewhere). Without them no Admin exists.
 

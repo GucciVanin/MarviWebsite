@@ -6,7 +6,7 @@ using Marvi.Tests.Support;
 
 namespace Marvi.Tests.Identity;
 
-/// <summary>MRV-2.2: a customer reads and edits their own company details through the real HTTP pipeline.</summary>
+/// <summary>MRV-2.2 / MRV-9.3: a customer reads and edits their own company details through the real HTTP pipeline (addresses: ClientAddressTests).</summary>
 public class ClientProfileTests : IClassFixture<MarviApiFactory>
 {
     private readonly MarviApiFactory _factory;
@@ -16,11 +16,11 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
         _factory = factory;
     }
 
-    private static Task<HttpResponseMessage> PutAsync(HttpClient client, string company, string billing, List<string>? shipping) =>
-        client.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest(company, billing, shipping));
+    private static Task<HttpResponseMessage> PutAsync(HttpClient client, string company) =>
+        client.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest(company));
 
     [Fact]
-    public async Task ACustomer_SeesTheDetailsTheyRegisteredWith()
+    public async Task ACustomer_SeesTheDetailsTheyRegisteredWith_TheAddressBeingTheBillingAndDefaultDeliveryOne()
     {
         var (client, id) = await _factory.RegisterClientAsync();
 
@@ -28,55 +28,58 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
 
         Assert.Equal(id, profile.Id);
         Assert.Equal("Acme Co", profile.CompanyName);
-        Assert.Equal("123 Main St", profile.BillingAddress);
-        Assert.Empty(profile.ShippingAddresses);
+        var address = Assert.Single(profile.Addresses);
+        Assert.Equal("Praça da Sé", address.Street);
+        Assert.Equal("01001000", address.PostalCode);
+        Assert.Equal(ClientAddressKind.Both, address.Kind);
+        Assert.True(address.IsBilling);
+        Assert.True(address.IsDefaultDelivery);
+        Assert.False(address.NeedsReview);
+        Assert.Equal(address.Key, profile.BillingAddressKey);
+        Assert.Equal(address.Key, profile.DefaultDeliveryKey);
         Assert.Equal(ClientAccountStatus.Approved, profile.Status);
         Assert.InRange(profile.CreatedAt, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddSeconds(5));
     }
 
     [Fact]
-    public async Task ACustomer_EditsTheirDetailsAndShippingAddresses_AndStaffSeeTheSame()
+    public async Task TheProfileJson_NeverCarriesTheDatabaseIdOfAnAddress()
+    {
+        var (client, _) = await _factory.RegisterClientAsync();
+        var json = await client.GetStringAsync("/api/client/profile");
+
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var address = document.RootElement.GetProperty("addresses")[0];
+        Assert.False(address.TryGetProperty("id", out _));
+        Assert.False(address.TryGetProperty("clientAccountId", out _));
+        Assert.True(address.TryGetProperty("key", out _));
+    }
+
+    [Fact]
+    public async Task ACustomer_EditsTheirCompanyName_AndStaffSeeTheSame()
     {
         var admin = await _factory.AdminAsync();
         var (client, id) = await _factory.RegisterClientAsync();
 
-        var response = await PutAsync(client, "  Bar do Zé  ", "Rua A, 1", ["Rua B, 2", "rua b, 2", " ", "Rua C, 3"]);
+        var response = await PutAsync(client, "  Bar do Zé  ");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var saved = (await response.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!;
-        Assert.Equal("Bar do Zé", saved.CompanyName);
-        Assert.Equal(["Rua B, 2", "Rua C, 3"], saved.ShippingAddresses);
-        var again = (await client.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!;
-        Assert.Equal(["Rua B, 2", "Rua C, 3"], again.ShippingAddresses);
+        Assert.Equal("Bar do Zé", (await response.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!.CompanyName);
         var seenByStaff = (await admin.GetFromJsonAsync<ClientProfileDto>($"/api/employee/clients/{id}"))!;
         Assert.Equal("Bar do Zé", seenByStaff.CompanyName);
-        Assert.Equal("Rua A, 1", seenByStaff.BillingAddress);
-        Assert.Equal(["Rua B, 2", "Rua C, 3"], seenByStaff.ShippingAddresses);
+        Assert.Equal("Praça da Sé", Assert.Single(seenByStaff.Addresses).Street);
+        Assert.Equal(seenByStaff.Addresses[0].Key, seenByStaff.BillingAddressKey);
     }
 
     [Fact]
-    public async Task TheShippingList_IsReplacedAsAWhole_SoAddressesCanBeRemoved()
+    public async Task ThisEndpoint_NoLongerTouchesAddresses_EvenIfTheOldFieldsAreSent()
     {
         var (client, _) = await _factory.RegisterClientAsync();
-        await PutAsync(client, "Acme", "Rua A", ["Rua B", "Rua C"]);
 
-        var response = await PutAsync(client, "Acme", "Rua A", ["Rua C"]);
-        var cleared = await PutAsync(client, "Acme", "Rua A", []);
+        var response = await client.PutAsJsonAsync("/api/client/profile", new { companyName = "Acme", billingAddress = "Rua A", shippingAddresses = new[] { "Rua B" } });
 
-        Assert.Equal(["Rua C"], (await response.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!.ShippingAddresses);
-        Assert.Empty((await cleared.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!.ShippingAddresses);
-    }
-
-    [Fact]
-    public async Task LeavingTheShippingListOut_IsRefused_NotTreatedAsClearingIt()
-    {
-        var (client, _) = await _factory.RegisterClientAsync();
-        await PutAsync(client, "Acme", "Rua A", ["Rua B"]);
-
-        var response = await client.PutAsJsonAsync("/api/client/profile", new { companyName = "Acme", billingAddress = "Rua A" });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(["Rua B"], (await client.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!.ShippingAddresses);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var profile = (await response.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!;
+        Assert.Equal("Praça da Sé", Assert.Single(profile.Addresses).Street);
     }
 
     [Fact]
@@ -84,8 +87,7 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
     {
         var (client, _) = await _factory.RegisterClientAsync();
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await PutAsync(client, "Acme", "Rua A", ["x\u0000y"])).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await PutAsync(client, "A\u0000cme", "Rua A", [])).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await PutAsync(client, "A\u0000cme")).StatusCode);
     }
 
     [Fact]
@@ -94,12 +96,11 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
         var (alice, aliceId) = await _factory.RegisterClientAsync();
         var (bob, _) = await _factory.RegisterClientAsync();
 
-        await PutAsync(bob, "Bob's Bar", "Rua Bob", ["Rua Bob 2"]);
+        await PutAsync(bob, "Bob's Bar");
 
         var untouched = (await alice.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!;
         Assert.Equal(aliceId, untouched.Id);
         Assert.Equal("Acme Co", untouched.CompanyName);
-        Assert.Empty(untouched.ShippingAddresses);
     }
 
     [Fact]
@@ -109,34 +110,23 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
         var (client, id) = await _factory.RegisterClientAsync();
         (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).EnsureSuccessStatusCode();
 
-        var response = await PutAsync(client, "Acme Renamed", "Rua A", []);
+        var response = await PutAsync(client, "Acme Renamed");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(ClientAccountStatus.Suspended, (await response.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!.Status);
     }
 
     [Theory]
-    [InlineData("", "Rua A")]
-    [InlineData("Acme", "  ")]
-    public async Task Refuses_MissingRequiredDetails_AndChangesNothing(string company, string billing)
+    [InlineData("")]
+    [InlineData("  ")]
+    public async Task Refuses_ABlankCompanyName_AndChangesNothing(string company)
     {
         var (client, _) = await _factory.RegisterClientAsync();
 
-        var response = await PutAsync(client, company, billing, ["Rua X"]);
+        var response = await PutAsync(client, company);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var profile = (await client.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!;
-        Assert.Equal("Acme Co", profile.CompanyName);
-        Assert.Empty(profile.ShippingAddresses);
-    }
-
-    [Fact]
-    public async Task Refuses_TooManyShippingAddresses_AndTooLongOnes()
-    {
-        var (client, _) = await _factory.RegisterClientAsync();
-
-        Assert.Equal(HttpStatusCode.BadRequest, (await PutAsync(client, "Acme", "Rua A", Enumerable.Range(1, 11).Select(i => $"Rua {i}").ToList())).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await PutAsync(client, "Acme", "Rua A", [new string('x', 501)])).StatusCode);
+        Assert.Equal("Acme Co", (await client.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!.CompanyName);
     }
 
     [Fact]
@@ -145,7 +135,7 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
         var admin = await _factory.AdminAsync();
 
         Assert.Equal(HttpStatusCode.Forbidden, (await admin.GetAsync("/api/client/profile")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await PutAsync(admin, "A", "B", [])).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await PutAsync(admin, "A")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await _factory.CreateClient().GetAsync("/api/client/profile")).StatusCode);
     }
 }

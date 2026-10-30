@@ -2,6 +2,7 @@ import { Component, ElementRef, HostListener, Injector, afterNextRender, compute
 import { RouterLink } from '@angular/router';
 import { PT } from '../../../core/i18n/pt-br';
 import { action } from '../../../core/http/action';
+import { AddressPipe, billingAddressOf, otherAddressesOf } from '../../format/address';
 import { CustomerNumberPipe, formatCustomerNumber } from '../../format/number.pipes';
 import { PtDatePipe } from '../../format/pt-date.pipe';
 import type { ClientProfile } from '../../../features/employee-portal/api/employee.service';
@@ -27,7 +28,7 @@ export function openDocuments(profile: ClientProfile): { quotes: number; orders:
  */
 @Component({
   selector: 'app-customer-lookup',
-  imports: [RouterLink, ErrorAlert, CustomerNumberPipe, PtDatePipe],
+  imports: [RouterLink, ErrorAlert, CustomerNumberPipe, PtDatePipe, AddressPipe],
   templateUrl: './customer-lookup.html',
   styleUrl: './customer-lookup.scss',
 })
@@ -52,6 +53,14 @@ export class CustomerLookup {
   protected readonly titleId = `${this.id}-title`;
   protected readonly pageNumber = computed(() => formatCustomerNumber(this.number()));
   protected readonly title = computed(() => this.profile()?.companyName ?? `${PT.numbers.customer} ${this.pageNumber()}`);
+  protected readonly billing = computed(() => {
+    const profile = this.profile();
+    return profile ? billingAddressOf(profile) : null;
+  });
+  protected readonly others = computed(() => {
+    const profile = this.profile();
+    return profile ? otherAddressesOf(profile) : [];
+  });
   protected readonly counts = computed(() => {
     const profile = this.profile();
     return profile ? openDocuments(profile) : null;

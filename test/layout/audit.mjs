@@ -37,13 +37,13 @@ const ACCOUNTS = {
 };
 
 const PUBLIC = ['/', '/login', '/register', '/privacidade', '/contato', '/storefront'];
-const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/importacao', '/admin/auditoria'];
+const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/importacao', '/admin/auditoria'];
 // group = who is signed in and how the page is opened. `notice` leaves the privacy notice visible (fixed layer, AC-3/AC-9).
 const GROUPS = [
   { name: 'public', account: null, notice: false, routes: PUBLIC },
   { name: 'public-notice', account: null, notice: true, routes: ['/', '/storefront', '/contato', '/register'] },
   { name: 'public-as-employee', account: 'employee', notice: false, routes: ['/', '/storefront', '/contato'] },
-  { name: 'client-portal', account: 'cliente', notice: false, routes: ['/portal'] },
+  { name: 'client-portal', account: 'cliente', notice: false, routes: ['/portal', '/portal#address-add', '/portal#address-edit'] },
   { name: 'client-portal-wholesale', account: 'mercado', notice: false, routes: ['/portal'] },
   { name: 'client-portal-pending', account: 'pendente', notice: false, routes: ['/portal'] },
   { name: 'client-portal-suspended', account: 'suspenso', notice: false, routes: ['/portal'] },
@@ -104,12 +104,40 @@ async function openWidget(page) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
+// A route written `/path#step` is audited with a form or popup open (MRV-9.2, MRV-9.3); the part after # is never sent to the server. Nothing is submitted.
+//   widget       the customer lookup widget (first "Consultar cliente" button)
+//   address-add  the customer's "Adicionar endereço" form on /portal
+//   address-edit the first address card's edit form on /portal
+//   address-fix  the admin customers editor with its first address's fix form
+async function openStep(page, step) {
+  if (step === 'address-add') {
+    await page.getByRole('button', { name: 'Adicionar endereço' }).click();
+    await page.waitForSelector('#address-new-cep', { timeout: 8000 });
+  } else if (step === 'address-edit') {
+    await page.locator('[data-testid="address"]').first().getByRole('button', { name: 'Editar' }).click();
+    await page.waitForSelector('#address-edit-cep', { timeout: 8000 });
+  } else if (step === 'address-fix') {
+    await page.locator('[data-testid="customer"]').first().getByRole('button', { name: 'Editar' }).click();
+    await page.waitForSelector('[data-testid="customer-addresses"] li', { timeout: 8000 });
+    await page.locator('[data-testid="customer-addresses"] li').first().getByRole('button', { name: 'Corrigir endereço' }).click();
+    await page.waitForSelector('#admin-address-cep', { timeout: 8000 });
+  } else {
+    return false;
+  }
+  await page.waitForLoadState('networkidle');
+  // Clicking scrolled the page to the control; back at the top the sticky header covers nothing, so only real overlaps remain.
+  await page.evaluate(() => { window.scrollTo(0, 0); });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  return true;
+}
+
 async function auditUrl(page, url) {
   const [address, step] = url.split('#');
   await page.goto(address, { waitUntil: 'networkidle' });
   await page.addStyleTag({ content: NO_MOTION });
   await settle(page);
   if (step === 'widget') await openWidget(page);
+  else if (step) await openStep(page, step);
   const landed = new URL(page.url());
   const violations = await page.evaluate(auditDom);
   return { landed: landed.pathname, violations };

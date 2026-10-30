@@ -36,10 +36,17 @@ public class AuthController : ControllerBase
             return BadRequest(new[] { "Invalid email address." });
         }
 
-        var (profile, problem) = ClientProfileRules.Check(request.CompanyName, request.BillingAddress);
+        var (profile, problem) = ClientProfileRules.Check(request.CompanyName);
         if (profile is null)
         {
             return BadRequest(new[] { problem });
+        }
+
+        // The first address is the billing address and the default delivery address (MRV-9.3). Checked before the user is created.
+        var (address, addressProblem) = ClientAddressRules.Check(request.BillingAddress?.ToInput(), ClientAddressRules.DefaultLabel, ClientAddressKind.Both);
+        if (address is null)
+        {
+            return BadRequest(new[] { addressProblem });
         }
 
         var defaultTier = await DefaultPricingTier.GetOrCreateAsync(_dbContext);
@@ -64,7 +71,6 @@ public class AuthController : ControllerBase
             UserId = user.Id,
             CreatedAt = DateTime.UtcNow,
             CompanyName = profile.CompanyName,
-            BillingAddress = profile.BillingAddress,
             PricingTierId = defaultTier.Id,
             // Least privilege (owner decision, MRV-5.3): a new customer can do nothing but read and edit their own details until
             // an admin approves them with an explicit pricing tier.
@@ -72,6 +78,25 @@ public class AuthController : ControllerBase
         };
 
         _dbContext.ClientAccounts.Add(clientAccount);
+        _dbContext.ClientAddresses.Add(new ClientAddress
+        {
+            Id = Guid.NewGuid(),
+            Key = Guid.NewGuid(),
+            ClientAccountId = clientAccount.Id,
+            CreatedAt = clientAccount.CreatedAt,
+            Label = address.Label,
+            Kind = ClientAddressKind.Both,
+            PostalCode = address.PostalCode,
+            Street = address.Street,
+            Number = address.Number,
+            Complement = address.Complement,
+            District = address.District,
+            City = address.City,
+            State = address.State,
+            DeliveryNotes = address.DeliveryNotes,
+            IsBilling = true,
+            IsDefault = true
+        });
         await _dbContext.SaveChangesAsync();
 
         return Created(string.Empty, new { clientAccount.Id });

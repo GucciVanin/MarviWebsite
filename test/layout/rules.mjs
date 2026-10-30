@@ -328,7 +328,11 @@ export function auditDom() {
       if (!/^(H1|H2|H3|P|UL|OL|FORM|TABLE|DIV|SECTION|ARTICLE|FIELDSET)$/.test(k.tagName)) continue;
       const ks = cs(k);
       if (ks.display.startsWith('inline') || ks.float !== 'none') continue;
-      const r = rectOf(k);
+      // A child of a scroll container (a `.table-wrap`) is measured where it sits unscrolled: the user's sideways scroll (or the focus moving
+      // into a form inside it) shifts it by `scrollLeft` and that is not a layout miss.
+      const shift = isScroller(parent) ? parent.scrollLeft : 0;
+      const r0 = rectOf(k);
+      const r = { left: r0.left + shift, right: r0.right + shift };
       // A box centred by auto margins (or max-width) sits symmetrically in its parent: that is not a left-edge miss.
       if (Math.abs((r.left - box.left) - (box.right - r.right)) <= TOL) continue;
       if (Math.abs(r.left - box.left) > TOL && r.left < box.right) {

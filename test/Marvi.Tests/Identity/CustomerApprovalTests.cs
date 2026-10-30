@@ -36,7 +36,7 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
         var (customer, _) = await _factory.RegisterPendingClientAsync();
 
         var profile = (await customer.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!;
-        var edited = await customer.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest("Nova Ltda", "Rua A, 1", ["Rua B, 2"]));
+        var edited = await customer.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest("Nova Ltda"));
 
         Assert.Equal(ClientAccountStatus.Pending, profile.Status);
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);

@@ -111,9 +111,11 @@ const empResp = await call('POST', '/api/admin/employees', { token: admin, body:
 ok('admin creates employee (201)', empResp.status === 201, String(empResp.status));
 const emp = await login(emp1Email, emp1Pw);
 
+// MRV-9.3: addresses are structured. `addr(n)` is a valid address that differs per n; the registration sends it as the billing address.
+const addr = (n = 1, extra = {}) => ({ postalCode: '01001-000', street: `Rua Teste ${n}`, number: String(n), district: 'Sé', city: 'São Paulo', state: 'SP', ...extra });
 // A new customer is Pending (least privilege); the runtime fixtures approve the ones that need to transact.
 const registerClient = async (name, email, { approve = true } = {}) => {
-  const r = await call('POST', '/api/auth/register', { body: { email, password: 'Client-1234!', companyName: name, billingAddress: `Rua ${name}, 1` } });
+  const r = await call('POST', '/api/auth/register', { body: { email, password: 'Client-1234!', companyName: name, billingAddress: addr(1) } });
   const id = r.json?.id;
   if (approve) await call('PUT', `/api/admin/clients/${id}/approve`, { token: admin, body: { pricingTierId: standard.id } });
   return { id, token: await login(email, 'Client-1234!'), email };
@@ -274,7 +276,7 @@ const newcomerProfile = (await call('GET', '/api/client/profile', { token: newco
 ok('registration leaves the customer Pending', newcomerProfile.status === 'Pending', JSON.stringify(newcomerProfile.status));
 ok('a Pending customer is refused quotes (403) and cannot be given an order (403)', (await call('POST', '/api/quotes', { token: newcomer.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403
   && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: newcomer.id, deliveryAddress: 'x', lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403);
-ok('...but can read and edit their own details', (await call('PUT', '/api/client/profile', { token: newcomer.token, body: { companyName: 'Recém Chegado Ltda', billingAddress: 'Rua Nova, 1', shippingAddresses: [] } })).status === 200);
+ok('...but can read and edit their own details', (await call('PUT', '/api/client/profile', { token: newcomer.token, body: { companyName: 'Recém Chegado Ltda' } })).status === 200);
 ok('...and sees the same prices as an anonymous visitor', JSON.stringify((await call('GET', '/api/products', { token: newcomer.token })).json.map((p) => [p.id, p.price])) === JSON.stringify((await call('GET', '/api/products')).json.map((p) => [p.id, p.price])));
 ok('approving without a tier is refused (400): nobody is approved by default', (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: admin, body: {} })).status === 400
   && (await call('GET', '/api/client/profile', { token: newcomer.token })).json.status === 'Pending');
@@ -303,7 +305,7 @@ ok('...and the suspension is audited exactly once, with the previous status', sq
 const profileRace = await registerClient('Perfil e Decisão Ltda', 'perfil@corrida.test', { approve: false });
 const raceResults = await Promise.all([
   call('PUT', `/api/admin/clients/${profileRace.id}/approve`, { token: admin, body: { pricingTierId: standard.id } }),
-  ...[1, 2, 3, 4, 5, 6].map((n) => call('PUT', '/api/client/profile', { token: profileRace.token, body: { companyName: `Perfil ${n}`, billingAddress: `Rua ${n}`, shippingAddresses: [] } })),
+  ...[1, 2, 3, 4, 5, 6].map((n) => call('PUT', '/api/client/profile', { token: profileRace.token, body: { companyName: `Perfil ${n}` } })),
 ]);
 ok('a customer saving their profile while an admin decides them never gets a 500 (200, or 409 at worst), and the decision still wins', raceResults.every((r) => r.status < 500) && raceResults[0].status === 204
   && (await call('GET', '/api/client/profile', { token: profileRace.token })).json.status === 'Approved', raceResults.map((r) => r.status).join(','));
@@ -340,23 +342,67 @@ ok('the old update-credit endpoint is gone (404)', (await call('PUT', `/api/admi
 
 section('CLIENT PROFILE: a customer edits their own company details (on real Postgres)');
 const ownProfile = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
-ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.shippingAddresses.length === 0);
-const putProfile = await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: '  Adega do Dedé Ltda ', billingAddress: 'Rua Nova, 10', shippingAddresses: ['Av. Brasil, 100', ' ', 'av. brasil, 100', 'Rua do Porto, 5 — loja 2'] } });
+ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.addresses.length === 1 && ownProfile.billingAddressKey === ownProfile.addresses[0].key);
+const putProfile = await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: '  Adega do Dedé Ltda ' } });
 ok('...and sees since when they have been registered', registeredRecently(ownProfile.createdAt));
-ok('...edits them: trimmed, blank and repeated shipping lines dropped (200)', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda'
-  && JSON.stringify(putProfile.json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
-ok('...the shipping list is stored as a list in the database and staff see the same', sql(`select cardinality(shipping_addresses) from client_accounts where id='${clientD.id}'`) === '2'
-  && JSON.stringify((await call('GET', `/api/employee/clients/${clientD.id}`, { token: emp })).json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
-ok('...the list is replaced as a whole (an empty list clears it)', (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: [] } })).json.shippingAddresses.length === 0);
-ok('a missing company name, too many addresses and an over-long address are refused (400) and change nothing',
-  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: ' ', billingAddress: 'x', shippingAddresses: [] } })).status === 400
-  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: Array.from({ length: 11 }, (_, i) => `Rua ${i}`) } })).status === 400
-  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: ['y'.repeat(501)] } })).status === 400
-  && (await call('GET', '/api/client/profile', { token: clientD.token })).json.companyName === 'Adega');
-ok('leaving the shipping list out is refused (400), not treated as clearing it; a NUL character is a 400, not a 500',
-  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10' } })).status === 400
-  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: ['x\u0000y'] } })).status === 400);
+ok('...edits the company name: trimmed (200), the address untouched', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda' && putProfile.json.addresses.length === 1);
+ok('a missing company name and a NUL character are refused (400) and change nothing',
+  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: ' ' } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'A\u0000dega' } })).status === 400
+  && (await call('GET', '/api/client/profile', { token: clientD.token })).json.companyName === 'Adega do Dedé Ltda');
 ok('it is always the caller\'s own account: another customer\'s details are untouched', (await call('GET', '/api/client/profile', { token: clientA.token })).json.companyName === 'Bar do Zé');
+
+section('CLIENT ADDRESSES (MRV-9.3): several named, structured addresses per customer (on real Postgres)');
+const created = await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(200, { label: 'Filial Campinas', kind: 'Delivery', postalCode: '13010000', city: 'Campinas', complement: 'Sala 3', deliveryNotes: 'Entregar de manhã' }) });
+ok('a customer adds a delivery address (201): CEP stored as 8 digits, UF upper-case, no internal id in the answer', created.status === 201 && created.json.postalCode === '13010000' && created.json.state === 'SP' && created.json.id === undefined && created.json.key.length > 20);
+const listed = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
+ok('...the profile lists both addresses, billing first, with the two chosen keys', listed.addresses.length === 2 && listed.addresses[0].isBilling && listed.billingAddressKey === listed.addresses[0].key && listed.defaultDeliveryKey === listed.addresses[0].key);
+ok('...the database holds one billing and one default row per customer, stored on real Postgres', sql(`select count(*) filter (where is_billing)||'/'||count(*) filter (where is_default)||'/'||count(*) from client_addresses where client_account_id='${clientD.id}'`) === '1/1/2');
+const second = await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(300, { label: 'Armazém', kind: 'Both', isBilling: true, isDefaultDelivery: true }) });
+ok('making a new address billing and default moves both flags in one change (201), still one of each',
+  second.status === 201 && sql(`select count(*) filter (where is_billing)||'/'||count(*) filter (where is_default)||'/'||count(*) from client_addresses where client_account_id='${clientD.id}'`) === '1/1/3'
+  && sql(`select label from client_addresses where client_account_id='${clientD.id}' and is_billing`) === 'Armazém');
+ok('the same CEP, number and complement is refused (409); an invalid CEP, UF or a line break is refused (400)',
+  (await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(300, { label: 'Outra', kind: 'Delivery' }) })).status === 409
+  && (await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(4, { label: 'x', kind: 'Delivery', postalCode: '123' }) })).status === 400
+  && (await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(5, { label: 'x', kind: 'Delivery', state: 'ZZ' }) })).status === 400
+  && (await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(6, { label: 'x', kind: 'Delivery', street: 'Rua\nA' }) })).status === 400);
+ok('the billing address cannot be removed (409) until another is chosen; a non-flagged one can (204)',
+  (await call('DELETE', `/api/client/addresses/${second.json.key}`, { token: clientD.token })).status === 409
+  && (await call('DELETE', `/api/client/addresses/${created.json.key}`, { token: clientD.token })).status === 204);
+ok('another customer\'s key is a 404 for change and removal, and nothing of theirs changed',
+  (await call('PUT', `/api/client/addresses/${second.json.key}`, { token: clientA.token, body: addr(9, { label: 'x', kind: 'Both' }) })).status === 404
+  && (await call('DELETE', `/api/client/addresses/${second.json.key}`, { token: clientA.token })).status === 404
+  && sql(`select count(*) from client_addresses where client_account_id='${clientD.id}'`) === '2');
+const adminFix = await call('PUT', `/api/admin/clients/${clientD.id}/addresses/${second.json.key}`, { token: admin, body: addr(300, { label: 'Armazém', kind: 'Both', street: 'Rua Corrigida pelo Admin' }) });
+ok('an admin fixes an address (200); every address change is in the audit log (create, update by admin, delete)',
+  adminFix.status === 200 && adminFix.json.street === 'Rua Corrigida pelo Admin'
+  && sql(`select count(*) from audit_log_entries where entity_name='ClientAddress' and action='Create'`) !== '0'
+  && sql(`select count(*) from audit_log_entries where entity_name='ClientAddress' and action='Update' and details::text like '%Admin%'`) !== '0'
+  && sql(`select count(*) from audit_log_entries where entity_name='ClientAddress' and action='Delete'`) !== '0');
+ok('staff see the addresses with their keys', (await call('GET', `/api/employee/clients/${clientD.id}`, { token: emp })).json.addresses.length === 2);
+// Parallel writes on one customer take turns (the customer's row is locked in the transaction), so the limit and the duplicate rule hold.
+const racerA = await registerClient('Corrida de Endereços', 'enderecos@corrida.test');
+const flood = await Promise.all(Array.from({ length: 30 }, (_, i) => call('POST', '/api/client/addresses', { token: racerA.token, body: addr(500 + i, { label: `Ponto ${i}`, kind: 'Delivery' }) })));
+ok('30 parallel creates: exactly 19 are created (registration made the first), the other 11 are 409 "At most 20", none is a 500, and the table holds exactly 20',
+  flood.filter((r) => r.status === 201).length === 19 && flood.filter((r) => r.status === 409).length === 11 && sql(`select count(*) from client_addresses where client_account_id='${racerA.id}'`) === '20',
+  flood.map((r) => r.status).join(','));
+const racerB = await registerClient('Corrida de Duplicados', 'duplicados@corrida.test');
+const same = await Promise.all(Array.from({ length: 6 }, (_, i) => call('POST', '/api/client/addresses', { token: racerB.token, body: addr(900, { label: `Mesmo ${i}`, kind: 'Delivery' }) })));
+ok('6 parallel creates of the same place: exactly one wins (201), the rest are 409, and one row exists',
+  same.filter((r) => r.status === 201).length === 1 && same.filter((r) => r.status === 409).length === 5 && sql(`select count(*) from client_addresses where client_account_id='${racerB.id}' and number='900'`) === '1',
+  same.map((r) => r.status).join(','));
+const moves = await Promise.all(Array.from({ length: 6 }, (_, i) => call('POST', '/api/client/addresses', { token: racerB.token, body: addr(950 + i, { label: `Principal ${i}`, kind: 'Both', isBilling: true, isDefaultDelivery: true }) })));
+ok('6 parallel "make this the billing and default address" creates: all succeed (201), never a 500, and exactly one billing and one default remain',
+  moves.every((r) => r.status === 201) && sql(`select count(*) filter (where is_billing)||'/'||count(*) filter (where is_default) from client_addresses where client_account_id='${racerB.id}'`) === '1/1',
+  moves.map((r) => r.status).join(','));
+const removals = await Promise.all([1, 2, 3].map(() => call('DELETE', `/api/client/addresses/${flood.find((r) => r.status === 201).json.key}`, { token: racerA.token })));
+ok('parallel deletes of one address: one 204, the rest 404, never a 500', removals.filter((r) => r.status === 204).length === 1 && removals.filter((r) => r.status === 404).length === 2, removals.map((r) => r.status).join(','));
+ok('the audit entry of a removed address names the customer (details carry the customer number)', sql(`select count(*) from audit_log_entries where entity_name='ClientAddress' and action='Delete' and details::text like '%CustomerNumber%'`) !== '0');
+
+ok('a registration without a billing address, or with an invalid CEP, is refused (400)',
+  (await call('POST', '/api/auth/register', { body: { email: 'semendereco@x.test', password: 'Client-1234!', companyName: 'Sem' } })).status === 400
+  && (await call('POST', '/api/auth/register', { body: { email: 'cepruim@x.test', password: 'Client-1234!', companyName: 'Sem', billingAddress: addr(1, { postalCode: '12' }) } })).status === 400);
 
 section('CLIENT DIRECTORY: staff find a customer by company name (on real Postgres)');
 const dirSearch = (q, token = emp) => call('GET', `/api/employee/clients${q}`, { token });
@@ -687,7 +733,9 @@ const endpoints = [
   ['GET', '/api/employee/clients/by-number/1', undefined, ['employee', 'admin']], ['GET', '/api/admin/customers/by-number/1', undefined, ['admin']],
   ['GET', '/api/admin/pending-actions', undefined, ['admin']],
   ['GET', '/api/admin/contact-messages', undefined, ['admin']], ['POST', `/api/admin/contact-messages/${ID}/handle`, undefined, ['admin']],
-  ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
+  ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X' }, ['client']],
+  ['POST', '/api/client/addresses', addr(1), ['client']], ['PUT', `/api/client/addresses/${ID}`, addr(1), ['client']], ['DELETE', `/api/client/addresses/${ID}`, undefined, ['client']],
+  ['PUT', `/api/admin/clients/${ID}/addresses/${ID}`, addr(1), ['admin']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {
@@ -727,17 +775,17 @@ ok('a client token works only for client endpoints', (await call('GET', '/api/or
 
 section('SECURITY: registration cannot be abused');
 const evilEmail = 'evil@x.test';
-const evil = await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x', role: 'Admin', roles: ['Admin'], status: 'Approved', creditLimit: 1000000, pricingTierId: vip.id, isAdmin: true } });
+const evil = await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: addr(1), role: 'Admin', roles: ['Admin'], status: 'Approved', creditLimit: 1000000, pricingTierId: vip.id, isAdmin: true } });
 const evilTok = await login(evilEmail, 'Evil-1234!');
 const evilClaims = JSON.parse(Buffer.from(evilTok.split('.')[1], 'base64url').toString());
 ok('mass assignment: extra fields cannot make a registrant an Admin', evilClaims[ROLE] === 'Client', JSON.stringify(evilClaims[ROLE]));
 const evilProfile = (await call('GET', `/api/employee/clients/${evil.json?.id}`, { token: emp })).json;
 ok('mass assignment: the tier stays the default and the status stays Pending (an extra status: Approved in the body is ignored)', evilProfile?.pricingTierName === standard.name && evilProfile?.status === 'Pending', JSON.stringify({ t: evilProfile?.pricingTierName, s: evilProfile?.status }));
 ok('registered client cannot reach admin API', (await call('GET', '/api/admin/categories', { token: evilTok })).status === 403);
-ok('duplicate email refused (400)', (await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x' } })).status === 400);
-ok('duplicate email differing only by case refused', (await call('POST', '/api/auth/register', { body: { email: evilEmail.toUpperCase(), password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x' } })).status === 400);
-ok('weak password refused (400)', (await call('POST', '/api/auth/register', { body: { email: 'weak@x.test', password: 'abc', companyName: 'W', billingAddress: 'x' } })).status === 400);
-ok('invalid email refused (400)', (await call('POST', '/api/auth/register', { body: { email: 'not-an-email', password: 'Weak-1234!', companyName: 'W', billingAddress: 'x' } })).status === 400);
+ok('duplicate email refused (400)', (await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: addr(1) } })).status === 400);
+ok('duplicate email differing only by case refused', (await call('POST', '/api/auth/register', { body: { email: evilEmail.toUpperCase(), password: 'Evil-1234!', companyName: 'Evil', billingAddress: addr(1) } })).status === 400);
+ok('weak password refused (400)', (await call('POST', '/api/auth/register', { body: { email: 'weak@x.test', password: 'abc', companyName: 'W', billingAddress: addr(1) } })).status === 400);
+ok('invalid email refused (400)', (await call('POST', '/api/auth/register', { body: { email: 'not-an-email', password: 'Weak-1234!', companyName: 'W', billingAddress: addr(1) } })).status === 400);
 ok('login with wrong password is 401', (await call('POST', '/api/auth/login', { body: { email: ADMIN.email, password: 'wrong' } })).status === 401);
 const unknownUser = await call('POST', '/api/auth/login', { body: { email: 'nobody@x.test', password: 'wrong' } });
 const wrongPw = await call('POST', '/api/auth/login', { body: { email: ADMIN.email, password: 'wrong' } });
@@ -787,7 +835,7 @@ await expectNot500('max int quantity', 'POST', '/api/quotes', { token: clientA.t
 await expectNot500('unknown product in quote', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: crypto.randomUUID(), qty: 1 }] } });
 await expectNot500('duplicate product lines in quote', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }, { productId: prod.cola.id, qty: 1 }] } });
 await expectNot500('huge line item list', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: Array.from({ length: 2000 }, () => ({ productId: prod.cola.id, qty: 1 })) } });
-await expectNot500('5 MB body', 'POST', '/api/auth/register', { raw: JSON.stringify({ email: 'big@x.test', password: 'Big-1234!', companyName: 'x'.repeat(5_000_000), billingAddress: 'x' }), headers: { 'Content-Type': 'application/json' } });
+await expectNot500('5 MB body', 'POST', '/api/auth/register', { raw: JSON.stringify({ email: 'big@x.test', password: 'Big-1234!', companyName: 'x'.repeat(5_000_000), billingAddress: addr(1) }), headers: { 'Content-Type': 'application/json' } });
 await expectNot500('unicode and emoji', 'POST', '/api/admin/categories', { token: admin, body: { name: 'Café ☕ 🍺 日本', sortOrder: 0, isActive: false } });
 await expectNot500('deal dates without a time zone', 'POST', '/api/admin/deals', { token: admin, body: { name: 'naive', discountType: 'Percent', discountValue: 5, startDate: '2026-10-01T00:00:00', endDate: '2026-12-31T00:00:00', productIds: [], categoryIds: [], minQty: 1 } });
 await expectNot500('deal dates date-only', 'POST', '/api/admin/deals', { token: admin, body: { name: 'dateonly', discountType: 'Percent', discountValue: 5, startDate: '2026-10-01', endDate: '2026-12-31', productIds: [], categoryIds: [], minQty: 1 } });
@@ -900,7 +948,10 @@ section('AUDIT TRAIL');
 const audit = (await call('GET', '/api/admin/audit-log?pageSize=500', { token: admin })).json;
 const adminUserId = q(`select id from "AspNetUsers" where email='${ADMIN.email}'`);
 ok('audit log has entries for the seeding mutations', audit.length > 40, `entries=${audit.length}`);
-ok('every audit entry names the acting admin', audit.every((a) => a.actorUserId === adminUserId), `${audit.filter((a) => a.actorUserId !== adminUserId).length} entries with another actor`);
+// A customer's own address changes are audited too (MRV-9.3), under the customer's user id; every other entry is an admin's.
+const others = audit.filter((a) => a.entityName !== 'ClientAddress');
+ok('every admin audit entry names the acting admin', others.every((a) => a.actorUserId === adminUserId), `${others.filter((a) => a.actorUserId !== adminUserId).length} entries with another actor`);
+ok('customer address changes name the customer who made them (not an admin, never empty)', audit.filter((a) => a.entityName === 'ClientAddress' && a.details.data?.includes('"By":"Customer"')).every((a) => a.actorUserId !== adminUserId && a.actorUserId !== '00000000-0000-0000-0000-000000000000'));
 const actions = new Set(audit.map((a) => `${a.action}:${a.entityName}`));
 for (const need of ['Create:Product', 'Create:Category', 'Create:Deal', 'Create:Warehouse', 'Create:CoverageArea', 'Upsert:ProductPricing', 'Upsert:InventoryRecord', 'Approve:ClientAccount', 'Suspend:ClientAccount', 'Create:EmployeeAccount', 'Create:PricingTier']) {
   ok(`audited: ${need}`, actions.has(need));

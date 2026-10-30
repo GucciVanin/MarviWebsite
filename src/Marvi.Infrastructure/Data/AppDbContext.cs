@@ -23,6 +23,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     }
 
     public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
+    public DbSet<ClientAddress> ClientAddresses => Set<ClientAddress>();
     public DbSet<EmployeeAccount> EmployeeAccounts => Set<EmployeeAccount>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Category> Categories => Set<Category>();
@@ -93,6 +94,28 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         ConfigureNumber<ClientAccount>(builder, "client_number_seq");
         ConfigureNumber<Quote>(builder, "quote_number_seq");
         ConfigureNumber<Order>(builder, "order_number_seq");
+        // A customer's addresses (MRV-9.3). The street column is wider than the 200 the rules allow because the migration copies the old
+        // free-text address (up to 500) into it. The unique filtered indexes make "one billing address, one default delivery address
+        // per customer" a database fact; the filter is ignored by non-relational test providers (the service enforces it there too).
+        builder.Entity<ClientAddress>(e =>
+        {
+            e.HasOne(a => a.ClientAccount).WithMany(c => c.Addresses).HasForeignKey(a => a.ClientAccountId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(a => a.Label).HasMaxLength(ClientAddressRules.MaxLabelLength);
+            e.Property(a => a.PostalCode).HasMaxLength(8);
+            e.Property(a => a.Street).HasMaxLength(500);
+            e.Property(a => a.Number).HasMaxLength(ClientAddressRules.MaxNumberLength);
+            e.Property(a => a.Complement).HasMaxLength(ClientAddressRules.MaxComplementLength);
+            e.Property(a => a.District).HasMaxLength(ClientAddressRules.MaxDistrictLength);
+            e.Property(a => a.City).HasMaxLength(ClientAddressRules.MaxCityLength);
+            e.Property(a => a.State).HasMaxLength(2);
+            e.Property(a => a.Country).HasMaxLength(2);
+            e.Property(a => a.DeliveryNotes).HasMaxLength(ClientAddressRules.MaxNotesLength);
+            e.HasIndex(a => a.Key).IsUnique();
+            e.HasIndex(a => a.ClientAccountId, "plain").HasDatabaseName("ix_client_addresses_client_account_id");
+            e.HasIndex(a => a.ClientAccountId, "billing").HasDatabaseName("ix_client_addresses_one_billing").IsUnique().HasFilter("is_billing = true");
+            e.HasIndex(a => a.ClientAccountId, "default").HasDatabaseName("ix_client_addresses_one_default").IsUnique().HasFilter("is_default = true");
+        });
+
         // Contact messages (MRV-2.8): length limits mirror the form rules. HandledAt is a concurrency token so two admins handling the
         // same message at once cannot both succeed (the second save is refused and answers 409).
         builder.Entity<ContactMessage>(e =>

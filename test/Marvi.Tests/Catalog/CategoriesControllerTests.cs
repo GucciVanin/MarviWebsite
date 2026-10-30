@@ -46,7 +46,7 @@ public class CategoriesControllerTests : IClassFixture<MarviApiFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/admin/categories")).StatusCode);
 
         var email = $"{Guid.NewGuid()}@example.com";
-        await anonymous.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        await anonymous.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         var clientHttp = await LoginAsync(email, "Test1234!");
 
         var response = await clientHttp.PostAsJsonAsync("/api/admin/categories", new UpsertCategoryRequest("Nope", 0, true));

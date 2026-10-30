@@ -95,13 +95,17 @@ await call('POST', '/api/admin/deals', admin, {
 // ---- people
 await call('POST', '/api/admin/employees', admin, { email: EMPLOYEE.email, password: EMPLOYEE.password, employeeCode: 'FUNC-001', department: 'Vendas', hireDate: new Date().toISOString() });
 const customers = {};
-for (const [key, email, companyName] of [
-  ['bar', 'cliente@demo.marvi.test', 'Bar do Demo'],
-  ['mercado', 'mercado@demo.marvi.test', 'Mercado Atacadão Demo'],
-  ['pendente', 'pendente@demo.marvi.test', 'Mercearia Aguardando Aprovação'],
-  ['suspenso', 'suspenso@demo.marvi.test', 'Loja Suspensa Demo'],
+// Each customer registers with a structured billing address (MRV-9.3): [key, email, company, street, number, district, CEP].
+for (const [key, email, companyName, street, number, district, postalCode] of [
+  ['bar', 'cliente@demo.marvi.test', 'Bar do Demo', 'Rua Augusta', '1200', 'Consolação', '01304-001'],
+  ['mercado', 'mercado@demo.marvi.test', 'Mercado Atacadão Demo', 'Avenida Paulista', '900', 'Bela Vista', '01310-100'],
+  ['pendente', 'pendente@demo.marvi.test', 'Mercearia Aguardando Aprovação', 'Rua da Consolação', '45', 'Centro', '01302-000'],
+  ['suspenso', 'suspenso@demo.marvi.test', 'Loja Suspensa Demo', 'Rua Oscar Freire', '300', 'Jardins', '01426-001'],
 ]) {
-  const { id } = await call('POST', '/api/auth/register', null, { email, password: CUSTOMER_PASSWORD, companyName, billingAddress: `Rua ${companyName.split(' ')[0]}, 1, São Paulo, SP` });
+  const { id } = await call('POST', '/api/auth/register', null, {
+    email, password: CUSTOMER_PASSWORD, companyName,
+    billingAddress: { label: 'Matriz', postalCode, street, number, district, city: 'São Paulo', state: 'SP' },
+  });
   customers[key] = { id, email, token: await login({ email, password: CUSTOMER_PASSWORD }) };
 }
 // Registration leaves a customer Pending: the admin approves, choosing the tier (nobody is approved by default).
@@ -109,8 +113,13 @@ await call('PUT', `/api/admin/clients/${customers.bar.id}/approve`, admin, { pri
 await call('PUT', `/api/admin/clients/${customers.mercado.id}/approve`, admin, { pricingTierId: atacado.id });
 await call('PUT', `/api/admin/clients/${customers.suspenso.id}/approve`, admin, { pricingTierId: standard.id });
 await call('PUT', `/api/admin/clients/${customers.suspenso.id}/suspend`, admin);
-await call('PUT', '/api/client/profile', customers.bar.token, {
-  companyName: 'Bar do Demo', billingAddress: 'Rua do Bar, 1, São Paulo, SP', shippingAddresses: ['Rua do Bar, 1, São Paulo, SP', 'Av. das Flores, 200, Campinas, SP'],
+// The bar keeps a second address of each kind besides its headquarters (Both: billing and default delivery): a delivery point and a branch.
+await call('POST', '/api/client/addresses', customers.bar.token, {
+  label: 'Filial Campinas', kind: 'Delivery', postalCode: '13010-111', street: 'Avenida das Flores', number: '200', complement: 'Loja 2', district: 'Centro', city: 'Campinas', state: 'SP',
+  deliveryNotes: 'Entregas de segunda a sexta, das 8h às 12h.',
+});
+await call('POST', '/api/client/addresses', customers.bar.token, {
+  label: 'Depósito Guarulhos', kind: 'Delivery', postalCode: '07190-100', street: 'Rua do Depósito', number: 's/n', district: 'Cumbica', city: 'Guarulhos', state: 'SP',
 });
 
 // ---- quotes and orders
@@ -125,7 +134,7 @@ await quote(customers.bar.token, [['CERV-LAGER-600', 10]]);
 // An accepted quote (an order made by the customer) and an order the employee placed directly.
 const accepted = await priceQuote(await quote(customers.mercado.token, [['CERV-PILSEN-350', 48], ['ENERG-250', 12]]));
 await call('POST', `/api/quotes/${accepted.id}/accept`, customers.mercado.token);
-await call('POST', '/api/employee/orders', employee, { clientId: customers.bar.id, deliveryAddress: 'Rua do Bar, 1, São Paulo, SP', lineItems: [{ productId: products['AGUA-GAS-500'].id, qty: 36 }] });
+await call('POST', '/api/employee/orders', employee, { clientId: customers.bar.id, deliveryAddress: 'Rua Augusta, 1200, Consolação, São Paulo, SP, CEP 01304-001', lineItems: [{ productId: products['AGUA-GAS-500'].id, qty: 36 }] });
 
 console.log('Demo data created: 4 categories, 8 products, 2 warehouses, 1 deal, 1 employee, 4 customers, quotes and orders.');
 console.log(`Sign in as the admin (${ADMIN.email}), the employee (${EMPLOYEE.email}) or a customer (cliente@, mercado@, pendente@, suspenso@demo.marvi.test).`);

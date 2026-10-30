@@ -178,7 +178,7 @@ public class PrincipalTests : IClassFixture<MarviApiFactory>
     public async Task ACustomerWhoseAccountRecordIsMissing_IsRefused_NotServedSomeoneElsesData()
     {
         var email = $"{Guid.NewGuid()}@example.com";
-        var register = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        var register = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         var accountId = (await register.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
         using (var scope = _factory.Services.CreateScope())
         {

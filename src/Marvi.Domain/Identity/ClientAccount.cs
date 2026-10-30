@@ -16,8 +16,8 @@ public class ClientAccount
     /// <summary>When the customer registered (UTC).</summary>
     public DateTime CreatedAt { get; set; }
     public string CompanyName { get; set; } = string.Empty;
-    public string BillingAddress { get; set; } = string.Empty;
-    public List<string> ShippingAddresses { get; set; } = new();
+    /// <summary>The customer's named addresses (MRV-9.3): one is the billing address, one the default delivery address.</summary>
+    public List<ClientAddress> Addresses { get; set; } = new();
     public Guid? PricingTierId { get; set; }
     public PricingTier? PricingTier { get; set; }
     public ClientAccountStatus Status { get; set; }

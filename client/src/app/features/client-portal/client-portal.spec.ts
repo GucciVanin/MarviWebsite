@@ -58,7 +58,7 @@ describe('ClientPortal', () => {
     http.expectOne('/api/orders/mine').flush(data.orders ?? []);
     // The portal and the details card each ask for the profile.
     http.match('/api/client/profile').forEach((request) =>
-      request.flush({ id: 'c1', companyName: 'Bar do Zé', billingAddress: 'Rua A, 1', shippingAddresses: [], status, createdAt: '2026-10-14T13:42:00Z' }),
+      request.flush({ id: 'c1', companyName: 'Bar do Zé', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, status, createdAt: '2026-10-14T13:42:00Z' }),
     );
     fixture.detectChanges();
     // Only an approved customer gets the quote builder, so the catalog is asked for only then.
@@ -378,7 +378,7 @@ describe('ClientPortal', () => {
     http.expectOne('/api/quotes/mine').flush('x', { status: 500, statusText: 'Server Error' });
     http.expectOne('/api/orders/mine').flush([]);
     http.match('/api/client/profile').forEach((request) =>
-      request.flush({ id: 'c1', companyName: 'Bar', billingAddress: 'Rua A', shippingAddresses: [], status: 'Approved', createdAt: '2026-10-14T13:42:00Z' }),
+      request.flush({ id: 'c1', companyName: 'Bar', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, status: 'Approved', createdAt: '2026-10-14T13:42:00Z' }),
     );
     fixture.detectChanges();
     http.expectOne((r) => r.url === '/api/products').flush([]);

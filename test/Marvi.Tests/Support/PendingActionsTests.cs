@@ -195,7 +195,7 @@ public class PendingActionsTests
             {
                 db.ClientAccounts.Add(new ClientAccount
                 {
-                    Id = Guid.NewGuid(), UserId = Guid.NewGuid(), CompanyName = $"Espera {i:D2}", BillingAddress = "x",
+                    Id = Guid.NewGuid(), UserId = Guid.NewGuid(), CompanyName = $"Espera {i:D2}",
                     CreatedAt = DateTime.UtcNow.AddMinutes(-i), Status = ClientAccountStatus.Pending,
                 });
             }

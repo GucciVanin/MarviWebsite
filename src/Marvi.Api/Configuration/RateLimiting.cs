@@ -17,10 +17,13 @@ public static class RateLimiting
     public const string AuthPolicy = "auth";
     public const string CoveragePolicy = "coverage";
     public const string ContactPolicy = "contact";
+    /// <summary>The write endpoints of a customer's addresses and the admin's address fix (MRV-9.3); <c>RateLimiting:Addresses</c>.</summary>
+    public const string AddressesPolicy = "addresses";
 
     private const int DefaultAuthPermits = 10;
     private const int DefaultCoveragePermits = 30;
     private const int DefaultContactPermits = 5;
+    private const int DefaultAddressesPermits = 60;
     private const int DefaultWindowSeconds = 60;
 
     public static IServiceCollection AddMarviRateLimiting(this IServiceCollection services, IConfiguration configuration)
@@ -42,6 +45,7 @@ public static class RateLimiting
             AddPolicy(options, AuthPolicy, configuration.GetSection("RateLimiting:Auth"), DefaultAuthPermits);
             AddPolicy(options, CoveragePolicy, configuration.GetSection("RateLimiting:Coverage"), DefaultCoveragePermits);
             AddPolicy(options, ContactPolicy, configuration.GetSection("RateLimiting:Contact"), DefaultContactPermits);
+            AddPolicy(options, AddressesPolicy, configuration.GetSection("RateLimiting:Addresses"), DefaultAddressesPermits);
         });
 
         return services;

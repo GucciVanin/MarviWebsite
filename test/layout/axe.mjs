@@ -15,7 +15,7 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
 
 const ACCOUNTS = {
   employee: { email: 'funcionario@demo.marvi.test', password: 'Demo-Func-1!', routes: ['/employee', '/employee#widget', '/employee/historico', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
-  cliente: { email: 'cliente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
+  cliente: { email: 'cliente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal', '/portal#address-add', '/portal#address-edit'] },
   mercado: { email: 'mercado@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   pendente: { email: 'pendente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   suspenso: { email: 'suspenso@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
@@ -23,7 +23,7 @@ const ACCOUNTS = {
 if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
   ACCOUNTS.admin = {
     email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD,
-    routes: ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/importacao', '/admin/auditoria'],
+    routes: ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/importacao', '/admin/auditoria'],
   };
 }
 
@@ -39,13 +39,25 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
     for (const route of account.routes) {
       if (ONLY && !ONLY.test(`${role} ${route}`)) continue;
       const page = await ctx.newPage();
-      // `/path#widget`: audited with the customer lookup widget open (MRV-9.2).
+      // `/path#step`: audited with the customer lookup widget (MRV-9.2) or an address form (MRV-9.3) open; nothing is submitted.
       const [address, step] = route.split('#');
       await page.goto(BASE + address, { waitUntil: 'networkidle' });
       await page.waitForFunction(() => !document.querySelector('.skeleton, [aria-busy="true"]'), null, { timeout: 8000 }).catch(() => {});
       if (step === 'widget') {
         await page.locator('button[aria-haspopup="dialog"]').first().click();
         await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
+      }
+      if (step === 'address-add') {
+        await page.getByRole('button', { name: 'Adicionar endereço' }).click();
+        await page.waitForSelector('#address-new-cep', { timeout: 8000 });
+      } else if (step === 'address-edit') {
+        await page.locator('[data-testid="address"]').first().getByRole('button', { name: 'Editar' }).click();
+        await page.waitForSelector('#address-edit-cep', { timeout: 8000 });
+      } else if (step === 'address-fix') {
+        await page.locator('[data-testid="customer"]').first().getByRole('button', { name: 'Editar' }).click();
+        await page.waitForSelector('[data-testid="customer-addresses"] li', { timeout: 8000 });
+        await page.locator('[data-testid="customer-addresses"] li').first().getByRole('button', { name: 'Corrigir endereço' }).click();
+        await page.waitForSelector('#admin-address-cep', { timeout: 8000 });
       }
       await page.waitForTimeout(500);
       const landed = new URL(page.url()).pathname;

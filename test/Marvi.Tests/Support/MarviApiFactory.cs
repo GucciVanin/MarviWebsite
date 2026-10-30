@@ -65,7 +65,8 @@ public class MarviApiFactory : WebApplicationFactory<Program>
             // The suites share one client address and sign in constantly; rate limiting has its own tests (RateLimitingTests).
             ["RateLimiting:Auth:PermitLimit"] = "100000",
             ["RateLimiting:Coverage:PermitLimit"] = "100000",
-            ["RateLimiting:Contact:PermitLimit"] = "100000"
+            ["RateLimiting:Contact:PermitLimit"] = "100000",
+            ["RateLimiting:Addresses:PermitLimit"] = "100000"
         }));
 
         var host = base.CreateHost(builder);
