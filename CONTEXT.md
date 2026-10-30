@@ -32,6 +32,14 @@ _Avoid_: Estimate, proposal
 A confirmed purchase of a Basket, created by a Customer accepting a Quote or by an Employee placing it directly.
 _Avoid_: Purchase, transaction
 
+**Customer number**:
+A short business reference for a Customer (`Número do cliente`, shown as `C-000042`): a sequence the database assigns once at registration, unique, never reused and never edited. Staff read it out and the Customer sees it on their own profile. It is not the Customer's id: the id (a GUID) is for the backend and no screen, URL, title or label ever shows it. The SPA formats the number in one pipe.
+_Avoid_: Client ID, customer id, account number
+
+**Quote number / Order number**:
+The same kind of reference for a Quote (`Q-000123`) and an Order (`P-000045`), each from its own sequence. Pages that show a document name it by its number, never by its id.
+_Avoid_: Quote id, order id, reference
+
 **Pricing tier**:
 A named price list a Customer is assigned to; exactly one is the default, used for anonymous visitors and new Customers.
 _Avoid_: Price group, level

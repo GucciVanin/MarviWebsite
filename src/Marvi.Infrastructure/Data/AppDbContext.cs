@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Microsoft.EntityFrameworkCore.ValueGeneration;
 
 namespace Marvi.Infrastructure.Data;
 
@@ -87,6 +88,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         // The status is a concurrency token (MRV-6.1): a decision about a customer applies only if their status is still the one it was
         // read with, so two admins deciding at once cannot overwrite each other (the second gets a 409).
         builder.Entity<ClientAccount>().Property(c => c.Status).IsConcurrencyToken();
+        // Customer, quote and order numbers (MRV-9.1): the database hands them out from a sequence on insert, so they are unique and never
+        // reused (a sequence does not go back when a row is deleted or an insert rolls back). A unique index backs that up.
+        ConfigureNumber<ClientAccount>(builder, "client_number_seq");
+        ConfigureNumber<Quote>(builder, "quote_number_seq");
+        ConfigureNumber<Order>(builder, "order_number_seq");
         // Contact messages (MRV-2.8): length limits mirror the form rules. HandledAt is a concurrency token so two admins handling the
         // same message at once cannot both succeed (the second save is refused and answers 409).
         builder.Entity<ContactMessage>(e =>
@@ -119,5 +125,32 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<InventoryRecord>()
             .HasIndex(i => new { i.ProductId, i.WarehouseId })
             .IsUnique();
+    }
+
+    private void ConfigureNumber<TEntity>(ModelBuilder builder, string sequence)
+        where TEntity : class
+    {
+        var property = builder.Entity<TEntity>().Property<int>("Number");
+        builder.Entity<TEntity>().HasIndex("Number").IsUnique();
+        if (Database.IsRelational())
+        {
+            builder.HasSequence<int>(sequence);
+            property.HasDefaultValueSql($"nextval('{sequence}')").ValueGeneratedOnAdd();
+        }
+        else
+        {
+            // Non-relational test providers have no sequences: a process-wide counter keeps the numbers unique.
+            property.ValueGeneratedOnAdd().HasValueGenerator<InMemoryNumberGenerator>();
+        }
+    }
+
+    /// <summary>Stands in for a database sequence where there is none (the InMemory test provider).</summary>
+    private sealed class InMemoryNumberGenerator : ValueGenerator<int>
+    {
+        private static int _last;
+
+        public override bool GeneratesTemporaryValues => false;
+
+        public override int Next(EntityEntry entry) => Interlocked.Increment(ref _last);
     }
 }

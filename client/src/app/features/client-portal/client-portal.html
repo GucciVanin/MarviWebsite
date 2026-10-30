@@ -70,12 +70,12 @@
     @for (quote of quotes.data(); track quote.id) {
       <article class="card" data-testid="quote">
         <header class="toolbar">
-          <strong [id]="'quote-' + quote.id">{{ t.sentOn }} {{ quote.createdAt | ptDate }}</strong>
+          <strong [id]="'quote-' + quote.number">{{ refs.quote }} {{ quote.number | documentNumber: 'quote' }} · {{ t.sentOn }} {{ quote.createdAt | ptDate }}</strong>
           <span class="badge" [class.badge--ok]="quote.status === 'Accepted'" [class.badge--warn]="quote.status === 'Priced'">
             {{ statuses.quote[quote.status] ?? quote.status }}
           </span>
         </header>
-        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'quote-' + quote.id">
+        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'quote-' + quote.number">
 <table class="table">
           <thead>
             <tr>
@@ -122,11 +122,11 @@
     @for (order of orders.data(); track order.id) {
       <article class="card" data-testid="order">
         <header class="toolbar">
-          <strong [id]="'order-' + order.id">{{ order.deliveryAddress || t.noAddress }}</strong>
+          <strong [id]="'order-' + order.number">{{ refs.order }} {{ order.number | documentNumber: 'order' }} · {{ order.deliveryAddress || t.noAddress }}</strong>
           <span class="muted">{{ t.placedOn }} {{ order.placedAt | ptDate }}</span>
           <span class="badge badge--ok">{{ statuses.order[order.status] ?? order.status }}</span>
         </header>
-        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'order-' + order.id">
+        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'order-' + order.number">
 <table class="table">
           <thead>
             <tr>

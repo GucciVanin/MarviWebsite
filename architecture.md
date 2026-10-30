@@ -246,6 +246,7 @@ erDiagram
 
     ClientAccount {
         guid Id
+        int Number "customer number, sequence, unique (MRV-9.1)"
         guid UserId
         string CompanyName
         string BillingAddress
@@ -566,6 +567,7 @@ flowchart LR
 
 ## 11. Gotchas and deliberate decisions
 
+- **No id on screen; numbers instead (MRV-9.1).** `ClientAccount.Number`, `Quote.Number` and `Order.Number` are database-assigned (`nextval` of `client_number_seq`, `quote_number_seq`, `order_number_seq` as the column default, plus a unique index; the InMemory test provider uses a counter), never set by code and never edited; migration `CustomerQuoteOrderNumbers` numbers existing rows by creation time, then id. The API keeps ids in JSON bodies and `/api` routes (the SPA needs them to call the backend), and adds `customerNumber`/`number` (and `companyName` on quotes and orders, `entityNumber` on audit entries) so no screen has to show an id. `QuoteDto.From` and `OrderDto.From` are the one mapping each; they read `ClientAccount`, so a query that builds them must `Include(ClientAccount)`. `GET /api/employee/clients/by-number/{number}` and `GET /api/admin/customers/by-number/{number}` find a customer by number (`CustomerNumbers.TryParse`: digits only, else 400; digits that match nobody, 404). The SPA formats numbers in `shared/format/number.pipes.ts` (`customerNumber` C-, `documentNumber` Q-/P-, at least six digits) and `no-ids-on-screen.spec.ts` renders every routed page with GUID ids and fails on a GUID in text or in any attribute but an `<option>`/`<input>` `value` and `data-testid`; element ids that used a GUID (`quote-…`, `history-item-…`) use the number, audit details drop id values, and the storefront category link carries the category name (`?category=Bebidas`, resolved against `/api/categories`; products wait for the categories only when the URL names one). Public routes and links never carry a database id.
 - **No repository layer.** `AppDbContext` is used directly by controllers; domain services stay pure. One deliberate helper: `PricingDataLoader` (Api/Features/Catalog) loads the products, tier prices and running Deals that `BasketPricingService` needs, because quotes and employee orders needed the identical load; it holds no rules and is not a repository for other data.
 - **`Marvi.Api` shows `Microsoft.EntityFrameworkCore.Design` but gets EF Core APIs
   transitively** from `Marvi.Infrastructure`; do not remove that reference chain.

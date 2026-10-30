@@ -8,11 +8,11 @@ const line = (name: string, qty: number, suggested: number | null, final: number
   id: `l-${name}`, productId: 'p', productName: name, qty, suggestedUnitPrice: suggested, finalUnitPrice: final,
 });
 const quote = (id: string, company: string, status: string) => ({
-  id, clientAccountId: 'c-1', companyName: company, status, createdAt: '2026-10-14T13:42:00Z', pricedByEmployeeId: null,
+  id, number: Number(id.replace(/\D/g, '')), clientAccountId: 'c-1', customerNumber: 42, companyName: company, status, createdAt: '2026-10-14T13:42:00Z', pricedByEmployeeId: null,
   lineItems: [line('Cola 2L', 3, 9, 7.5)],
 });
 const order = (id: string, company: string, status = 'Placed') => ({
-  id, clientAccountId: 'c-1', companyName: company, quoteId: null, status, deliveryAddress: 'Rua Entrega, 10', warehouseId: null,
+  id, number: Number(id.replace(/\D/g, '')), clientAccountId: 'c-1', customerNumber: 42, companyName: company, quoteId: null, status, deliveryAddress: 'Rua Entrega, 10', warehouseId: null,
   placedByEmployeeId: null, placedAt: '2026-10-15T10:53:00Z', totalAmount: 22.5,
   lineItems: [{ id: 'ol', productId: 'p', productName: 'Água 500ml', qty: 5, unitPrice: 4.5 }],
 });
@@ -75,7 +75,7 @@ describe('EmployeeHistory', () => {
       expect(wrap.getAttribute('role')).toBe('group');
     }
     const names = wraps.map((wrap) => root.querySelector('#' + wrap.getAttribute('aria-labelledby'))?.textContent);
-    expect(names).toEqual(['Bar do Zé', 'Mercado Sol']);
+    expect(names).toEqual(['Bar do Zé (C-000042)', 'Mercado Sol (C-000042)']);
   });
 
   it('switches to the orders history, showing total, delivery address and when it was placed', async () => {

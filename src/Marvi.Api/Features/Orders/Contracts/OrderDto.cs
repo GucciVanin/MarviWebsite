@@ -2,12 +2,16 @@ using Marvi.Domain.Orders;
 
 namespace Marvi.Api.Features.Orders.Contracts;
 
-public record OrderDto(Guid Id, Guid ClientAccountId, Guid? QuoteId, OrderStatus Status, string DeliveryAddress, Guid? WarehouseId, Guid? PlacedByEmployeeId, DateTime PlacedAt, decimal TotalAmount, List<OrderLineItemDto> LineItems)
+/// <summary>An order. `Number` is its business reference; `CustomerNumber`/`CompanyName` say who it is for (MRV-9.1).</summary>
+public record OrderDto(Guid Id, int Number, Guid ClientAccountId, int CustomerNumber, string CompanyName, Guid? QuoteId, OrderStatus Status, string DeliveryAddress, Guid? WarehouseId, Guid? PlacedByEmployeeId, DateTime PlacedAt, decimal TotalAmount, List<OrderLineItemDto> LineItems)
 {
-    /// <summary>The one mapping from an Order (with its line items and their products loaded) to its API shape.</summary>
+    /// <summary>The one mapping from an Order (with its line items, their products and its customer loaded) to its API shape.</summary>
     public static OrderDto From(Order order) => new(
         order.Id,
+        order.Number,
         order.ClientAccountId,
+        order.ClientAccount?.Number ?? 0,
+        order.ClientAccount?.CompanyName ?? string.Empty,
         order.QuoteId,
         order.Status,
         order.DeliveryAddress,

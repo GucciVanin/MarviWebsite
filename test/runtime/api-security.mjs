@@ -372,6 +372,36 @@ ok('without a search everyone is listed A to Z, with the total', dirAll.totalCou
 ok('...paged', (await dirSearch('?page=2&pageSize=2')).json.items.length === 2 && (await dirSearch('?page=0')).status === 400);
 ok('admins may use it too; customers may not (403)', (await dirSearch('', admin)).status === 200 && (await dirSearch('', clientA.token)).status === 403);
 
+section('CUSTOMER NUMBER: a short business reference instead of an id on screen (MRV-9.1, on real Postgres)');
+const numberOf = async (id) => (await call('GET', `/api/employee/clients/${id}`, { token: emp })).json.customerNumber;
+const numA = await numberOf(clientA.id);
+ok('every customer has a positive customer number, and no two share one', Number.isInteger(numA) && numA > 0
+  && dirAll.items.every((c) => Number.isInteger(c.customerNumber) && c.customerNumber > 0)
+  && new Set(dirAll.items.map((c) => c.customerNumber)).size === dirAll.items.length
+  && sql('select count(distinct number) = count(*) from client_accounts') === 't');
+ok('...numbers follow registration order, and the customer sees their own number', (await numberOf(clientB.id)) > numA
+  && (await call('GET', '/api/client/profile', { token: clientA.token })).json.customerNumber === numA);
+const byNumber = await call('GET', `/api/employee/clients/by-number/${numA}`, { token: emp });
+ok('GET /api/employee/clients/by-number/{n} returns the same body as GET by id', byNumber.status === 200
+  && byNumber.text === (await call('GET', `/api/employee/clients/${clientA.id}`, { token: emp })).text);
+const adminByNumber = await call('GET', `/api/admin/customers/by-number/${numA}`, { token: admin });
+ok('...and the admin endpoint returns the customers-tab line', adminByNumber.status === 200 && adminByNumber.json.id === clientA.id && adminByNumber.json.customerNumber === numA);
+ok('...an unknown number is a 404, a non-numeric one a 400, a customer a 403, a visitor a 401',
+  (await call('GET', '/api/employee/clients/by-number/999999999', { token: emp })).status === 404
+  && (await call('GET', '/api/employee/clients/by-number/abc', { token: emp })).status === 400
+  && (await call('GET', `/api/employee/clients/by-number/${numA}`, { token: clientA.token })).status === 403
+  && (await call('GET', `/api/employee/clients/by-number/${numA}`)).status === 401
+  && (await call('GET', `/api/admin/customers/by-number/${numA}`, { token: emp })).status === 403);
+ok('the database backs the numbers up: sequences and unique indexes exist for customers, quotes and orders',
+  sql("select count(*) from pg_class where relkind = 'S' and relname in ('client_number_seq','quote_number_seq','order_number_seq')") === '3'
+  && sql("select count(*) from pg_indexes where indexname in ('ix_client_accounts_number','ix_quotes_number','ix_orders_number') and indexdef like 'CREATE UNIQUE%'") === '3');
+const numberedQuotes = sql("select count(*) from quotes where number is null or number <= 0") === '0'
+  && sql('select count(distinct number) = count(*) from quotes') === 't' && sql('select count(distinct number) = count(*) from orders') === 't';
+ok('quotes and orders are numbered too, uniquely', numberedQuotes);
+ok('the audit log gives the customer number for a customer entry, so the screen needs no id',
+  (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.entityName === 'ClientAccount' && e.entityId === clientD.id
+    && e.entityNumber === Number(sql(`select number from client_accounts where id='${clientD.id}'`))));
+
 section('CSV IMPORT: an admin imports products from a file (on real Postgres)');
 const importCsv = (csv, query = '', token = admin) => {
   const form = new FormData();
@@ -652,6 +682,7 @@ const endpoints = [
   ['PUT', `/api/admin/clients/${ID}/pricing-tier`, { pricingTierId: ID }, ['admin']],
   ['POST', '/api/admin/products/import', undefined, ['admin']],
   ['GET', '/api/employee/clients', undefined, ['employee', 'admin']],
+  ['GET', '/api/employee/clients/by-number/1', undefined, ['employee', 'admin']], ['GET', '/api/admin/customers/by-number/1', undefined, ['admin']],
   ['GET', '/api/admin/pending-actions', undefined, ['admin']],
   ['GET', '/api/admin/contact-messages', undefined, ['admin']], ['POST', `/api/admin/contact-messages/${ID}/handle`, undefined, ['admin']],
   ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],

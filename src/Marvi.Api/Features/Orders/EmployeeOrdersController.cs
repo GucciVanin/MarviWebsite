@@ -155,6 +155,7 @@ public class EmployeeOrdersController : ControllerBase
     private async Task<OrderDto> LoadOrderDtoAsync(Guid orderId)
     {
         var order = await _dbContext.Orders
+            .Include(o => o.ClientAccount)
             .Include(o => o.LineItems).ThenInclude(li => li.Product)
             .FirstAsync(o => o.Id == orderId);
         return ToDto(order);

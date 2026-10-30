@@ -5,6 +5,7 @@ import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
 import { BrlPipe } from '../../shared/format/brl.pipe';
+import { CustomerNumberPipe, DocumentNumberPipe } from '../../shared/format/number.pipes';
 import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import type { ProductListItem } from '../../shared/models/catalog.model';
 import type { Order } from '../../shared/models/order.model';
@@ -23,11 +24,12 @@ interface OrderLine {
 
 @Component({
   selector: 'app-employee-portal',
-  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe],
+  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
   templateUrl: './employee-portal.html',
 })
 export class EmployeePortal implements OnInit {
   protected readonly t = PT.employeePortal;
+  protected readonly refs = PT.numbers;
   private readonly employeeService = inject(EmployeeService);
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.

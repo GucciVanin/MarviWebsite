@@ -78,12 +78,14 @@ public class AuthorizationMatrixTests : IClassFixture<MarviApiFactory>
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/approve", AdminOnly);
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/suspend", AdminOnly);
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/pricing-tier", AdminOnly);
+        yield return (HttpMethod.Get, "/api/admin/customers/by-number/42", AdminOnly);
         yield return (HttpMethod.Get, "/api/admin/contact-messages", AdminOnly);
         yield return (HttpMethod.Post, $"/api/admin/contact-messages/{Id}/handle", AdminOnly);
 
         // Employee and Admin
         yield return (HttpMethod.Get, "/api/employee/clients", Staff);
         yield return (HttpMethod.Get, $"/api/employee/clients/{Id}", Staff);
+        yield return (HttpMethod.Get, "/api/employee/clients/by-number/42", Staff);
         yield return (HttpMethod.Get, "/api/employee/inventory", Staff);
         yield return (HttpMethod.Post, "/api/employee/orders", Staff);
         yield return (HttpMethod.Get, "/api/employee/orders/history", Staff);

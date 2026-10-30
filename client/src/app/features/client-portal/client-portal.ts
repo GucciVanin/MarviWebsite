@@ -4,6 +4,7 @@ import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
 import { BrlPipe } from '../../shared/format/brl.pipe';
+import { DocumentNumberPipe } from '../../shared/format/number.pipes';
 import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import type { ProductListItem } from '../../shared/models/catalog.model';
 import { ProductPicker } from '../../shared/ui/product-picker/product-picker';
@@ -22,11 +23,12 @@ interface BasketLine {
 
 @Component({
   selector: 'app-client-portal',
-  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe, ClientProfileCard],
+  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe, DocumentNumberPipe, ClientProfileCard],
   templateUrl: './client-portal.html',
 })
 export class ClientPortal implements OnInit {
   protected readonly t = PT.clientPortal;
+  protected readonly refs = PT.numbers;
   protected readonly statuses = PT.statuses;
   private readonly quotesService = inject(QuotesService);
   private readonly ordersService = inject(OrdersService);

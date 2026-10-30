@@ -15,18 +15,22 @@ const line = (id: string, productName: string, qty: number, suggested: number | 
 
 const quote = (id: string, lines: object[], clientAccountId = 'c-123') => ({
   id,
+  number: Number(id.replace(/\D/g, '')),
   clientAccountId,
+  customerNumber: 42,
+  companyName: 'Bar do Zé',
   status: 'Submitted',
   createdAt: '2026-10-02T13:00:00Z',
   pricedByEmployeeId: null,
   lineItems: lines,
 });
 
-const summary = (id: string, companyName: string, status: string) => ({ id, companyName, status, pricingTierName: 'Atacado' });
+const summary = (id: string, companyName: string, status: string) => ({ id, customerNumber: 42, companyName, status, pricingTierName: 'Atacado' });
 const clientPage = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 10, totalCount });
 
 const profile = (status: string) => ({
   id: 'c-123',
+  customerNumber: 42,
   companyName: 'Bar do Zé',
   createdAt: '2026-10-14T13:42:00Z',
   billingAddress: 'Rua A, 1',
@@ -91,7 +95,10 @@ describe('EmployeePortal', () => {
     await settle();
 
     const card = root.querySelector('[data-testid="queue-quote"]')!;
-    expect(card.textContent).toContain('c-123');
+    // The customer is named by company and customer number, never by id; the quote by its number.
+    expect(card.textContent).toContain('Cliente: Bar do Zé (C-000042)');
+    expect(card.textContent).toContain('Cotação Q-000001');
+    expect(card.textContent).not.toContain('c-123');
     expect(card.textContent).toContain('Cola 2L');
     const inputs = card.querySelectorAll<HTMLInputElement>('input[type="number"]');
     expect(inputs[0].value).toBe('8.5');
@@ -248,6 +255,7 @@ describe('EmployeePortal', () => {
     const rows = root.querySelectorAll('[data-testid="client-match"]');
     expect(rows.length).toBe(2);
     expect(rows[0].textContent).toContain('Bar do Zé');
+    expect(rows[0].textContent).toContain('C-000042');
     expect(rows[1].textContent).toContain('Zé Mercado');
     expect(rows[1].textContent).toContain('Suspenso');
 
@@ -258,6 +266,8 @@ describe('EmployeePortal', () => {
 
     const card = root.querySelector('[data-testid="customer"]')!;
     expect(card.textContent).toContain('Bar do Zé');
+    expect(card.textContent).toContain('(C-000042)');
+    expect(card.textContent).not.toContain('c-123');
     expect(card.textContent).toContain('Aprovado');
     expect(card.textContent).toContain('Atacado');
     expect(card.textContent).toContain('Cliente desde 14/10/2026');
@@ -371,11 +381,12 @@ describe('EmployeePortal', () => {
       lineItems: [{ productId: '1', qty: 2 }, { productId: '2', qty: 1 }],
     });
     post.flush({
-      id: 'o1', clientAccountId: 'c-123', quoteId: null, status: 'Placed', deliveryAddress: 'Rua Entrega, 10', warehouseId: null, placedByEmployeeId: 'e1', placedAt: '2026-10-14T13:42:00Z',
+      id: 'o1', number: 45, clientAccountId: 'c-123', customerNumber: 42, companyName: 'Bar do Zé', quoteId: null, status: 'Placed', deliveryAddress: 'Rua Entrega, 10', warehouseId: null, placedByEmployeeId: 'e1', placedAt: '2026-10-14T13:42:00Z',
       totalAmount: 30, lineItems: [{ id: 'ol1', productId: '1', productName: 'Cola 2L', qty: 2, unitPrice: 10 }, { id: 'ol2', productId: '2', productName: 'Água', qty: 1, unitPrice: 10 }],
     });
     await settle();
 
+    expect(root.querySelector('[data-testid="placed-order"]')!.textContent).toContain('Pedido registrado. P-000045');
     expect(root.querySelector('[data-testid="placed-order"]')!.textContent).toContain('R$');
     expect(root.querySelector('[data-testid="placed-order"]')!.textContent).toContain('30,00');
     expect(root.querySelectorAll('[data-testid="order-basket"] tbody tr').length).toBe(0);

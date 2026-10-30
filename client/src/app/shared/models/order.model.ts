@@ -10,7 +10,11 @@ export interface OrderLineItem {
 
 export interface Order {
   id: string;
+  /** The order number (shown as P-000045). */
+  number: number;
   clientAccountId: string;
+  customerNumber: number;
+  companyName: string;
   quoteId: string | null;
   status: OrderStatus;
   deliveryAddress: string;

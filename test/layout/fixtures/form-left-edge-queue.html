@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="form-left-edge">
+<title>Broken: one-line and two-line quote price fields without a form</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px;max-width:960px;margin:0 auto}
+.card{border:1px solid #ccc;padding:20px;margin-bottom:16px}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%}td{padding:4px}
+input{width:100%;height:32px}button{min-height:32px}
+</style></head><body><main class="page"><section>
+<h1>Fila de cotações</h1><article class="card"><h3>Cotação 1</h3><div class="tw"><table><tr><td>Produto 0</td><td><input type="number" name="p10" aria-label="Preço 0"></td></tr></table></div><button type="button">Enviar preços</button></article><article class="card"><h3>Cotação 2</h3><div class="tw"><table><tr><td>Produto 0</td><td><input type="number" name="p20" aria-label="Preço 0"></td></tr><tr><td>Produto 1</td><td><input type="number" name="p21" aria-label="Preço 1"></td></tr></table></div><button type="button">Enviar preços</button></article>
+</section></main></body></html>

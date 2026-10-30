@@ -7,6 +7,8 @@ namespace Marvi.Domain.Orders;
 public class Order
 {
     public Guid Id { get; set; }
+    /// <summary>The order number (MRV-9.1), assigned once by the database on insert; unique, never reused, never changed.</summary>
+    public int Number { get; set; }
     public Guid ClientAccountId { get; set; }
     public ClientAccount? ClientAccount { get; set; }
     public Guid? QuoteId { get; set; }

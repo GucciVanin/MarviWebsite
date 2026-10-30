@@ -76,5 +76,5 @@ public class ClientProfileController : ControllerBase
     }
 
     private static ClientOwnProfileDto ToDto(ClientAccount account) =>
-        new(account.Id, account.CompanyName, account.BillingAddress, account.ShippingAddresses, account.Status, account.CreatedAt);
+        new(account.Id, account.Number, account.CompanyName, account.BillingAddress, account.ShippingAddresses, account.Status, account.CreatedAt);
 }

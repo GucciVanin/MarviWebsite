@@ -11,7 +11,11 @@ export interface QuoteLineItem {
 
 export interface Quote {
   id: string;
+  /** The quote number (shown as Q-000123). */
+  number: number;
   clientAccountId: string;
+  customerNumber: number;
+  companyName: string;
   status: QuoteStatus;
   createdAt: string;
   pricedByEmployeeId: string | null;

@@ -185,6 +185,12 @@ export const PT = {
       next: 'Próximas avaliações',
     },
   },
+  /** The business references that stand in for ids on screen (MRV-9.1): a customer number, a quote number, an order number. */
+  numbers: {
+    customer: 'Número do cliente',
+    quote: 'Cotação',
+    order: 'Pedido',
+  },
   state: {
     loading: 'Carregando…',
     retry: 'Tentar novamente',
@@ -317,6 +323,7 @@ export const PT = {
   clientProfile: {
     title: 'Meus dados',
     since: 'Cliente desde',
+    customerNumber: 'Número do cliente',
     company: 'Nome da empresa',
     billing: 'Endereço de cobrança',
     shipping: 'Endereços de entrega',
@@ -428,6 +435,7 @@ export const PT = {
     when: 'Data e hora',
     action: 'Ação',
     entity: 'Entidade',
+    entityKinds: { ClientAccount: 'Cliente', Quote: 'Cotação', Order: 'Pedido' } as Record<string, string>,
     details: 'Detalhes',
     pager: 'Paginação',
     previous: 'Anterior',

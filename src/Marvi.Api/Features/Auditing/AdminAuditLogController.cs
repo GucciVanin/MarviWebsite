@@ -1,5 +1,9 @@
 using Marvi.Api.Features.Auditing.Contracts;
 using Marvi.Api.Features.Common;
+using Marvi.Domain.Auditing;
+using Marvi.Domain.Identity;
+using Marvi.Domain.Orders;
+using Marvi.Domain.Quotes;
 using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,9 +42,39 @@ public class AdminAuditLogController : ControllerBase
             .OrderByDescending(e => e.Timestamp)
             .Skip(skip)
             .Take(size)
-            .Select(e => new AuditLogEntryDto(e.Id, e.ActorUserId, e.Action, e.EntityName, e.EntityId, e.Timestamp, e.Details))
             .ToListAsync();
 
-        return Ok(entries);
+        var numbers = await NumbersAsync(entries);
+        return Ok(entries.Select(e => new AuditLogEntryDto(
+            e.Id, e.ActorUserId, e.Action, e.EntityName, e.EntityId, numbers.TryGetValue((e.EntityName, e.EntityId), out var number) ? number : (int?)null, e.Timestamp, e.Details)));
     }
+
+    /// <summary>The customer, quote or order number of each entity these entries are about (one query per kind), keyed by name and id.</summary>
+    private async Task<Dictionary<(string Name, Guid Id), int>> NumbersAsync(List<AuditLogEntry> entries)
+    {
+        var numbers = new Dictionary<(string, Guid), int>();
+        var customerIds = IdsOf(entries, nameof(ClientAccount));
+        var quoteIds = IdsOf(entries, nameof(Quote));
+        var orderIds = IdsOf(entries, nameof(Order));
+
+        foreach (var c in await _dbContext.ClientAccounts.Where(c => customerIds.Contains(c.Id)).Select(c => new { c.Id, c.Number }).ToListAsync())
+        {
+            numbers[(nameof(ClientAccount), c.Id)] = c.Number;
+        }
+
+        foreach (var q in await _dbContext.Quotes.Where(q => quoteIds.Contains(q.Id)).Select(q => new { q.Id, q.Number }).ToListAsync())
+        {
+            numbers[(nameof(Quote), q.Id)] = q.Number;
+        }
+
+        foreach (var o in await _dbContext.Orders.Where(o => orderIds.Contains(o.Id)).Select(o => new { o.Id, o.Number }).ToListAsync())
+        {
+            numbers[(nameof(Order), o.Id)] = o.Number;
+        }
+
+        return numbers;
+    }
+
+    private static List<Guid> IdsOf(List<AuditLogEntry> entries, string entityName) =>
+        entries.Where(e => e.EntityName == entityName).Select(e => e.EntityId).Distinct().ToList();
 }

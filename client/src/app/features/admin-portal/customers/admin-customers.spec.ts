@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { AdminCustomers } from './admin-customers';
 
 const customer = (id: string, companyName: string, status = 'Approved', tierId: string | null = 't-std') => ({
-  id, companyName, status, pricingTierId: tierId, pricingTierName: tierId === 't-gold' ? 'Ouro' : 'Standard', createdAt: '2026-10-14T13:42:00Z',
+  id, customerNumber: Number(id.replace(/\D/g, '')) + 41, companyName, status, pricingTierId: tierId, pricingTierName: tierId === 't-gold' ? 'Ouro' : 'Standard', createdAt: '2026-10-14T13:42:00Z',
 });
 const page = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 20, totalCount });
 const tiers = [{ id: 't-std', name: 'Standard', isDefault: true }, { id: 't-gold', name: 'Ouro', isDefault: false }];
@@ -41,6 +41,10 @@ describe('AdminCustomers', () => {
     const { root, settle, row } = setup();
     await settle();
 
+    // The customer is named by customer number, never by id.
+    expect(row('Bar do Zé').textContent).toContain('C-000042');
+    expect(row('Mercado Sol').textContent).toContain('C-000043');
+    expect(text(root)).not.toMatch(/\bc[12]\b/);
     expect(row('Bar do Zé').textContent).toContain('Aprovado');
     expect(row('Bar do Zé').textContent).toContain('Standard');
     expect(row('Bar do Zé').textContent).toContain('14/10/2026');

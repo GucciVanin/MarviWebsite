@@ -3,8 +3,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AdminAudit } from './admin-audit';
 
-const entry = (id: string, action: string, entityName: string, data = '{"Name":"X"}') => ({
-  id, actorUserId: 'u1', action, entityName, entityId: 'e1', timestamp: '2026-10-15T10:19:00Z', details: { data },
+const entry = (id: string, action: string, entityName: string, data = '{"Name":"X"}', entityNumber: number | null = null) => ({
+  id, actorUserId: 'u1', action, entityName, entityId: 'e1', entityNumber, timestamp: '2026-10-15T10:19:00Z', details: { data },
 });
 
 describe('AdminAudit', () => {
@@ -40,6 +40,44 @@ describe('AdminAudit', () => {
     expect(rows[0]).toContain('15/10/2026');
     expect(rows[0]).toContain('{"Created":2}');
     expect(rows[1]).toContain('Suspensão');
+  });
+
+  // MRV-9.1: the entity column names a customer, quote or order by its number and never shows an id.
+  it('names a customer, a quote and an order by their numbers, and any other entity by its name', async () => {
+    const { root, settle, log } = setup();
+    log().flush(
+      [
+        entry('a1', 'Approve', 'ClientAccount', '{"Name":"X"}', 42),
+        entry('a2', 'Update', 'Quote', '{"Name":"X"}', 123),
+        entry('a3', 'Update', 'Order', '{"Name":"X"}', 45),
+        entry('a4', 'Create', 'Category', '{"Name":"X"}'),
+        entry('a5', 'Update', 'Quote', '{"Name":"X"}', null),
+      ],
+      { headers: { 'X-Total-Count': '5' } },
+    );
+    await settle();
+
+    const cells = Array.from(root.querySelectorAll('[data-testid="audit-entry"] td:nth-child(3)')).map((c) => c.textContent?.trim());
+    expect(cells).toEqual(['Cliente C-000042', 'Cotação Q-000123', 'Pedido P-000045', 'Category', 'Cotação']);
+    expect(text(root)).not.toContain('e1');
+  });
+
+  it('leaves ids out of the details, in the text and in the tooltip', async () => {
+    const { root, settle, log } = setup();
+    const tier = '3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b';
+    log().flush(
+      [
+        entry('a1', 'Update', 'ClientAccount', `{"PricingTierId":"${tier}","PreviousPricingTierId":null,"Note":"ok"}`, 42),
+        entry('a2', 'Update', 'ClientAccount', `not json ${tier}`, 42),
+      ],
+      { headers: { 'X-Total-Count': '2' } },
+    );
+    await settle();
+
+    const details = Array.from(root.querySelectorAll<HTMLElement>('[data-testid="audit-entry"] td:nth-child(4)'));
+    expect(details[0].textContent?.trim()).toBe('{"PreviousPricingTierId":null,"Note":"ok"}');
+    expect(details[1].textContent?.trim()).toBe('not json …');
+    expect(root.innerHTML).not.toContain(tier);
   });
 
   it('keeps the wide log table inside its own scroll container (MRV-8.4)', async () => {

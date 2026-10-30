@@ -29,6 +29,8 @@ Every Angular service, guard, interceptor and helper with logic under `client/sr
 | shared/crud/admin-crud.ts | helper | `admin-crud.spec.ts` | formFeedback, confirmedDelete | failure shown, no follow-up | none | none |
 | shared/format/brl.pipe.ts | pipe | `format-pipes.spec.ts` | pt-BR currency | null/undefined are empty | no spec | none |
 | shared/format/pt-date.pipe.ts | pipe | `format-pipes.spec.ts` | local date and time | null, empty, invalid are empty | no spec | none |
+| shared/format/number.pipes.ts (`customerNumber`, `documentNumber`, MRV-9.1) | pipe | `format-pipes.spec.ts` | C-000042, Q-000123, P-000045, more than six digits | null, undefined, 0, negative, fractional, NaN are empty (never C-000000) | no spec | none |
+| app-wide: no database id in the DOM (MRV-9.1 AC-4) | page scan | `no-ids-on-screen.spec.ts` | 22 routed pages and shells rendered with GUID-seeded API answers; the scan flags a GUID in text or any attribute except `<option>`/`<input>` `value` and `data-testid`; employee order flow, history, basket, category link | the scanner flags a planted GUID in text, href, title, aria-label and id | none | none |
 | shared/ui/privacy-notice/privacy-notice-state.ts | service | `privacy-notice-state.spec.ts` (+ `privacy-notice.spec.ts`) | visible, remembered, dismiss | storage read/write blocked | state only via the component | none |
 | features/home/hero-ribbons.loader.ts | helper | `hero-ribbons.loader.spec.ts`, `when-idle.spec.ts` | script added once; idle callback and timer fallback | reduced motion, script error | `whenIdle` untested | none |
 

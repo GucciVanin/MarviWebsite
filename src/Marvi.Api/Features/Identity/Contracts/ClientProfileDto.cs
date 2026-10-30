@@ -6,6 +6,7 @@ namespace Marvi.Api.Features.Identity.Contracts;
 
 public record ClientProfileDto(
     Guid Id,
+    int CustomerNumber,
     string CompanyName,
     DateTime CreatedAt,
     string BillingAddress,

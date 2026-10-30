@@ -176,6 +176,8 @@ export interface AuditLogEntry {
   action: string;
   entityName: string;
   entityId: string;
+  /** The customer, quote or order number when the entity is one of those, else null. */
+  entityNumber: number | null;
   timestamp: string;
   details: Record<string, string>;
 }

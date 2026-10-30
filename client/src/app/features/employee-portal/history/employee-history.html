@@ -19,7 +19,7 @@
         </div>
         <button type="button" class="btn btn--outline btn--small" [disabled]="searchAction.busy()" (click)="searchClients()">{{ portal.lookup }}</button>
         @if (draft().client; as picked) {
-          <span class="badge">{{ t.customer }}: {{ picked.companyName }}</span>
+          <span class="badge">{{ t.customer }}: {{ picked.companyName }} ({{ picked.customerNumber | customerNumber }})</span>
           <button type="button" class="btn btn--outline btn--small" (click)="setDraft({ client: null })">{{ t.removeCustomer }}</button>
         }
       </div>
@@ -32,6 +32,7 @@
           @for (match of matches; track match.id) {
             <li class="toolbar">
               <strong>{{ match.companyName }}</strong>
+              <span class="muted">{{ match.customerNumber | customerNumber }}</span>
               <button type="button" class="btn btn--outline btn--small" (click)="pickClient(match)">{{ portal.select }}</button>
             </li>
           }
@@ -75,11 +76,11 @@
       @for (item of quotes.data().items; track item.id) {
         <article class="card" data-testid="history-item">
           <header class="toolbar">
-            <strong [id]="'history-item-' + item.id">{{ item.companyName }}</strong>
-            <span class="muted">{{ t.sentOn }} {{ item.createdAt | ptDate }}</span>
+            <strong [id]="'history-item-' + item.number">{{ item.companyName }} ({{ item.customerNumber | customerNumber }})</strong>
+            <span class="muted">{{ refs.quote }} {{ item.number | documentNumber: 'quote' }} · {{ t.sentOn }} {{ item.createdAt | ptDate }}</span>
             <span class="badge" [class.badge--ok]="item.status === 'Accepted'" [class.badge--warn]="item.status === 'Priced'">{{ statuses.quote[item.status] ?? item.status }}</span>
           </header>
-          <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'history-item-' + item.id">
+          <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'history-item-' + item.number">
 <table class="table">
             <thead>
               <tr>
@@ -107,12 +108,12 @@
       @for (item of orders.data().items; track item.id) {
         <article class="card" data-testid="history-item">
           <header class="toolbar">
-            <strong [id]="'history-item-' + item.id">{{ item.companyName }}</strong>
-            <span class="muted">{{ t.placedOn }} {{ item.placedAt | ptDate }}</span>
+            <strong [id]="'history-item-' + item.number">{{ item.companyName }} ({{ item.customerNumber | customerNumber }})</strong>
+            <span class="muted">{{ refs.order }} {{ item.number | documentNumber: 'order' }} · {{ t.placedOn }} {{ item.placedAt | ptDate }}</span>
             <span class="badge badge--ok">{{ statuses.order[item.status] ?? item.status }}</span>
           </header>
           <p class="muted">{{ item.deliveryAddress || t.noAddress }}</p>
-          <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'history-item-' + item.id">
+          <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'history-item-' + item.number">
 <table class="table">
             <thead>
               <tr>

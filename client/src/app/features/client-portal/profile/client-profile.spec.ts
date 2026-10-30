@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ClientProfileCard } from './client-profile';
 
 const profile = (over: object = {}) => ({
-  id: 'c1', companyName: 'Bar do Zé', billingAddress: 'Rua A, 1', shippingAddresses: ['Rua B, 2', 'Rua C, 3'], status: 'Approved', createdAt: '2026-10-14T13:42:00Z', ...over,
+  id: 'c1', customerNumber: 42, companyName: 'Bar do Zé', billingAddress: 'Rua A, 1', shippingAddresses: ['Rua B, 2', 'Rua C, 3'], status: 'Approved', createdAt: '2026-10-14T13:42:00Z', ...over,
 });
 
 describe('ClientProfileCard', () => {
@@ -38,6 +38,15 @@ describe('ClientProfileCard', () => {
     expect(field<HTMLInputElement>('profile-company').value).toBe('Bar do Zé');
     expect(field<HTMLInputElement>('profile-billing').value).toBe('Rua A, 1');
     expect(field<HTMLTextAreaElement>('profile-shipping').value).toBe('Rua B, 2\nRua C, 3');
+  });
+
+  it('tells the customer their customer number, never an id', async () => {
+    const { http, root, settle } = setup();
+    http.expectOne('/api/client/profile').flush(profile());
+    await settle();
+
+    expect(text(root)).toContain('Número do cliente: C-000042');
+    expect(text(root)).not.toContain('c1');
   });
 
   it('says since when the customer has been registered', async () => {

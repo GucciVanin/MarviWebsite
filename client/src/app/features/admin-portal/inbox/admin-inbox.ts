@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
+import { CustomerNumberPipe, DocumentNumberPipe } from '../../../shared/format/number.pipes';
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
@@ -24,11 +25,12 @@ const MAILTO_ADDRESS = /^[^\s@<>"',;:?&=%#/\\`]{1,64}@([A-Za-z0-9-]+\.)+[A-Za-z0
  */
 @Component({
   selector: 'app-admin-inbox',
-  imports: [RouterLink, ErrorAlert, LoadState, PtDatePipe, ApprovalForm],
+  imports: [RouterLink, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe, ApprovalForm],
   templateUrl: './admin-inbox.html',
 })
 export class AdminInbox implements OnInit {
   protected readonly t = PT.adminInbox;
+  protected readonly refs = PT.numbers;
   private readonly admin = inject(AdminService);
   private readonly service = inject(PendingActionsService);
   private readonly contact = inject(ContactMessagesService);

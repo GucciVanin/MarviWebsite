@@ -4,6 +4,7 @@ import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
 import { ApprovalForm } from '../shared/approval-form';
+import { CustomerNumberPipe } from '../../../shared/format/number.pipes';
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
@@ -20,12 +21,13 @@ const PAGE_SIZE = 20;
  */
 @Component({
   selector: 'app-admin-customers',
-  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe, ApprovalForm],
+  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, ApprovalForm],
   templateUrl: './admin-customers.html',
 })
 export class AdminCustomers implements OnInit {
   protected readonly t = PT.adminCustomers;
   protected readonly portal = PT.employeePortal;
+  protected readonly refs = PT.numbers;
   private readonly admin = inject(AdminService);
   private readonly pendingActions = inject(PendingActionsService);
 

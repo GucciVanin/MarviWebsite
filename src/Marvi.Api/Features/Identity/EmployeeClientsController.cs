@@ -3,6 +3,7 @@ using Marvi.Api.Features.Identity.Contracts;
 using Marvi.Api.Features.Orders.Contracts;
 using Marvi.Api.Features.Quotes.Contracts;
 using Marvi.Domain.Catalog;
+using Marvi.Domain.Identity;
 using Marvi.Domain.Orders;
 using Marvi.Domain.Quotes;
 using Marvi.Infrastructure.Data;
@@ -56,7 +57,7 @@ public class EmployeeClientsController : ControllerBase
             .Take(size)
             .ToListAsync();
 
-        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.CompanyName, c.Status, c.PricingTierId, c.PricingTier?.Name, c.CreatedAt)).ToList();
+        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.Number, c.CompanyName, c.Status, c.PricingTierId, c.PricingTier?.Name, c.CreatedAt)).ToList();
         return Ok(new PagedResult<ClientSummaryDto>(items, page, size, total));
     }
 
@@ -66,11 +67,30 @@ public class EmployeeClientsController : ControllerBase
         var clientAccount = await _dbContext.ClientAccounts
             .Include(c => c.PricingTier)
             .FirstOrDefaultAsync(c => c.Id == id);
-        if (clientAccount is null)
+        return clientAccount is null ? NotFound() : Ok(await ToProfileAsync(clientAccount));
+    }
+
+    /// <summary>
+    /// The same customer as <c>GET {id}</c>, found by the customer number (MRV-9.1) so a screen can address a customer without an id in
+    /// its URL. 400 when the number is not digits, 404 when no customer has it.
+    /// </summary>
+    [HttpGet("by-number/{number}")]
+    public async Task<ActionResult<ClientProfileDto>> GetClientByNumber(string number)
+    {
+        if (!CustomerNumbers.TryParse(number, out var parsed))
         {
-            return NotFound();
+            return BadRequest(CustomerNumbers.NotANumber);
         }
 
+        var clientAccount = await _dbContext.ClientAccounts
+            .Include(c => c.PricingTier)
+            .FirstOrDefaultAsync(c => c.Number == parsed);
+        return clientAccount is null ? NotFound() : Ok(await ToProfileAsync(clientAccount));
+    }
+
+    private async Task<ClientProfileDto> ToProfileAsync(ClientAccount clientAccount)
+    {
+        var id = clientAccount.Id;
         var quotes = await _dbContext.Quotes
             .Include(q => q.LineItems).ThenInclude(li => li.Product)
             .Where(q => q.ClientAccountId == id)
@@ -81,8 +101,9 @@ public class EmployeeClientsController : ControllerBase
             .Where(o => o.ClientAccountId == id)
             .ToListAsync();
 
-        var dto = new ClientProfileDto(
+        return new ClientProfileDto(
             clientAccount.Id,
+            clientAccount.Number,
             clientAccount.CompanyName,
             clientAccount.CreatedAt,
             clientAccount.BillingAddress,
@@ -91,17 +112,9 @@ public class EmployeeClientsController : ControllerBase
             clientAccount.Status,
             quotes.Select(ToQuoteDto).ToList(),
             orders.Select(ToOrderDto).ToList());
-
-        return Ok(dto);
     }
 
-    private static QuoteDto ToQuoteDto(Quote quote) => new(
-        quote.Id,
-        quote.ClientAccountId,
-        quote.Status,
-        quote.CreatedAt,
-        quote.PricedByEmployeeId,
-        quote.LineItems.Select(li => new QuoteLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.SuggestedUnitPrice, li.FinalUnitPrice)).ToList());
+    private static QuoteDto ToQuoteDto(Quote quote) => QuoteDto.From(quote);
 
     private static OrderDto ToOrderDto(Order order) => OrderDto.From(order);
 }

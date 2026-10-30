@@ -2,6 +2,7 @@
   <h2 id="profile-title">{{ t.title }}</h2>
   <app-load-state [state]="profile" />
   @if (profile.loaded()) {
+    <p class="muted">{{ t.customerNumber }}: <strong>{{ profile.data()?.customerNumber | customerNumber }}</strong></p>
     <p class="muted">{{ t.since }} {{ profile.data()?.createdAt | ptDate }}</p>
     <form (ngSubmit)="save()">
       <div class="field">

@@ -10,13 +10,16 @@ export interface PendingGroup<T> {
 
 export interface PendingCustomer {
   id: string;
+  customerNumber: number;
   companyName: string;
   createdAt: string;
 }
 
 export interface PendingQuote {
   id: string;
+  number: number;
   clientAccountId: string;
+  customerNumber: number;
   companyName: string;
   createdAt: string;
   lineCount: number;

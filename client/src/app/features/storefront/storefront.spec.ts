@@ -115,39 +115,74 @@ describe('Storefront (public catalog)', () => {
     expect(options).toEqual(['Todas as categorias', 'Refrigerantes', 'Águas']);
   });
 
+  // The URL names the category (never its id), so the products wait until the categories say which id that is.
   it('applies the search and category from the URL on arrival (a landing-page tile link)', async () => {
-    const { http, root, settle } = setup({ category: CAT, q: 'cola' });
+    const { http, root, settle } = setup({ category: 'refrigerantes', q: 'cola' });
 
+    http.expectNone((r) => r.url === '/api/products');
+    http.expectOne('/api/categories').flush([{ id: CAT, name: 'Refrigerantes', productCount: 3 }]);
+    http.expectOne('/api/deals').flush([]);
+    await settle();
     const request = http.expectOne((r) => r.url === '/api/products');
     expect(request.request.params.get('category')).toBe(CAT);
     expect(request.request.params.get('search')).toBe('cola');
     request.flush([product('1', 'Cola 2L', 12.5)]);
-    http.expectOne('/api/categories').flush([{ id: CAT, name: 'Refrigerantes', productCount: 3 }]);
-    http.expectOne('/api/deals').flush([]);
     await settle();
 
     expect(root.querySelector<HTMLInputElement>('input[type="search"]')!.value).toBe('cola');
     expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe(CAT);
   });
 
-  it('ignores a category in the URL that is not an id, instead of sending it to the API', async () => {
+  it('ignores a category in the URL that names no category, instead of sending it to the API', async () => {
     const { http, root, settle } = setup({ category: 'abc' });
 
+    http.expectOne('/api/categories').flush([{ id: CAT, name: 'Refrigerantes', productCount: 3 }]);
+    http.expectOne('/api/deals').flush([]);
+    await settle();
     const request = http.expectOne((r) => r.url === '/api/products');
     expect(request.request.params.has('category')).toBe(false);
     request.flush([]);
-    http.expectOne('/api/categories').flush([]);
-    http.expectOne('/api/deals').flush([]);
     await settle();
 
     expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe('');
   });
 
-  it('follows the URL when only the query string changes (a link back to the unfiltered catalog)', async () => {
-    const { http, root, settle, navigateTo } = setup({ category: CAT, q: 'cola' });
-    http.expectOne((r) => r.url === '/api/products').flush([]);
+  it('ignores a category named at arrival when the URL changes before the categories arrive', async () => {
+    const { http, root, settle, navigateTo } = setup({ category: 'Refrigerantes' });
+    navigateTo({});
+    await settle();
+    // The URL no longer names a category: the products are asked for at once, unfiltered.
+    const request = http.expectOne((r) => r.url === '/api/products');
+    expect(request.request.params.has('category')).toBe(false);
+    request.flush([product('1', 'Cola 2L', 12.5)]);
     http.expectOne('/api/categories').flush([{ id: CAT, name: 'Refrigerantes', productCount: 3 }]);
     http.expectOne('/api/deals').flush([]);
+    await settle();
+
+    http.expectNone((r) => r.url === '/api/products');
+    expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe('');
+  });
+
+  it('still lists the products when the categories cannot be loaded, whatever category the URL names', async () => {
+    const { http, root, settle } = setup({ category: 'Refrigerantes' });
+
+    http.expectOne('/api/categories').flush('boom', { status: 500, statusText: 'Server Error' });
+    http.expectOne('/api/deals').flush([]);
+    await settle();
+    const request = http.expectOne((r) => r.url === '/api/products');
+    expect(request.request.params.has('category')).toBe(false);
+    request.flush([product('1', 'Cola 2L', 12.5)]);
+    await settle();
+
+    expect(text(root)).toContain('Cola 2L');
+  });
+
+  it('follows the URL when only the query string changes (a link back to the unfiltered catalog)', async () => {
+    const { http, root, settle, navigateTo } = setup({ category: 'Refrigerantes', q: 'cola' });
+    http.expectOne('/api/categories').flush([{ id: CAT, name: 'Refrigerantes', productCount: 3 }]);
+    http.expectOne('/api/deals').flush([]);
+    await settle();
+    http.expectOne((r) => r.url === '/api/products').flush([]);
     await settle();
 
     navigateTo({});
@@ -179,7 +214,7 @@ describe('Storefront (public catalog)', () => {
     expect(request.request.params.get('search')).toBe('água');
     expect(request.request.params.get('category')).toBe(CAT);
     request.flush([]);
-    expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { category: CAT, q: 'água' }, replaceUrl: true }));
+    expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { category: 'Refrigerantes', q: 'água' }, replaceUrl: true }));
   });
 
   // ---- calling visitors to register
@@ -349,15 +384,19 @@ describe('Storefront (public catalog)', () => {
     request.flush([]);
     await settle();
 
-    expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { category: CAT }, replaceUrl: true }));
+    expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { category: 'Refrigerantes' }, replaceUrl: true }));
     expect(root.querySelector<HTMLSelectElement>('select')!.value).toBe(CAT);
     const after = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-testid="category-chips"] button'));
     expect(after.map((c) => c.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false']);
   });
 
   it('marks the category from the URL as the pressed chip', async () => {
-    const { root, loadWith } = setup({ category: CAT });
-    await loadWith({ categories: [{ id: CAT, name: 'Refrigerantes', productCount: 3 }] });
+    const { http, root, settle } = setup({ category: 'Refrigerantes' });
+    http.expectOne('/api/categories').flush([{ id: CAT, name: 'Refrigerantes', productCount: 3 }]);
+    http.expectOne('/api/deals').flush([]);
+    await settle();
+    http.expectOne((r) => r.url === '/api/products').flush([]);
+    await settle();
     expect(root.querySelector('[data-testid="category-chips"] button[aria-pressed="true"]')?.textContent).toContain('Refrigerantes');
   });
 

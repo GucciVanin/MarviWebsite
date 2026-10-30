@@ -4,10 +4,10 @@ namespace Marvi.Api.Features.Admin.Contracts;
 public record PendingGroup<T>(int Count, List<T> Items);
 
 /// <summary>A customer waiting for an admin to approve or suspend them.</summary>
-public record PendingCustomerDto(Guid Id, string CompanyName, DateTime CreatedAt);
+public record PendingCustomerDto(Guid Id, int CustomerNumber, string CompanyName, DateTime CreatedAt);
 
 /// <summary>A quote nobody has priced yet.</summary>
-public record PendingQuoteDto(Guid Id, Guid ClientAccountId, string CompanyName, DateTime CreatedAt, int LineCount);
+public record PendingQuoteDto(Guid Id, int Number, Guid ClientAccountId, int CustomerNumber, string CompanyName, DateTime CreatedAt, int LineCount);
 
 /// <summary>A stock record at or below its reorder point.</summary>
 public record LowStockDto(Guid ProductId, string Sku, string ProductName, Guid WarehouseId, string WarehouseName, int Available, int ReorderPoint);

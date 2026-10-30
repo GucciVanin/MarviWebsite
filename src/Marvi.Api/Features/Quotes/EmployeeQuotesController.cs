@@ -30,6 +30,7 @@ public class EmployeeQuotesController : ControllerBase
         var filterStatus = status ?? QuoteStatus.Submitted;
 
         var quotes = await _dbContext.Quotes
+            .Include(q => q.ClientAccount)
             .Include(q => q.LineItems).ThenInclude(li => li.Product)
             .Where(q => q.Status == filterStatus)
             .ToListAsync();
@@ -108,6 +109,7 @@ public class EmployeeQuotesController : ControllerBase
         }
 
         var quote = await _dbContext.Quotes
+            .Include(q => q.ClientAccount)
             .Include(q => q.LineItems).ThenInclude(li => li.Product)
             .FirstOrDefaultAsync(q => q.Id == id);
         if (quote is null)
@@ -131,11 +133,5 @@ public class EmployeeQuotesController : ControllerBase
         return Ok(ToDto(quote));
     }
 
-    private static QuoteDto ToDto(Quote quote) => new(
-        quote.Id,
-        quote.ClientAccountId,
-        quote.Status,
-        quote.CreatedAt,
-        quote.PricedByEmployeeId,
-        quote.LineItems.Select(li => new QuoteLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.SuggestedUnitPrice, li.FinalUnitPrice)).ToList());
+    private static QuoteDto ToDto(Quote quote) => QuoteDto.From(quote);
 }

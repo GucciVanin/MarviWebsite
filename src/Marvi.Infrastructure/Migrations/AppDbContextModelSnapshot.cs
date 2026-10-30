@@ -23,6 +23,12 @@ namespace Marvi.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence<int>("client_number_seq");
+
+            modelBuilder.HasSequence<int>("order_number_seq");
+
+            modelBuilder.HasSequence<int>("quote_number_seq");
+
             modelBuilder.Entity("Marvi.Domain.Auditing.AuditLogEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -384,6 +390,12 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('client_number_seq')");
+
                     b.Property<Guid?>("PricingTierId")
                         .HasColumnType("uuid")
                         .HasColumnName("pricing_tier_id");
@@ -404,6 +416,10 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_client_accounts");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_accounts_number");
 
                     b.HasIndex("PricingTierId")
                         .HasDatabaseName("ix_client_accounts_pricing_tier_id");
@@ -497,6 +513,12 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("delivery_address");
 
+                    b.Property<int>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('order_number_seq')");
+
                     b.Property<DateTime>("PlacedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("placed_at");
@@ -526,6 +548,10 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasIndex("ClientAccountId")
                         .HasDatabaseName("ix_orders_client_account_id");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_number");
 
                     b.HasIndex("PlacedByEmployeeId")
                         .HasDatabaseName("ix_orders_placed_by_employee_id");
@@ -589,6 +615,12 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('quote_number_seq')");
+
                     b.Property<Guid?>("PricedByEmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("priced_by_employee_id");
@@ -602,6 +634,10 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasIndex("ClientAccountId")
                         .HasDatabaseName("ix_quotes_client_account_id");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_quotes_number");
 
                     b.HasIndex("PricedByEmployeeId")
                         .HasDatabaseName("ix_quotes_priced_by_employee_id");

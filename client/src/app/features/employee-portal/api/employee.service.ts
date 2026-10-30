@@ -43,15 +43,11 @@ export type ClientAccountStatus = 'Pending' | 'Approved' | 'Suspended';
 
 export const CLIENT_SEARCH_PAGE_SIZE = 10;
 
-/** A quote in the history: the quote plus the company it is for. */
-export interface QuoteHistoryItem extends Quote {
-  companyName: string;
-}
+/** A quote in the history (it already names the company and the customer number). */
+export type QuoteHistoryItem = Quote;
 
-/** An order in the history: the order plus the company it is for. */
-export interface OrderHistoryItem extends Order {
-  companyName: string;
-}
+/** An order in the history (it already names the company and the customer number). */
+export type OrderHistoryItem = Order;
 
 /** The filters and page of a history request; `from` is inclusive, `to` exclusive, both ISO instants. */
 export interface HistoryQuery {
@@ -76,6 +72,7 @@ function historyParams(query: HistoryQuery): Record<string, string> {
 
 export interface ClientProfile {
   id: string;
+  customerNumber: number;
   companyName: string;
   createdAt: string;
   billingAddress: string;
