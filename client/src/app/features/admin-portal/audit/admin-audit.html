@@ -8,26 +8,28 @@
     }
 
     @if (log.data().entries.length) {
-      <table class="table" data-testid="audit">
-        <thead>
-          <tr>
-            <th>{{ t.when }}</th>
-            <th>{{ t.action }}</th>
-            <th>{{ t.entity }}</th>
-            <th>{{ t.details }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (entry of log.data().entries; track entry.id) {
-            <tr data-testid="audit-entry">
-              <td>{{ entry.timestamp | ptDate }}</td>
-              <td>{{ t.actions[entry.action] ?? entry.action }}</td>
-              <td>{{ entry.entityName }}</td>
-              <td class="muted" [attr.title]="detailsOf(entry.details)">{{ detailsOf(entry.details) }}</td>
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="audit-title">
+        <table class="table" data-testid="audit">
+          <thead>
+            <tr>
+              <th>{{ t.when }}</th>
+              <th>{{ t.action }}</th>
+              <th>{{ t.entity }}</th>
+              <th>{{ t.details }}</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (entry of log.data().entries; track entry.id) {
+              <tr data-testid="audit-entry">
+                <td>{{ entry.timestamp | ptDate }}</td>
+                <td>{{ t.actions[entry.action] ?? entry.action }}</td>
+                <td>{{ entry.entityName }}</td>
+                <td class="muted" [attr.title]="detailsOf(entry.details)">{{ detailsOf(entry.details) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
 
     @if (log.data().totalCount > 0) {

@@ -1,6 +1,6 @@
 <div class="stack">
 <section class="card">
-  <h3>{{ t.createEmployeeTitle }}</h3>
+  <h2>{{ t.createEmployeeTitle }}</h2>
   <div class="toolbar">
     <div class="field">
       <label for="employeeEmail">{{ t.email }}</label>
@@ -20,54 +20,58 @@
 </section>
 
 <section class="card">
-  <h3>{{ t.dealsTitle }}</h3>
+  <h2 id="overview-deals">{{ t.dealsTitle }}</h2>
   <app-load-state [state]="deals" [emptyText]="t.noDeals" />
   @if (deals.data().length) {
-    <table class="table">
-      <thead>
-        <tr>
-          <th>{{ t.name }}</th>
-          <th>{{ t.discount }}</th>
-          <th>{{ t.start }}</th>
-          <th>{{ t.end }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (deal of deals.data(); track deal.id) {
+    <div class="table-wrap" tabindex="0" role="group" aria-labelledby="overview-deals">
+      <table class="table">
+        <thead>
           <tr>
-            <td>{{ deal.name }}</td>
-            <td>{{ t.discountTypes[deal.discountType] ?? deal.discountType }}: {{ deal.discountValue }}</td>
-            <td>{{ deal.startDate | ptDate }}</td>
-            <td>{{ deal.endDate | ptDate }}</td>
+            <th>{{ t.name }}</th>
+            <th>{{ t.discount }}</th>
+            <th>{{ t.start }}</th>
+            <th>{{ t.end }}</th>
           </tr>
-        }
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          @for (deal of deals.data(); track deal.id) {
+            <tr>
+              <td>{{ deal.name }}</td>
+              <td>{{ t.discountTypes[deal.discountType] ?? deal.discountType }}: {{ deal.discountValue }}</td>
+              <td>{{ deal.startDate | ptDate }}</td>
+              <td>{{ deal.endDate | ptDate }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </section>
 
 <section class="card">
-  <h3>{{ t.auditTitle }}</h3>
+  <h2 id="overview-audit">{{ t.auditTitle }}</h2>
   <app-load-state [state]="auditLog" [emptyText]="t.noAudit" />
   @if (auditLog.data().length) {
-    <table class="table">
-      <thead>
-        <tr>
-          <th>{{ t.timestamp }}</th>
-          <th>{{ t.action }}</th>
-          <th>{{ t.entity }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (entry of auditLog.data(); track entry.id) {
+    <div class="table-wrap" tabindex="0" role="group" aria-labelledby="overview-audit">
+      <table class="table">
+        <thead>
           <tr>
-            <td>{{ entry.timestamp | ptDate }}</td>
-            <td>{{ entry.action }}</td>
-            <td>{{ entry.entityName }}</td>
+            <th>{{ t.timestamp }}</th>
+            <th>{{ t.action }}</th>
+            <th>{{ t.entity }}</th>
           </tr>
-        }
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          @for (entry of auditLog.data(); track entry.id) {
+            <tr>
+              <td>{{ entry.timestamp | ptDate }}</td>
+              <td>{{ entry.action }}</td>
+              <td>{{ entry.entityName }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </section>
 </div>

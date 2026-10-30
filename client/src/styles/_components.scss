@@ -207,6 +207,19 @@
   &--success { border-color: var(--color-success); background: #e4f4ea; color: #0f4a2b; }
 }
 
+// A wide table sits in its own scroll container (MRV-8.4): the card and the page keep the viewport's width and the table scrolls
+// sideways inside this box. Long words in cells break at a space or, failing that, anywhere (a cell never widens the page).
+.table-wrap {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin-bottom: var(--space-2);
+}
+
+// Row actions side by side keep a gap (a table cell cannot be a flex box).
+.table td > .btn + .btn { margin-inline-start: var(--space-1); }
+
 // Data screens (portals): tables, toolbars and small status badges.
 .table {
   width: 100%;
@@ -219,6 +232,7 @@
     text-align: left;
     border-bottom: 1px solid var(--color-border, #dde1ea);
     vertical-align: middle;
+    overflow-wrap: break-word;
   }
 
   th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -235,6 +249,9 @@
   // Fields in a toolbar are fluid columns (MRV-8.3): each wants 14rem and grows to share the row, and takes the whole row once
   // the row cannot hold two. So fields that stack are always one width, and fields that share a row split it evenly.
   .field { flex: 1 1 min(100%, 14rem); min-width: 0; margin-bottom: 0; }
+
+  // A card header (title + action) shrinks its title and breaks a long word rather than spill (MRV-8.4).
+  > :is(h1, h2, h3) { min-width: 0; }
 }
 
 .stack > * + * { margin-top: var(--space-3); }
@@ -263,13 +280,23 @@
 
 .btn--small { padding: 0.3rem 0.9rem; font-size: 0.9rem; }
 
-// Sub-page navigation inside a portal (e.g. the admin area).
+// Sub-page navigation inside a portal (e.g. the admin area). One row inside its own box: tabs never wrap or shrink, and when
+// they do not fit the strip scrolls sideways (MRV-8.4). The strip clips its box, so the focus ring is drawn inside each tab.
 .tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--space-1);
+  min-width: 0;
+  overflow-x: auto;
+  margin-bottom: var(--space-3); // the routed page below is an inline host: no stack margin reaches it
+  scrollbar-width: thin;
 
   a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: none;
+    white-space: nowrap;
     padding: 0.4rem 1rem;
     border-radius: var(--radius-pill);
     border: 2px solid var(--color-navy-900);
@@ -279,6 +306,7 @@
 
     &:hover,
     &.is-active { background: var(--color-navy-900); color: var(--color-text-inverse); }
+    &:focus-visible { box-shadow: inset var(--focus-ring); }
   }
 }
 
@@ -391,12 +419,20 @@
 
 // A button or chip label stays on one line (MRV-8.2). On the public pages, below 40em, a label may still wrap rather than push
 // its card or the page wider (a narrow phone, or text enlarged to 200%); the labels there fit one line at 320 px at normal size.
-// The portals keep nowrap until their own slices (8.4, 8.5). .btn--wrap lets a label too long for any phone (the closing banner
+// The portals keep nowrap until their own slices (8.5 for the employee and client portals; the admin pages follow below).
+// .btn--wrap lets a label too long for any phone (the closing banner
 // call to action) wrap at every width.
 .btn:not(.btn--wrap), .chip { white-space: nowrap; }
 @media (max-width: 39.99em) {
   :is(app-header, app-footer, app-privacy-notice, app-home, app-storefront, app-contact, app-privacy, app-login, app-register) {
     .btn:not(.btn--wrap), .chip { white-space: normal; }
+  }
+}
+// The admin pages (MRV-8.4) join them for form and toolbar buttons only (a long label is wider than a 320 px card at 200% text).
+// Buttons in table cells never wrap (row actions, AC-8: the table scrolls); the tab strip (app-admin-shell, unlisted) scrolls.
+@media (max-width: 39.99em) {
+  :is(app-admin-portal, app-admin-inbox, app-admin-catalog, app-admin-pricing, app-admin-operations, app-admin-customers, app-admin-import, app-admin-audit) {
+    .btn:not(.btn--wrap):not(td *), .chip:not(td *) { white-space: normal; }
   }
 }
 

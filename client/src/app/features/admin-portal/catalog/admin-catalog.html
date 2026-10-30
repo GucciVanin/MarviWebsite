@@ -4,40 +4,42 @@
     <app-load-state [state]="categories" [emptyText]="t.noCategories" />
     <app-error-alert [error]="categoryDelete.action.error()" />
     @if (categories.data().length) {
-      <table class="table" data-testid="categories">
-        <thead>
-          <tr>
-            <th>{{ t.name }}</th>
-            <th class="num">{{ t.order }}</th>
-            <th class="num">{{ t.productsCount }}</th>
-            <th>{{ t.status }}</th>
-            <th>{{ t.actions }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (category of categories.data(); track category.id) {
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="categories-title">
+        <table class="table" data-testid="categories">
+          <thead>
             <tr>
-              <td>{{ category.name }}</td>
-              <td class="num">{{ category.sortOrder }}</td>
-              <td class="num">{{ category.productCount }}</td>
-              <td>
-                <span class="badge" [class.badge--ok]="category.isActive" [class.badge--warn]="!category.isActive">
-                  {{ category.isActive ? t.active : t.inactive }}
-                </span>
-              </td>
-              <td>
-                @if (categoryDelete.confirming() === category.id) {
-                  <button type="button" class="btn btn--primary btn--small" (click)="deleteCategory(category.id)">{{ t.confirmDelete }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="categoryDelete.cancel()">{{ t.cancel }}</button>
-                } @else {
-                  <button type="button" class="btn btn--outline btn--small" (click)="editCategory(category)">{{ t.edit }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="askDeleteCategory(category.id)">{{ t.delete }}</button>
-                }
-              </td>
+              <th>{{ t.name }}</th>
+              <th class="num">{{ t.order }}</th>
+              <th class="num">{{ t.productsCount }}</th>
+              <th>{{ t.status }}</th>
+              <th>{{ t.actions }}</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (category of categories.data(); track category.id) {
+              <tr>
+                <td>{{ category.name }}</td>
+                <td class="num">{{ category.sortOrder }}</td>
+                <td class="num">{{ category.productCount }}</td>
+                <td>
+                  <span class="badge" [class.badge--ok]="category.isActive" [class.badge--warn]="!category.isActive">
+                    {{ category.isActive ? t.active : t.inactive }}
+                  </span>
+                </td>
+                <td>
+                  @if (categoryDelete.confirming() === category.id) {
+                    <button type="button" class="btn btn--primary btn--small" (click)="deleteCategory(category.id)">{{ t.confirmDelete }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="categoryDelete.cancel()">{{ t.cancel }}</button>
+                  } @else {
+                    <button type="button" class="btn btn--outline btn--small" (click)="editCategory(category)">{{ t.edit }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="askDeleteCategory(category.id)">{{ t.delete }}</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
 
     <form data-testid="category-form" (ngSubmit)="saveCategory()">
@@ -77,40 +79,42 @@
     <app-load-state [state]="products" [emptyText]="t.noProducts" />
     <app-error-alert [error]="productDelete.action.error()" />
     @if (products.data().length) {
-      <table class="table" data-testid="products">
-        <thead>
-          <tr>
-            <th>{{ t.sku }}</th>
-            <th>{{ t.name }}</th>
-            <th>{{ t.category }}</th>
-            <th>{{ t.status }}</th>
-            <th>{{ t.actions }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (product of products.data(); track product.id) {
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="products-title">
+        <table class="table" data-testid="products">
+          <thead>
             <tr>
-              <td>{{ product.sku }}</td>
-              <td>{{ product.name }}</td>
-              <td>{{ categoryNameOf(product.categoryId) }}</td>
-              <td>
-                <span class="badge" [class.badge--ok]="product.isActive" [class.badge--warn]="!product.isActive">
-                  {{ product.isActive ? t.productActiveBadge : t.productInactiveBadge }}
-                </span>
-              </td>
-              <td>
-                @if (productDelete.confirming() === product.id) {
-                  <button type="button" class="btn btn--primary btn--small" (click)="deleteProduct(product.id)">{{ t.confirmDelete }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="productDelete.cancel()">{{ t.cancel }}</button>
-                } @else {
-                  <button type="button" class="btn btn--outline btn--small" (click)="editProduct(product)">{{ t.edit }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="askDeleteProduct(product.id)">{{ t.delete }}</button>
-                }
-              </td>
+              <th>{{ t.sku }}</th>
+              <th>{{ t.name }}</th>
+              <th>{{ t.category }}</th>
+              <th>{{ t.status }}</th>
+              <th>{{ t.actions }}</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (product of products.data(); track product.id) {
+              <tr>
+                <td>{{ product.sku }}</td>
+                <td>{{ product.name }}</td>
+                <td>{{ categoryNameOf(product.categoryId) }}</td>
+                <td>
+                  <span class="badge" [class.badge--ok]="product.isActive" [class.badge--warn]="!product.isActive">
+                    {{ product.isActive ? t.productActiveBadge : t.productInactiveBadge }}
+                  </span>
+                </td>
+                <td>
+                  @if (productDelete.confirming() === product.id) {
+                    <button type="button" class="btn btn--primary btn--small" (click)="deleteProduct(product.id)">{{ t.confirmDelete }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="productDelete.cancel()">{{ t.cancel }}</button>
+                  } @else {
+                    <button type="button" class="btn btn--outline btn--small" (click)="editProduct(product)">{{ t.edit }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="askDeleteProduct(product.id)">{{ t.delete }}</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
 
     <form data-testid="product-form" (ngSubmit)="saveProduct()">

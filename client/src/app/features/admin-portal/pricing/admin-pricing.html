@@ -5,29 +5,31 @@
     <app-load-state [state]="tiers" [emptyText]="t.noTiers" />
     <app-error-alert [error]="tierListAction.error()" />
     @if (tiers.data().length) {
-      <table class="table" data-testid="tiers">
-        <thead>
-          <tr>
-            <th>{{ t.tierName }}</th>
-            <th></th>
-            <th>{{ t.actions }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (tier of tiers.data(); track tier.id) {
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="tiers-title">
+        <table class="table" data-testid="tiers">
+          <thead>
             <tr>
-              <td>{{ tier.name }}</td>
-              <td>@if (tier.isDefault) { <span class="badge badge--ok">{{ t.defaultBadge }}</span> }</td>
-              <td>
-                <button type="button" class="btn btn--outline btn--small" (click)="editTier(tier)">{{ t.edit }}</button>
-                @if (!tier.isDefault) {
-                  <button type="button" class="btn btn--outline btn--small" [disabled]="tierListAction.busy()" (click)="makeDefault(tier)">{{ t.makeDefault }}</button>
-                }
-              </td>
+              <th>{{ t.tierName }}</th>
+              <th><span class="visually-hidden">{{ t.defaultBadge }}</span></th>
+              <th>{{ t.actions }}</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (tier of tiers.data(); track tier.id) {
+              <tr>
+                <td>{{ tier.name }}</td>
+                <td>@if (tier.isDefault) { <span class="badge badge--ok">{{ t.defaultBadge }}</span> }</td>
+                <td>
+                  <button type="button" class="btn btn--outline btn--small" (click)="editTier(tier)">{{ t.edit }}</button>
+                  @if (!tier.isDefault) {
+                    <button type="button" class="btn btn--outline btn--small" [disabled]="tierListAction.busy()" (click)="makeDefault(tier)">{{ t.makeDefault }}</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
 
     <form data-testid="tier-form" (ngSubmit)="saveTier()">
@@ -77,34 +79,36 @@
       <app-load-state [state]="prices" [emptyText]="t.noPrices" />
       <app-error-alert [error]="priceDelete.action.error()" />
       @if (prices.data().length) {
-        <table class="table" data-testid="prices">
-          <thead>
-            <tr>
-              <th>{{ t.tier }}</th>
-              <th class="num">{{ t.minQty }}</th>
-              <th class="num">{{ t.unitPrice }}</th>
-              <th>{{ t.actions }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (price of prices.data(); track priceKey(price)) {
+        <div class="table-wrap" tabindex="0" role="group" aria-labelledby="prices-title">
+          <table class="table" data-testid="prices">
+            <thead>
               <tr>
-                <td>{{ price.pricingTierName }}</td>
-                <td class="num">{{ price.minQty }}</td>
-                <td class="num">{{ price.unitPrice | brl }}</td>
-                <td>
-                  @if (priceDelete.confirming() === priceKey(price)) {
-                    <button type="button" class="btn btn--primary btn--small" (click)="removePrice(price)">{{ t.confirmRemove }}</button>
-                    <button type="button" class="btn btn--outline btn--small" (click)="priceDelete.cancel()">{{ t.cancel }}</button>
-                  } @else {
-                    <button type="button" class="btn btn--outline btn--small" (click)="editPrice(price)">{{ t.edit }}</button>
-                    <button type="button" class="btn btn--outline btn--small" (click)="askRemovePrice(price)">{{ t.remove }}</button>
-                  }
-                </td>
+                <th>{{ t.tier }}</th>
+                <th class="num">{{ t.minQty }}</th>
+                <th class="num">{{ t.unitPrice }}</th>
+                <th>{{ t.actions }}</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (price of prices.data(); track priceKey(price)) {
+                <tr>
+                  <td>{{ price.pricingTierName }}</td>
+                  <td class="num">{{ price.minQty }}</td>
+                  <td class="num">{{ price.unitPrice | brl }}</td>
+                  <td>
+                    @if (priceDelete.confirming() === priceKey(price)) {
+                      <button type="button" class="btn btn--primary btn--small" (click)="removePrice(price)">{{ t.confirmRemove }}</button>
+                      <button type="button" class="btn btn--outline btn--small" (click)="priceDelete.cancel()">{{ t.cancel }}</button>
+                    } @else {
+                      <button type="button" class="btn btn--outline btn--small" (click)="editPrice(price)">{{ t.edit }}</button>
+                      <button type="button" class="btn btn--outline btn--small" (click)="askRemovePrice(price)">{{ t.remove }}</button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
 
       <form data-testid="price-form" (ngSubmit)="savePrice()">
