@@ -1,0 +1,1 @@
+Slice 8.4 of MRV-8 (spec docs/specs/MRV-8.0-layout-box-model.md, issue #49): admin portal layout integrity. Drive the admin-portal group of the layout audit (157 violations after 8.3) to 0 at all eight widths: shell/nav, tables, dashboards, inbox, catalog, pricing, import, audit log, customers, operations.
