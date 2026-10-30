@@ -274,6 +274,9 @@
   background: #eaeefb;
   color: var(--color-navy-900);
   line-height: 1.5;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 
   > app-icon { font-size: 1.1em; }
 

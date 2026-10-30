@@ -1,6 +1,6 @@
 <div class="container page stack">
   <header class="toolbar">
-    <a class="btn btn--outline btn--small" routerLink="/employee">{{ t.back }}</a>
+    <a class="btn btn--outline btn--small btn--wrap" routerLink="/employee">{{ t.back }}</a>
   </header>
 
   @if (missing()) {
@@ -58,7 +58,7 @@
 
         @if (customer.status === 'Approved') {
           <div>
-            <a class="btn btn--primary" routerLink="/employee" [queryParams]="{ cliente: (customer.customerNumber | customerNumber) }">{{ t.startOrder }}</a>
+            <a class="btn btn--primary btn--wrap" routerLink="/employee" [queryParams]="{ cliente: (customer.customerNumber | customerNumber) }">{{ t.startOrder }}</a>
           </div>
         } @else {
           <p class="alert alert--error" role="alert">{{ t.notEligible }}</p>
