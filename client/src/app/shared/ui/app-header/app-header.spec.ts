@@ -32,6 +32,14 @@ describe('AppHeader', () => {
     ]);
   });
 
+  // MRV-8.2: jsdom cannot lay the header out; the layout audit (test/layout) measures it. These pin what the audit relies on.
+  it('marks the brand as a logo lockup (judged per text run by the layout audit) and links it home', () => {
+    const brand = render().querySelector('a.brand')!;
+
+    expect(brand.hasAttribute('data-lockup')).toBe(true);
+    expect(brand.getAttribute('href')).toBe('/');
+  });
+
   it('offers login and registration when signed out', () => {
     const text = render().textContent ?? '';
     expect(text).toContain('Entrar');

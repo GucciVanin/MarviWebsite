@@ -1,0 +1,1 @@
+Slice 8.3 of MRV-8 (spec docs/specs/MRV-8.0-layout-box-model.md, issue #48): forms and field alignment everywhere. Shared form primitives and every form/filter bar/toolbar so label and field blocks share edges and widths, same-row fields share top and height, and the form-* and card-height rules are 0 across the whole audit.

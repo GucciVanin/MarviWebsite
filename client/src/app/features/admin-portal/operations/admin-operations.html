@@ -5,36 +5,38 @@
     <app-load-state [state]="warehouses" [emptyText]="t.noWarehouses" />
     <app-error-alert [error]="warehouseDelete.action.error()" />
     @if (warehouses.data().length) {
-      <table class="table" data-testid="warehouses">
-        <thead>
-          <tr>
-            <th>{{ t.name }}</th>
-            <th>{{ t.address }}</th>
-            <th class="num">{{ t.latitude }}</th>
-            <th class="num">{{ t.longitude }}</th>
-            <th>{{ t.actions }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (warehouse of warehouses.data(); track warehouse.id) {
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="warehouses-title">
+        <table class="table" data-testid="warehouses">
+          <thead>
             <tr>
-              <td>{{ warehouse.name }}</td>
-              <td>{{ warehouse.address }}</td>
-              <td class="num">{{ warehouse.latitude }}</td>
-              <td class="num">{{ warehouse.longitude }}</td>
-              <td>
-                @if (warehouseDelete.confirming() === warehouse.id) {
-                  <button type="button" class="btn btn--primary btn--small" (click)="deleteWarehouse(warehouse.id)">{{ t.confirmDelete }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="warehouseDelete.cancel()">{{ t.cancel }}</button>
-                } @else {
-                  <button type="button" class="btn btn--outline btn--small" (click)="editWarehouse(warehouse)">{{ t.edit }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="warehouseDelete.ask(warehouse.id)">{{ t.delete }}</button>
-                }
-              </td>
+              <th>{{ t.name }}</th>
+              <th>{{ t.address }}</th>
+              <th class="num">{{ t.latitude }}</th>
+              <th class="num">{{ t.longitude }}</th>
+              <th>{{ t.actions }}</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (warehouse of warehouses.data(); track warehouse.id) {
+              <tr>
+                <td>{{ warehouse.name }}</td>
+                <td>{{ warehouse.address }}</td>
+                <td class="num">{{ warehouse.latitude }}</td>
+                <td class="num">{{ warehouse.longitude }}</td>
+                <td>
+                  @if (warehouseDelete.confirming() === warehouse.id) {
+                    <button type="button" class="btn btn--primary btn--small" (click)="deleteWarehouse(warehouse.id)">{{ t.confirmDelete }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="warehouseDelete.cancel()">{{ t.cancel }}</button>
+                  } @else {
+                    <button type="button" class="btn btn--outline btn--small" (click)="editWarehouse(warehouse)">{{ t.edit }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="warehouseDelete.ask(warehouse.id)">{{ t.delete }}</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
 
     <form data-testid="warehouse-form" (ngSubmit)="saveWarehouse()">
@@ -77,39 +79,41 @@
     <app-load-state [state]="areas" [emptyText]="t.noAreas" />
     <app-error-alert [error]="areaDelete.action.error()" />
     @if (areas.data().length) {
-      <table class="table" data-testid="areas">
-        <thead>
-          <tr>
-            <th>{{ t.warehouse }}</th>
-            <th>{{ t.areaType }}</th>
-            <th class="num">{{ t.radius }}</th>
-            <th>{{ t.actions }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (area of areas.data(); track area.id) {
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="areas-title">
+        <table class="table" data-testid="areas">
+          <thead>
             <tr>
-              <td>{{ warehouseNameOf(area.warehouseId) }}</td>
-              <td>
-                {{ area.type === 'Radius' ? t.radiusType : t.polygonType }}
-                @if (area.type === 'Polygon') {
-                  <span class="badge badge--warn">{{ t.polygonNotUsed }}</span>
-                }
-              </td>
-              <td class="num">{{ area.radiusMiles ?? '—' }}</td>
-              <td>
-                @if (areaDelete.confirming() === area.id) {
-                  <button type="button" class="btn btn--primary btn--small" (click)="deleteArea(area.id)">{{ t.confirmDelete }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="areaDelete.cancel()">{{ t.cancel }}</button>
-                } @else {
-                  <button type="button" class="btn btn--outline btn--small" (click)="editArea(area)">{{ t.edit }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="areaDelete.ask(area.id)">{{ t.delete }}</button>
-                }
-              </td>
+              <th>{{ t.warehouse }}</th>
+              <th>{{ t.areaType }}</th>
+              <th class="num">{{ t.radius }}</th>
+              <th>{{ t.actions }}</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (area of areas.data(); track area.id) {
+              <tr>
+                <td>{{ warehouseNameOf(area.warehouseId) }}</td>
+                <td>
+                  {{ area.type === 'Radius' ? t.radiusType : t.polygonType }}
+                  @if (area.type === 'Polygon') {
+                    <span class="badge badge--warn">{{ t.polygonNotUsed }}</span>
+                  }
+                </td>
+                <td class="num">{{ area.radiusMiles ?? '—' }}</td>
+                <td>
+                  @if (areaDelete.confirming() === area.id) {
+                    <button type="button" class="btn btn--primary btn--small" (click)="deleteArea(area.id)">{{ t.confirmDelete }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="areaDelete.cancel()">{{ t.cancel }}</button>
+                  } @else {
+                    <button type="button" class="btn btn--outline btn--small" (click)="editArea(area)">{{ t.edit }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="areaDelete.ask(area.id)">{{ t.delete }}</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
 
     <form data-testid="area-form" (ngSubmit)="saveArea()">
@@ -164,30 +168,32 @@
     <h2 id="stock-title">{{ t.stockTitle }}</h2>
     <app-load-state [state]="stock" [emptyText]="t.noStock" />
     @if (stock.data().length) {
-      <table class="table" data-testid="stock">
-        <thead>
-          <tr>
-            <th>{{ t.product }}</th>
-            <th>{{ t.warehouse }}</th>
-            <th class="num">{{ t.onHand }}</th>
-            <th class="num">{{ t.reserved }}</th>
-            <th class="num">{{ t.reorderPoint }}</th>
-            <th>{{ t.actions }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (record of stock.data(); track record.id) {
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="stock-title">
+        <table class="table" data-testid="stock">
+          <thead>
             <tr>
-              <td>{{ record.productName }}</td>
-              <td>{{ warehouseNameOf(record.warehouseId) }}</td>
-              <td class="num">{{ record.qtyOnHand }}</td>
-              <td class="num">{{ record.qtyReserved }}</td>
-              <td class="num">{{ record.reorderPoint }}</td>
-              <td><button type="button" class="btn btn--outline btn--small" (click)="editStock(record)">{{ t.adjust }}</button></td>
+              <th>{{ t.product }}</th>
+              <th>{{ t.warehouse }}</th>
+              <th class="num">{{ t.onHand }}</th>
+              <th class="num">{{ t.reserved }}</th>
+              <th class="num">{{ t.reorderPoint }}</th>
+              <th>{{ t.actions }}</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (record of stock.data(); track record.id) {
+              <tr>
+                <td>{{ record.productName }}</td>
+                <td>{{ warehouseNameOf(record.warehouseId) }}</td>
+                <td class="num">{{ record.qtyOnHand }}</td>
+                <td class="num">{{ record.qtyReserved }}</td>
+                <td class="num">{{ record.reorderPoint }}</td>
+                <td><button type="button" class="btn btn--outline btn--small" (click)="editStock(record)">{{ t.adjust }}</button></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
 
     <form data-testid="stock-form" (ngSubmit)="saveStock()">

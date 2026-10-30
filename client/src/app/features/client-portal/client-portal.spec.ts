@@ -415,6 +415,27 @@ describe('ClientPortal', () => {
     expect(card.textContent).toContain('1.234,50');
   });
 
+  it('keeps each table in its own scroll box, focusable and named by its card (MRV-8.5)', async () => {
+    const { root, settle } = setup({
+      quotes: [quote('q1', 'Priced', [line('Cola 2L', 6, 12.5, 11)])],
+      orders: [{ id: 'o1', clientAccountId: 'c1', quoteId: 'q1', status: 'Fulfilled', deliveryAddress: 'Rua A, 10', warehouseId: null, placedByEmployeeId: null, placedAt: '2026-10-14T13:42:00Z', totalAmount: 10,
+        lineItems: [{ id: 'ol1', productId: 'p1', productName: 'Cola 2L', qty: 1, unitPrice: 10 }] }],
+    });
+    await settle();
+
+    const tables = Array.from(root.querySelectorAll('table'));
+    expect(tables.length).toBe(2);
+    for (const table of tables) {
+      const wrap = table.parentElement as HTMLElement;
+      expect(wrap.classList.contains('table-wrap')).toBe(true);
+      expect(wrap.getAttribute('tabindex')).toBe('0');
+      expect(wrap.getAttribute('role')).toBe('group');
+      expect(root.querySelector('#' + wrap.getAttribute('aria-labelledby'))).not.toBeNull();
+    }
+    // Two different cards, two different names (a unique id each).
+    expect(new Set(tables.map((t) => t.parentElement!.getAttribute('aria-labelledby'))).size).toBe(2);
+  });
+
   it('says so when there are no orders yet', async () => {
     const { root, settle } = setup();
     await settle();

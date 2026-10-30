@@ -40,11 +40,20 @@
   --radius-lg: 24px;
 
   --scroll-offset: 5.5rem; // sticky header height plus a little air: anchors land below it
+  // Spacing scale (MRV-8.1): every gap, padding and margin on a layout box comes from here.
+  --space-0: 0.25rem;
   --space-1: 0.5rem;
   --space-2: 1rem;
   --space-3: 1.5rem;
   --space-4: 2rem;
   --space-5: 3rem;
+  --space-6: 4rem;
+  // Container widths and the page gutter (MRV-8.1): .container is min(100% - 2 gutters, --container-max).
+  --container-narrow: 40rem;
+  --container-default: 56rem;
+  --container-max: 72rem;
+  --gutter: min(1rem, 5vw); // 1rem, but never more than 5% of the width, so enlarged text does not eat a phone screen
+  --grid-min: 15rem; // default minimum column width of .grid-auto
   --section-padding: clamp(3rem, 8vw, 6rem);
 
   --motion-fast: 150ms;
@@ -74,6 +83,7 @@
   --gradient-hero: radial-gradient(60% 90% at 85% 20%, rgba(245, 183, 0, 0.22), transparent 70%), radial-gradient(50% 70% at 10% 100%, rgba(31, 63, 168, 0.55), transparent 70%), linear-gradient(125deg, #070d24 0%, var(--color-navy-900) 40%, var(--color-navy-700) 100%);
   --product-card-min: 17rem; // real and skeleton product cards share it so the swap shifts nothing
   --tap-min: 2.75rem; // 44px minimum touch target
+  --field-height: 3rem; // every single-line input and select (a row of fields lines up)
   --focus-ring: 0 0 0 3px rgba(245, 183, 0, 0.55);
 }
 

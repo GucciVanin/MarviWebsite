@@ -20,69 +20,71 @@
     <app-error-alert [error]="saveAction.error()" />
 
     @if (customers.data().items.length) {
-      <table class="table" data-testid="customers">
-        <thead>
-          <tr>
-            <th>{{ t.company }}</th>
-            <th>{{ t.status }}</th>
-            <th>{{ t.tier }}</th>
-            <th>{{ t.since }}</th>
-            <th>{{ t.actions }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (customer of customers.data().items; track customer.id) {
-            <tr data-testid="customer">
-              <td>{{ customer.companyName }}</td>
-              <td>
-                <span class="badge" [class.badge--ok]="customer.status === 'Approved'" [class.badge--bad]="customer.status !== 'Approved'">
-                  {{ portal.clientStatus[customer.status] ?? customer.status }}
-                </span>
-              </td>
-              <td>{{ customer.pricingTierName ?? '—' }}</td>
-              <td>{{ customer.createdAt | ptDate }}</td>
-              <td>
-                @if (confirmingSuspendId() === customer.id) {
-                  <button type="button" class="btn btn--primary btn--small" [disabled]="saveAction.busy()" (click)="suspend(customer)">{{ t.confirmSuspend }}</button>
-                  <button type="button" class="btn btn--outline btn--small" (click)="confirmingSuspendId.set(null)">{{ t.cancel }}</button>
-                } @else {
-                  <button type="button" class="btn btn--outline btn--small" (click)="edit(customer)">{{ t.edit }}</button>
-                  @if (customer.status === 'Approved') {
-                    <button type="button" class="btn btn--outline btn--small" (click)="askToSuspend(customer)">{{ t.suspend }}</button>
-                  } @else {
-                    <button type="button" class="btn btn--outline btn--small" [disabled]="saveAction.busy()" (click)="askToApprove(customer)">{{ t.approve }}</button>
-                  }
-                }
-              </td>
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="customers-title">
+        <table class="table" data-testid="customers">
+          <thead>
+            <tr>
+              <th>{{ t.company }}</th>
+              <th>{{ t.status }}</th>
+              <th>{{ t.tier }}</th>
+              <th>{{ t.since }}</th>
+              <th>{{ t.actions }}</th>
             </tr>
-            @if (approvingId() === customer.id) {
-              <tr data-testid="customer-approval">
-                <td colspan="5">
-                  <app-approval-form [tiers]="tiers.data()" [suggestedTierId]="suggestedTierId()" [busy]="saveAction.busy()" (confirmed)="approve(customer, $event)" (cancelled)="cancelApproval()" />
+          </thead>
+          <tbody>
+            @for (customer of customers.data().items; track customer.id) {
+              <tr data-testid="customer">
+                <td>{{ customer.companyName }}</td>
+                <td>
+                  <span class="badge" [class.badge--ok]="customer.status === 'Approved'" [class.badge--bad]="customer.status !== 'Approved'">
+                    {{ portal.clientStatus[customer.status] ?? customer.status }}
+                  </span>
+                </td>
+                <td>{{ customer.pricingTierName ?? '—' }}</td>
+                <td>{{ customer.createdAt | ptDate }}</td>
+                <td>
+                  @if (confirmingSuspendId() === customer.id) {
+                    <button type="button" class="btn btn--primary btn--small" [disabled]="saveAction.busy()" (click)="suspend(customer)">{{ t.confirmSuspend }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="confirmingSuspendId.set(null)">{{ t.cancel }}</button>
+                  } @else {
+                    <button type="button" class="btn btn--outline btn--small" (click)="edit(customer)">{{ t.edit }}</button>
+                    @if (customer.status === 'Approved') {
+                      <button type="button" class="btn btn--outline btn--small" (click)="askToSuspend(customer)">{{ t.suspend }}</button>
+                    } @else {
+                      <button type="button" class="btn btn--outline btn--small" [disabled]="saveAction.busy()" (click)="askToApprove(customer)">{{ t.approve }}</button>
+                    }
+                  }
                 </td>
               </tr>
+              @if (approvingId() === customer.id) {
+                <tr data-testid="customer-approval">
+                  <td colspan="5">
+                    <app-approval-form [tiers]="tiers.data()" [suggestedTierId]="suggestedTierId()" [busy]="saveAction.busy()" (confirmed)="approve(customer, $event)" (cancelled)="cancelApproval()" />
+                  </td>
+                </tr>
+              }
+              @if (editingId() === customer.id) {
+                <tr data-testid="customer-editor">
+                  <td colspan="5">
+                    <form class="toolbar" (ngSubmit)="save(customer)">
+                      <div class="field">
+                        <label for="customer-tier">{{ t.tier }}</label>
+                        <select id="customer-tier" name="tier" [ngModel]="editTierId()" (ngModelChange)="editTierId.set($event)">
+                          @for (tier of tiers.data(); track tier.id) {
+                            <option [value]="tier.id">{{ tier.name }}</option>
+                          }
+                        </select>
+                      </div>
+                      <button type="submit" class="btn btn--primary btn--small" [disabled]="!canSave()">{{ t.save }}</button>
+                      <button type="button" class="btn btn--outline btn--small" (click)="stopEditing()">{{ t.cancel }}</button>
+                    </form>
+                  </td>
+                </tr>
+              }
             }
-            @if (editingId() === customer.id) {
-              <tr data-testid="customer-editor">
-                <td colspan="5">
-                  <form class="toolbar" (ngSubmit)="save(customer)">
-                    <div class="field">
-                      <label for="customer-tier">{{ t.tier }}</label>
-                      <select id="customer-tier" name="tier" [ngModel]="editTierId()" (ngModelChange)="editTierId.set($event)">
-                        @for (tier of tiers.data(); track tier.id) {
-                          <option [value]="tier.id">{{ tier.name }}</option>
-                        }
-                      </select>
-                    </div>
-                    <button type="submit" class="btn btn--primary btn--small" [disabled]="!canSave()">{{ t.save }}</button>
-                    <button type="button" class="btn btn--outline btn--small" (click)="stopEditing()">{{ t.cancel }}</button>
-                  </form>
-                </td>
-              </tr>
-            }
-          }
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
       @if (customers.data().totalCount > customers.data().items.length) {
         <p class="muted">{{ portal.showing }} {{ customers.data().items.length }} {{ portal.of }} {{ customers.data().totalCount }}. {{ portal.refineSearch }}</p>
       }

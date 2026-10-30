@@ -29,40 +29,42 @@
       @if (waitingCustomers().length === 0) {
         <p class="muted">{{ t.noCustomers }}</p>
       } @else {
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ t.company }}</th>
-              <th>{{ t.waitingSince }}</th>
-              <th>{{ t.actions }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (customer of waitingCustomers(); track customer.id) {
-              <tr data-testid="pending-customer">
-                <td>{{ customer.companyName }}</td>
-                <td>{{ customer.createdAt | ptDate }}</td>
-                <td>
-                  @if (confirmingSuspendId() === customer.id) {
-                    <button type="button" class="btn btn--primary btn--small" [disabled]="decide.busy()" (click)="suspend(customer.id)">{{ t.confirmSuspend }}</button>
-                    <button type="button" class="btn btn--outline btn--small" (click)="confirmingSuspendId.set(null)">{{ t.cancel }}</button>
-                  } @else {
-                    <button type="button" class="btn btn--primary btn--small" [disabled]="decide.busy()" (click)="askToApprove(customer.id)">{{ t.approve }}</button>
-                    <button type="button" class="btn btn--outline btn--small" [disabled]="decide.busy()" (click)="askToSuspend(customer.id)">{{ t.suspend }}</button>
-                  }
-                </td>
+        <div class="table-wrap" tabindex="0" role="group" aria-labelledby="inbox-customers">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t.company }}</th>
+                <th>{{ t.waitingSince }}</th>
+                <th>{{ t.actions }}</th>
               </tr>
-              @if (approvingId() === customer.id) {
-                <tr data-testid="pending-approval">
-                  <td colspan="3">
-                    <app-load-state [state]="tiers" />
-                    <app-approval-form [tiers]="tiers.data()" [busy]="decide.busy()" (confirmed)="approve(customer.id, $event)" (cancelled)="approvingId.set(null)" />
+            </thead>
+            <tbody>
+              @for (customer of waitingCustomers(); track customer.id) {
+                <tr data-testid="pending-customer">
+                  <td>{{ customer.companyName }}</td>
+                  <td>{{ customer.createdAt | ptDate }}</td>
+                  <td>
+                    @if (confirmingSuspendId() === customer.id) {
+                      <button type="button" class="btn btn--primary btn--small" [disabled]="decide.busy()" (click)="suspend(customer.id)">{{ t.confirmSuspend }}</button>
+                      <button type="button" class="btn btn--outline btn--small" (click)="confirmingSuspendId.set(null)">{{ t.cancel }}</button>
+                    } @else {
+                      <button type="button" class="btn btn--primary btn--small" [disabled]="decide.busy()" (click)="askToApprove(customer.id)">{{ t.approve }}</button>
+                      <button type="button" class="btn btn--outline btn--small" [disabled]="decide.busy()" (click)="askToSuspend(customer.id)">{{ t.suspend }}</button>
+                    }
                   </td>
                 </tr>
+                @if (approvingId() === customer.id) {
+                  <tr data-testid="pending-approval">
+                    <td colspan="3">
+                      <app-load-state [state]="tiers" />
+                      <app-approval-form [tiers]="tiers.data()" [busy]="decide.busy()" (confirmed)="approve(customer.id, $event)" (cancelled)="approvingId.set(null)" />
+                    </td>
+                  </tr>
+                }
               }
-            }
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
         @if (inbox.customers.count > inbox.customers.items.length) {
           <p class="muted">{{ t.showing }} {{ waitingCustomers().length }} {{ t.of }} {{ inbox.customers.count }}.</p>
         }
@@ -74,26 +76,28 @@
       @if (inbox.quotes.items.length === 0) {
         <p class="muted">{{ t.noQuotes }}</p>
       } @else {
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ t.company }}</th>
-              <th>{{ t.requestedOn }}</th>
-              <th>{{ t.lines }}</th>
-              <th>{{ t.actions }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (quote of inbox.quotes.items; track quote.id) {
-              <tr data-testid="pending-quote">
-                <td>{{ quote.companyName }}</td>
-                <td>{{ quote.createdAt | ptDate }}</td>
-                <td>{{ itemsText(quote.lineCount) }}</td>
-                <td><a class="btn btn--outline btn--small" routerLink="/employee">{{ t.priceQuote }}</a></td>
+        <div class="table-wrap" tabindex="0" role="group" aria-labelledby="inbox-quotes">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t.company }}</th>
+                <th>{{ t.requestedOn }}</th>
+                <th>{{ t.lines }}</th>
+                <th>{{ t.actions }}</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (quote of inbox.quotes.items; track quote.id) {
+                <tr data-testid="pending-quote">
+                  <td>{{ quote.companyName }}</td>
+                  <td>{{ quote.createdAt | ptDate }}</td>
+                  <td>{{ itemsText(quote.lineCount) }}</td>
+                  <td><a class="btn btn--outline btn--small" routerLink="/employee">{{ t.priceQuote }}</a></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
         @if (inbox.quotes.count > inbox.quotes.items.length) {
           <p class="muted">{{ t.showing }} {{ inbox.quotes.items.length }} {{ t.of }} {{ inbox.quotes.count }}.</p>
         }
@@ -105,28 +109,30 @@
       @if (inbox.lowStock.items.length === 0) {
         <p class="muted">{{ t.noStock }}</p>
       } @else {
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ t.product }}</th>
-              <th>{{ t.warehouse }}</th>
-              <th class="num">{{ t.available }}</th>
-              <th class="num">{{ t.reorderPoint }}</th>
-              <th>{{ t.actions }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (item of inbox.lowStock.items; track item.productId + item.warehouseId) {
-              <tr data-testid="pending-stock">
-                <td>{{ item.productName }} <span class="muted">({{ item.sku }})</span></td>
-                <td>{{ item.warehouseName }}</td>
-                <td class="num">{{ item.available }}</td>
-                <td class="num">{{ item.reorderPoint }}</td>
-                <td><a class="btn btn--outline btn--small" routerLink="/admin/operacao">{{ t.fixStock }}</a></td>
+        <div class="table-wrap" tabindex="0" role="group" aria-labelledby="inbox-stock">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t.product }}</th>
+                <th>{{ t.warehouse }}</th>
+                <th class="num">{{ t.available }}</th>
+                <th class="num">{{ t.reorderPoint }}</th>
+                <th>{{ t.actions }}</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (item of inbox.lowStock.items; track item.productId + item.warehouseId) {
+                <tr data-testid="pending-stock">
+                  <td>{{ item.productName }} <span class="muted">({{ item.sku }})</span></td>
+                  <td>{{ item.warehouseName }}</td>
+                  <td class="num">{{ item.available }}</td>
+                  <td class="num">{{ item.reorderPoint }}</td>
+                  <td><a class="btn btn--outline btn--small" routerLink="/admin/operacao">{{ t.fixStock }}</a></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
         @if (inbox.lowStock.count > inbox.lowStock.items.length) {
           <p class="muted">{{ t.showing }} {{ inbox.lowStock.items.length }} {{ t.of }} {{ inbox.lowStock.count }}.</p>
         }
@@ -139,22 +145,24 @@
       @if (inbox.unpricedProducts.items.length === 0) {
         <p class="muted">{{ t.noUnpriced }}</p>
       } @else {
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ t.product }}</th>
-              <th>{{ t.actions }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (product of inbox.unpricedProducts.items; track product.productId) {
-              <tr data-testid="pending-unpriced">
-                <td>{{ product.name }} <span class="muted">({{ product.sku }})</span></td>
-                <td><a class="btn btn--outline btn--small" routerLink="/admin/precos">{{ t.setPrice }}</a></td>
+        <div class="table-wrap" tabindex="0" role="group" aria-labelledby="inbox-unpriced">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t.product }}</th>
+                <th>{{ t.actions }}</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (product of inbox.unpricedProducts.items; track product.productId) {
+                <tr data-testid="pending-unpriced">
+                  <td>{{ product.name }} <span class="muted">({{ product.sku }})</span></td>
+                  <td><a class="btn btn--outline btn--small" routerLink="/admin/precos">{{ t.setPrice }}</a></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
         @if (inbox.unpricedProducts.count > inbox.unpricedProducts.items.length) {
           <p class="muted">{{ t.showing }} {{ inbox.unpricedProducts.items.length }} {{ t.of }} {{ inbox.unpricedProducts.count }}.</p>
         }
@@ -167,22 +175,24 @@
       @if (inbox.unstockedProducts.items.length === 0) {
         <p class="muted">{{ t.noUnstocked }}</p>
       } @else {
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ t.product }}</th>
-              <th>{{ t.actions }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (product of inbox.unstockedProducts.items; track product.productId) {
-              <tr data-testid="pending-unstocked">
-                <td>{{ product.name }} <span class="muted">({{ product.sku }})</span></td>
-                <td><a class="btn btn--outline btn--small" routerLink="/admin/operacao">{{ t.fixStock }}</a></td>
+        <div class="table-wrap" tabindex="0" role="group" aria-labelledby="inbox-unstocked">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t.product }}</th>
+                <th>{{ t.actions }}</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (product of inbox.unstockedProducts.items; track product.productId) {
+                <tr data-testid="pending-unstocked">
+                  <td>{{ product.name }} <span class="muted">({{ product.sku }})</span></td>
+                  <td><a class="btn btn--outline btn--small" routerLink="/admin/operacao">{{ t.fixStock }}</a></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
         @if (inbox.unstockedProducts.count > inbox.unstockedProducts.items.length) {
           <p class="muted">{{ t.showing }} {{ inbox.unstockedProducts.items.length }} {{ t.of }} {{ inbox.unstockedProducts.count }}.</p>
         }

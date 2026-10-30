@@ -13,11 +13,12 @@
     @for (quote of quoteQueue.data(); track quote.id) {
       <article class="card" data-testid="queue-quote">
         <header class="toolbar">
-          <strong>{{ t.customer }}: {{ quote.clientAccountId }}</strong>
+          <strong [id]="'queue-quote-' + quote.id">{{ t.customer }}: {{ quote.clientAccountId }}</strong>
           <span class="muted">{{ t.sentOn }} {{ quote.createdAt | ptDate }}</span>
           <button type="button" class="btn btn--outline btn--small" (click)="useCustomer(quote.clientAccountId)">{{ t.useCustomer }}</button>
         </header>
-        <table class="table">
+        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'queue-quote-' + quote.id">
+<table class="table">
           <thead>
             <tr>
               <th>{{ t.product }}</th>
@@ -46,6 +47,7 @@
             }
           </tbody>
         </table>
+</div>
         <button type="button" class="btn btn--primary" [disabled]="priceAction.busy()" (click)="sendPrices(quote)">{{ t.sendPrices }}</button>
         @if (pricedQuoteId() === quote.id) {
           @if (priceProblem(); as problem) {
@@ -109,16 +111,17 @@
           <h3>{{ t.newOrderTitle }}</h3>
           <app-product-picker (picked)="addOrderLine($event)" />
 
-          <h4>{{ t.orderItems }}</h4>
+          <h4 id="order-items-title">{{ t.orderItems }}</h4>
           @if (orderLines().length === 0) {
             <p class="muted">{{ t.orderItemsEmpty }}</p>
           } @else {
-            <table class="table" data-testid="order-basket">
+            <div class="table-wrap" tabindex="0" role="group" aria-labelledby="order-items-title">
+<table class="table" data-testid="order-basket">
               <thead>
                 <tr>
                   <th>{{ t.product }}</th>
                   <th>{{ t.quantity }}</th>
-                  <th></th>
+                  <th><span class="visually-hidden">{{ t.actions }}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -140,6 +143,7 @@
                 }
               </tbody>
             </table>
+</div>
           }
 
           <div class="field">
@@ -153,8 +157,9 @@
 
       @if (placedOrder(); as order) {
         <article class="card" data-testid="placed-order">
-          <p class="alert alert--success" role="status">{{ t.orderPlaced }}</p>
-          <table class="table">
+          <p id="placed-order-title" class="alert alert--success" role="status">{{ t.orderPlaced }}</p>
+          <div class="table-wrap" tabindex="0" role="group" aria-labelledby="placed-order-title">
+<table class="table">
             <thead>
               <tr>
                 <th>{{ t.product }}</th>
@@ -174,6 +179,7 @@
               }
             </tbody>
           </table>
+</div>
           <p><strong>{{ t.total }}: {{ order.totalAmount | brl }}</strong></p>
         </article>
       }
@@ -184,7 +190,8 @@
     <h2 id="inventory-title">{{ t.inventoryTitle }}</h2>
     <app-load-state [state]="inventory" [emptyText]="t.noInventory" />
     @if (inventory.data().length) {
-      <table class="table">
+      <div class="table-wrap" tabindex="0" role="group" aria-labelledby="inventory-title">
+<table class="table">
         <thead>
           <tr>
             <th>{{ t.product }}</th>
@@ -206,6 +213,7 @@
           }
         </tbody>
       </table>
+</div>
     }
   </section>
 </div>

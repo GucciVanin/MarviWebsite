@@ -263,6 +263,15 @@ describe('Home (landing page)', () => {
     expect(root.querySelector('.products .eyebrow')!.classList).not.toContain('eyebrow--inverse');
   });
 
+  // MRV-8.2: the long call to action cannot fit one line on a phone, so it is the one button allowed to wrap its text beside its icon.
+  it('lets the long closing-banner call to action wrap beside its icon, while the hero buttons stay on one line', async () => {
+    const { root, withApi } = render();
+    await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);
+
+    expect(root.querySelector('[data-testid="banner"] a[href="/register"]')!.classList).toContain('btn--wrap');
+    expect(root.querySelector('.hero__actions .btn')!.classList).not.toContain('btn--wrap');
+  });
+
   it('draws the closing banner shapes as decorative art and keeps the section anchors', async () => {
     const { fixture, root, withApi } = render();
     await withApi({ productCount: 1, categoryCount: 1, coverageAreaCount: 1 }, []);

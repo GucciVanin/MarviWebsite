@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { App } from './app';
+import { PrivacyNoticeState } from './shared/ui/privacy-notice/privacy-notice-state';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -26,6 +27,22 @@ describe('App', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement?.id).toBe('content');
+  });
+
+  // MRV-8.2: the fixed privacy notice must never leave the last footer links under it, so the shell pads itself by the
+  // notice's height while it shows and by nothing once it is dismissed. (Whether the links really clear it is the layout audit's job.)
+  it('pads the bottom of the shell by the privacy notice height, and by nothing once it is gone', () => {
+    const fixture = TestBed.createComponent(App);
+    const root = fixture.nativeElement as HTMLElement;
+    const state = TestBed.inject(PrivacyNoticeState);
+
+    state.height.set(96);
+    fixture.detectChanges();
+    expect(root.style.paddingBottom).toBe('96px');
+
+    state.height.set(0);
+    fixture.detectChanges();
+    expect(root.style.paddingBottom).toBe('0px');
   });
 
   // A jsdom spec cannot measure layout shift; this pins the structure the CLS fix relies on: the footer is a sibling

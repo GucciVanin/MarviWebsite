@@ -284,6 +284,8 @@ export const PT = {
     outOfStock: 'Sem estoque',
     priceOnRequest: 'Sob consulta',
     add: 'Adicionar',
+    catalogLabel: 'Catálogo de produtos',
+    actions: 'Ações',
   },
   employeeHistory: {
     title: 'Histórico',
@@ -326,6 +328,7 @@ export const PT = {
   },
   clientPortal: {
     title: 'Minha área',
+    actions: 'Ações',
     pendingNotice: 'Sua conta está aguardando a aprovação da Marvi. Assim que for aprovada, você poderá solicitar cotações e fazer pedidos. Enquanto isso, você pode manter seus dados atualizados abaixo.',
     suspendedNotice: 'Sua conta está suspensa. Entre em contato com a Marvi para voltar a solicitar cotações e fazer pedidos.',
     catalogTitle: 'Montar cotação',
@@ -359,6 +362,7 @@ export const PT = {
   },
   employeePortal: {
     title: 'Painel do funcionário',
+    actions: 'Ações',
     queueTitle: 'Cotações aguardando preço',
     noQueue: 'Nenhuma cotação aguardando preço.',
     customer: 'Cliente',

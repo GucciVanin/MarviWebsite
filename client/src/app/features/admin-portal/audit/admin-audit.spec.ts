@@ -42,6 +42,18 @@ describe('AdminAudit', () => {
     expect(rows[1]).toContain('Suspensão');
   });
 
+  it('keeps the wide log table inside its own scroll container (MRV-8.4)', async () => {
+    const { root, settle, log } = setup();
+    log().flush([entry('a1', 'Create', 'Product')], { headers: { 'X-Total-Count': '1' } });
+    await settle();
+
+    const table = root.querySelector('table[data-testid="audit"]')!;
+    expect(table.parentElement?.classList.contains('table-wrap')).toBe(true);
+    expect(table.parentElement?.getAttribute('tabindex')).toBe('0');
+    const name = root.querySelector('#' + table.parentElement?.getAttribute('aria-labelledby'));
+    expect(name?.textContent).toContain('Registro de auditoria');
+  });
+
   it('pages through the log using the total the API reports', async () => {
     const { root, settle, button, log } = setup();
     log().flush([entry('a1', 'Create', 'Product')], { headers: { 'X-Total-Count': '60' } });

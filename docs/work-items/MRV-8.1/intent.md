@@ -1,0 +1,1 @@
+Owner, 2026-10-29: "The front end is not well formatted and things are not aligned. You need to use the box theory for the css formatting to make sure that things are not overlapping and fields are aligned. Test for different screen sizes as well to avoid overlapping." Work item MRV-8 (slices 8.1 to 8.5), spec docs/specs/MRV-8.0-layout-box-model.md.

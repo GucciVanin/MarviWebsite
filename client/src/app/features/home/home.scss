@@ -71,10 +71,13 @@ h1 {
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.02;
+  overflow-wrap: break-word; // a long word breaks instead of widening the page when the text is enlarged
   color: var(--color-text-inverse);
 }
 
 .hero__accent { color: var(--color-gold-500); }
+// The hero headline is tighter than the font's own line box; an inline-block span keeps its box inside the line.
+h1 > .hero__accent { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
 
 .hero__subtitle {
   max-width: 30rem;
@@ -99,6 +102,9 @@ h1 {
 
 .flow__steps {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+
+  > * { min-width: 0; }
   gap: var(--space-4);
   padding: 0;
   margin: 0;
@@ -193,12 +199,14 @@ h1 {
   margin: 0;
   list-style: none;
 
-  @media (min-width: 640px) { grid-template-columns: repeat(2, 1fr); }
-  @media (min-width: 1024px) { grid-template-columns: repeat(4, 1fr); }
+  > * { min-width: 0; }
+  @media (min-width: 640px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 1024px) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 .stat {
   display: flex;
+  flex-wrap: wrap; // enlarged text: the text block drops under the icon instead of being squeezed to nothing
   gap: var(--space-2);
   align-items: center;
   padding: var(--space-3);
@@ -210,7 +218,8 @@ h1 {
   p { margin: 0; }
 }
 
-.stat__icon { flex: none; box-sizing: content-box; padding: 0.6rem; border-radius: 50%; color: var(--color-gold-500); background: rgba(245, 183, 0, 0.14); }
+.stat > div { flex: 1 1 6rem; min-width: 0; overflow-wrap: anywhere; }
+.stat__icon { flex: none; box-sizing: border-box; width: 3.7rem; height: 3.7rem; padding: 0.6rem; border-radius: 50%; color: var(--color-gold-500); background: rgba(245, 183, 0, 0.14); }
 .stat__label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-500); }
 .stat__value { font-size: 1.5rem; font-weight: 800; line-height: 1.15; }
 .stat__sub { font-size: 0.9rem; color: #d3d8ea; }
@@ -234,18 +243,20 @@ h1 {
 .tiles {
   display: grid;
   gap: var(--space-2);
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 0;
   margin: 0;
   list-style: none;
 
-  @media (min-width: 640px) { grid-template-columns: repeat(3, 1fr); }
-  @media (min-width: 1280px) { grid-template-columns: repeat(6, 1fr); }
+  > * { min-width: 0; }
+  @media (min-width: 640px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (min-width: 1280px) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 
 .tile {
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: end;
   gap: 0.15rem;
   min-height: 11rem;
@@ -291,8 +302,8 @@ h1 {
   &--5 { --tile-bg: linear-gradient(150deg, #7a2a4a, #2c0f1d); }
 }
 
-.tile__name { font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.95rem; }
-.tile__count { font-size: 0.8rem; color: #e3e6f2; }
+.tile__name { overflow-wrap: anywhere; hyphens: auto; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.95rem; }
+.tile__count { overflow-wrap: anywhere; font-size: 0.8rem; color: #e3e6f2; }
 .tile__arrow { color: var(--color-gold-500); font-weight: 900; }
 .products__link:hover { color: var(--color-blue-600); }
 
@@ -318,7 +329,9 @@ h1 {
   mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
 }
 
-.banner__content { max-width: 40rem; margin-left: max(1rem, calc((100% - 72rem) / 2)); }
+// The banner text starts on the page container's left edge: the section pads itself to that edge, so no margin arithmetic is needed.
+.banner { padding-inline: max(var(--gutter), calc((100% - var(--container-max)) / 2)); }
+.banner__content { width: auto; max-width: var(--container-narrow); margin-inline: 0; }
 
 .banner__title {
   margin: 0 0 var(--space-2);
