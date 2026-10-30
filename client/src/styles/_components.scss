@@ -136,6 +136,16 @@
   input:not([type='checkbox']):not([type='radio']),
   select { height: var(--field-height); }
 
+  // A checkbox or radio keeps its own size beside its label text (the base input rule is width: 100%).
+  input[type='checkbox'],
+  input[type='radio'] { flex: none; width: auto; }
+  label:has(> input[type='checkbox'], > input[type='radio']) { display: flex; align-items: center; gap: 0.5rem; }
+
+  // Hints and messages under a control add no margin of their own, and an empty live region reserves no row (so it cannot shift
+  // the next field), yet stays in the page for assistive technology.
+  > p { margin: 0; }
+  > p:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible { border-color: var(--color-gold-500); }
@@ -222,7 +232,9 @@
   align-items: end;
   margin-bottom: var(--space-2);
 
-  .field { margin-bottom: 0; }
+  // Fields in a toolbar are fluid columns (MRV-8.3): each wants 14rem and grows to share the row, and takes the whole row once
+  // the row cannot hold two. So fields that stack are always one width, and fields that share a row split it evenly.
+  .field { flex: 1 1 min(100%, 14rem); min-width: 0; margin-bottom: 0; }
 }
 
 .stack > * + * { margin-top: var(--space-3); }
@@ -278,7 +290,6 @@
   margin-bottom: var(--space-3);
 
   .toolbar { margin-bottom: 0; }
-  .toolbar .field { flex: 1 1 min(100%, 14rem); }
 }
 
 // Category chips: toggle buttons with a clear selected state (aria-pressed).

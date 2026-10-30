@@ -140,3 +140,7 @@ Public groups per rule, before to after (each group alone): `wrapped-control` 91
 Return-worker pass (2026-10-29): the figures above are the final ones (305 violations; public groups 0). With `--text-zoom 2` at 320 and 375, the public groups have **no overflow** (`exceeds-parent`, `overflow-*` 0) and still report **67 `wrapped-control`** (labels that legitimately wrap at that size) and **6 `covered-text`** (the notice is taller than half the screen at 200% on 320 px, so it counts as a top-anchored layer over form labels). Those 73 are reported, not gated.
 
 The target (AC-11) is zero violations at every width and route; this file is updated with that result when MRV-8.5 closes.
+
+## After MRV-8.3 (2026-10-29): forms and field alignment
+
+`bash test/layout/run.sh`: **235 violations over 216 page loads, exit 1** (305 after 8.2). `form-column-width` 46 to 0 (admin 31, employee 9, client 3, client-wholesale 3); `form-row`, `form-left-edge`, `card-height` 0 (they already were on real pages). Public groups 0. Remaining by rule: `exceeds-parent` 70, `overflow-element` 69, `overflow-page` 32, `wrapped-control` 64 (portals, 8.4 and 8.5). By group: admin-portal 212 to 157, employee-portal 45 to 36, client-portal 27 to 24, client-portal-wholesale 21 to 18, the rest 0. Text zoom 2 at 320 and 375: no form rule; public groups 67 `wrapped-control` and 6 `covered-text` as after 8.2. Fixtures 19, 0 failed (no rule or fixture changed). Cause and fix: `docs/work-items/MRV-8.3/decisions.md`.
