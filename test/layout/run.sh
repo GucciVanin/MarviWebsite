@@ -17,8 +17,10 @@ export BASE_URL="${BASE_URL:-http://host.docker.internal:4200}"
 export WIDTHS="${WIDTHS:-}"; export ONLY="${ONLY:-}"
 [ -n "${OUT_FILE:-}" ] && export OUT_FILE="/out/$OUT_FILE" || export OUT_FILE=""
 args=""; [ "${1:-}" = "--fixtures" ] && args="--fixtures"
+[ "${1:-}" = "--text-zoom" ] && export TEXT_ZOOM="${2:?--text-zoom needs a factor, e.g. 2}"
 # Unset-or-empty variables must not reach the audit as empty strings.
 envs=(-e ADMIN_EMAIL -e ADMIN_PASSWORD -e BASE_URL)
+[ -n "${TEXT_ZOOM:-}" ] && envs+=(-e TEXT_ZOOM)
 [ -n "$WIDTHS" ] && envs+=(-e WIDTHS); [ -n "$ONLY" ] && envs+=(-e ONLY); [ -n "$OUT_FILE" ] && envs+=(-e OUT_FILE)
 MSYS_NO_PATHCONV=1 docker run --rm --ipc=host --add-host host.docker.internal:host-gateway "${envs[@]}" \
   -v "$(pwd -W 2>/dev/null || pwd)/test/layout:/src:ro" -v "$(pwd -W 2>/dev/null || pwd)/test/layout/out:/out" \

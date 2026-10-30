@@ -26,9 +26,11 @@
 
 .btn {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
-  gap: var(--space-1);
-  padding: 0.7rem 1.4rem;
+  overflow-wrap: anywhere; // enlarged text on a narrow phone: break a long word rather than push the icon out of the button
+  gap: min(var(--space-1), 2.5vw);
+  padding: 0.7rem min(1.4rem, 7vw);
   font-weight: 700;
   text-decoration: none;
   border-radius: var(--radius-pill);
@@ -64,11 +66,7 @@
   > app-icon,
   > svg,
   .icon-leading,
-  .icon-trailing { font-size: 1.15em; }
-  > app-icon:first-child,
-  .icon-leading { margin-inline-end: -0.15rem; }
-  > app-icon:last-child:not(:only-child),
-  .icon-trailing { margin-inline-start: -0.15rem; }
+  .icon-trailing { font-size: min(1.15em, 6vw); } // 1.15em, smaller only when enlarged text outgrows a phone
 
   &--primary {
     --btn-shadow: var(--shadow-xs);
@@ -87,6 +85,8 @@
   }
 
   &--lg { min-height: 3rem; padding: 0.8rem 1.7rem; font-size: var(--text-lg); }
+  // A label that cannot fit one line on a phone (long call to action): the text wraps beside its icon, which keeps its own row.
+  &--wrap { white-space: normal; text-align: start; }
   &--block { display: flex; justify-content: center; width: 100%; }
 
   &--outline {
@@ -101,7 +101,7 @@
 }
 
 .card {
-  padding: var(--space-4);
+  padding: min(var(--space-4), 7vw); // 2rem, less on a narrow screen (and with enlarged text)
   background: var(--color-surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
@@ -118,6 +118,7 @@
 
 .field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); // an input's intrinsic width must not widen the track
   gap: 0.35rem;
   margin-bottom: var(--space-2);
 
@@ -129,6 +130,11 @@
   input,
   select,
   textarea { max-width: none; }
+
+  // Single-line controls share one height, so fields side by side in a row line up (MRV-8.2): a select and a text input
+  // have different intrinsic line boxes, so the height is set, in rem so it follows the text size.
+  input:not([type='checkbox']):not([type='radio']),
+  select { height: var(--field-height); }
 
   input:focus-visible,
   select:focus-visible,
@@ -154,6 +160,11 @@
   &__control {
     position: relative;
     display: block;
+
+    // Block, not inline-block: an inline control sits on a text baseline and leaves a gap under it.
+    > input,
+    > select,
+    > textarea { display: block; }
 
     > app-icon {
       position: absolute;
@@ -262,21 +273,23 @@
 // ---- public catalog ----
 .filterbar {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   margin-bottom: var(--space-3);
 
   .toolbar { margin-bottom: 0; }
-  .toolbar .field { flex: 1 1 14rem; }
+  .toolbar .field { flex: 1 1 min(100%, 14rem); }
 }
 
 // Category chips: toggle buttons with a clear selected state (aria-pressed).
-.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 0; list-style: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 0; list-style: none; > li { min-width: 0; max-width: 100%; } }
 
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   min-height: 2.25rem;
+  max-width: 100%;
   padding: 0.3rem 0.95rem;
   font: inherit;
   font-size: var(--text-sm);
@@ -308,7 +321,7 @@
 .product-grid {
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
   padding: 0;
   list-style: none;
 }
@@ -318,6 +331,7 @@
 
 .product {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   min-height: var(--product-card-min);
   padding: 0;
@@ -338,7 +352,7 @@
   &--4 { --art-bg: linear-gradient(150deg, #5d6f1c, #2a3407); }
   &--5 { --art-bg: linear-gradient(150deg, #7a2a4a, #2c0f1d); }
 
-  &__body { display: grid; gap: 0.4rem; align-content: start; padding: var(--space-2); }
+  &__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.4rem; align-content: start; padding: var(--space-2); overflow-wrap: anywhere; > * { min-width: 0; max-width: 100%; } }
   &__tags { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
   h3 { margin: 0; font-size: 1.05rem; }
   p { margin: 0; }
@@ -362,6 +376,22 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+// A button or chip label stays on one line (MRV-8.2). On the public pages, below 40em, a label may still wrap rather than push
+// its card or the page wider (a narrow phone, or text enlarged to 200%); the labels there fit one line at 320 px at normal size.
+// The portals keep nowrap until their own slices (8.4, 8.5). .btn--wrap lets a label too long for any phone (the closing banner
+// call to action) wrap at every width.
+.btn:not(.btn--wrap), .chip { white-space: nowrap; }
+@media (max-width: 39.99em) {
+  :is(app-header, app-footer, app-privacy-notice, app-home, app-storefront, app-contact, app-privacy, app-login, app-register) {
+    .btn:not(.btn--wrap), .chip { white-space: normal; }
+  }
+}
+
+// Large buttons give back some padding on phones, so a short label and its icon fit a 320 px screen on one line.
+@media (max-width: 479px) {
+  .btn--lg { padding-inline: min(var(--space-2), 5vw); font-size: var(--text-base); }
 }
 
 // Touch targets: primary controls are at least 44px tall on phones and tablets. Scoped to the public site's own hosts
@@ -408,7 +438,7 @@
     background: linear-gradient(90deg, var(--color-gold-500), var(--color-red-500) 55%, var(--color-blue-600));
   }
 
-  h1 { margin-bottom: var(--space-1); color: var(--color-text-inverse); }
+  h1 { margin-bottom: var(--space-1); color: var(--color-text-inverse); overflow-wrap: break-word; }
   &__lead { max-width: 40rem; margin-bottom: var(--space-3); font-size: var(--text-lg); color: #dfe3f2; }
   &__cta { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: 0; }
 }

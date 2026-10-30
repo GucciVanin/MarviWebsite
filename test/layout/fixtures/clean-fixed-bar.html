@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="none">
+<title>Clean: bottom bar with scroll room</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px 16px 80px;max-width:960px;margin:0 auto}
+.bar{position:fixed;left:0;right:0;bottom:0;height:64px;background:#123;color:#fff}
+.pad{height:760px}.pad2{height:900px}
+a{display:inline-block;min-height:24px}
+</style></head><body><main class="page">
+<h1>Barra fixa com espaço de rolagem</h1><div class="pad"></div>
+<a href="#alcancavel">Link na faixa coberta da primeira tela (alcançável rolando)</a>
+<div class="pad2"></div><a href="#ultimo">Último link, acima da barra pelo espaço reservado</a><div class="bar">Barra fixa</div>
+</main></body></html>

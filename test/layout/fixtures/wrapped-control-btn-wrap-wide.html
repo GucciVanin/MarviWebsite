@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="wrapped-control">
+<title>Wrapped: a .btn--wrap that wraps at 640 px and wider is still a defect</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px;max-width:960px;margin:0 auto}
+.btn{display:inline-flex;align-items:center;gap:8px;height:auto;padding:8px 16px;border:1px solid #333;background:#eee;font:inherit}
+.btn--wrap{white-space:normal;max-width:200px;text-align:start}
+</style></head><body><main class="page">
+<p>At 375 px the opt-out applies; at 1024 px the label still wraps, so the audit must flag it.</p>
+<button class="btn btn--wrap" type="button"><span>Veja como ajudamos negócios a crescer</span><svg width="16" height="16" aria-hidden="true"></svg></button>
+</main></body></html>

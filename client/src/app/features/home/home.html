@@ -178,7 +178,7 @@
     @if (isAuthenticated()) {
       <a class="btn btn--primary btn--lg" routerLink="/storefront"><app-icon name="store" />{{ t.bannerCtaSignedIn }}</a>
     } @else {
-      <a class="btn btn--primary btn--lg" routerLink="/register">
+      <a class="btn btn--primary btn--lg btn--wrap" routerLink="/register">
         {{ t.bannerCta }}
         <app-icon name="arrow-right" />
       </a>

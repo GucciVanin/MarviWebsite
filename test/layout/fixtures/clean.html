@@ -17,16 +17,21 @@ nav a{display:inline-flex;align-items:center;white-space:nowrap;height:40px;padd
 .card{border:1px solid #ccc;padding:16px;border-radius:8px}
 .row{display:flex;flex-wrap:wrap;gap:16px}.row>.field{flex:1 1 200px;min-width:0}
 .field{margin-bottom:12px}
+.btn--wrap{white-space:normal;max-width:220px}@media (min-width:640px){.btn--wrap{white-space:nowrap;max-width:none}}
+.chips{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:0 0 16px;list-style:none}
+.chip{display:inline-flex;align-items:center;white-space:nowrap;height:36px;padding:0 14px;border:1px solid #333;border-radius:18px;background:#fff;font:inherit}
 
 </style></head><body><main class="page">
-<header><nav><a href="#a">Início</a><a href="#b">Nossa Rede</a><a href="#c">Por que a Marvi</a><a href="#d">Painel do funcionário</a></nav></header>
+<header><a class="brand" data-lockup href="#" style="display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none;white-space:nowrap"><span aria-hidden="true" style="flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:#123;color:#fff">M</span><span style="display:grid;line-height:1.1"><span>MARVI</span><span style="font-size:11px">Exímia Distribuidora de Bebidas</span></span></a><nav><a href="#a">Início</a><a href="#b">Nossa Rede</a><a href="#c">Por que a Marvi</a><a href="#d">Painel do funcionário</a></nav></header>
 <section>
 <h1>Página limpa</h1>
+<ul class="chips" aria-label="Categorias"><li><button class="chip" type="button">Todas as categorias</button></li><li><button class="chip" type="button">Cervejas</button></li><li><button class="chip" type="button">Refrigerantes</button></li><li><button class="chip" type="button">Águas e sucos</button></li><li><button class="chip" type="button">Destilados</button></li><li><button class="chip" type="button">Vinhos e espumantes</button></li></ul>
 <p>Texto de parágrafo alinhado ao contêiner.</p>
 <form>
 <div class="field"><label for="n">Nome</label><input id="n" type="text"></div>
 <div class="row"><div class="field"><label for="a">Cidade</label><input id="a" type="text"></div><div class="field"><label for="b">Estado</label><input id="b" type="text"></div></div>
 <div class="field"><label for="m">Mensagem</label><input id="m" type="text"></div>
+<div class="field"><button class="btn btn--wrap" type="button" style="height:auto;padding:8px 16px;text-align:start;gap:8px"><span>Veja como ajudamos negócios a crescer</span><svg width="16" height="16" aria-hidden="true"></svg></button></div>
 <button class="btn" type="submit">Enviar</button> <button class="btn" type="button">Cancelar</button>
 </form>
 <div class="grid"><div class="card"><h3>Um</h3><p>Texto curto.</p></div><div class="card"><h3>Dois</h3><p>Texto curto.</p></div><div class="card"><h3>Três</h3><p>Texto curto.</p></div></div>

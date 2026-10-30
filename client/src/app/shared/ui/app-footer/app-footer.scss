@@ -13,7 +13,9 @@
 .footer__grid {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+
+  > * { min-width: 0; }
 }
 
 .footer__brand {
@@ -45,6 +47,7 @@ ul {
 
 li {
   margin-bottom: 0.35rem;
+  overflow-wrap: anywhere; // a long address or e-mail breaks instead of widening the page
 }
 
 a {

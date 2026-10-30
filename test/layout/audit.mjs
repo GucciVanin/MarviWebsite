@@ -80,7 +80,10 @@ async function newContext(browser, width, { token, notice }) {
   return ctx;
 }
 
-const NO_MOTION = '*, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; caret-color: transparent !important; }';
+// TEXT_ZOOM=2 (run.sh --text-zoom 2) enlarges the root font size, which is how a user's text-size setting reaches rem-based CSS (MRV-8.2).
+// It is an emulation: the em media queries do not scale with it as they would with a real setting.
+const TEXT_ZOOM = Number(process.env.TEXT_ZOOM || 1);
+const NO_MOTION = (TEXT_ZOOM !== 1 ? `html { font-size: ${TEXT_ZOOM * 100}% !important; } ` : '') + '*, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; caret-color: transparent !important; }';
 
 async function settle(page) {
   await page.waitForLoadState('networkidle');

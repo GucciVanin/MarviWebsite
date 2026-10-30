@@ -26,6 +26,7 @@ h3 {
   margin: 0 0 var(--space-2);
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
+  overflow-wrap: break-word; // a long word breaks instead of widening the page when the text is enlarged
   font-weight: 800;
   color: var(--color-navy-900);
 }

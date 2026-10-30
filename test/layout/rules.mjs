@@ -143,7 +143,7 @@ export function auditDom() {
   }
 
   // ---- AC-4 single-line controls --------------------------------------------------------------------------------------
-  const CONTROL = 'button, [role="button"], .btn, [class*="chip"], [role="tab"], .tab, header a, nav a, footer nav a, summary';
+  const CONTROL = 'button, [role="button"], .btn, [class~="chip"], [class*="chip--"], [class*="chip__"], [role="tab"], .tab, header a, nav a, footer nav a, summary';
   const controls = [...document.querySelectorAll(CONTROL)].filter((e) => allSet.has(e));
   // Icon + short label pairs: a small element with an svg beside text.
   for (const e of all) {
@@ -164,9 +164,24 @@ export function auditDom() {
     }
     return tops;
   };
+  // A logo lockup (badge beside a stacked name and tagline) is several lines by design: marked data-lockup, it is judged per
+  // text run, so each run must still stay on one line (MRV-8.2 decisions). Anything unmarked is judged as a whole.
+  const lockupWraps = (el) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.nodeValue.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      const tops = [];
+      for (const rc of range.getClientRects()) if (rc.width >= 1 && !tops.some((t) => Math.abs(t - rc.top) < 3)) tops.push(rc.top);
+      if (tops.length > 1) return tops.length;
+    }
+    return 0;
+  };
   for (const el of controls) {
-    const tops = textLineTops(el);
-    if (tops.length > 1) {
+    const tops = el.hasAttribute('data-lockup') ? new Array(lockupWraps(el)).fill(0) : textLineTops(el);
+    // .btn--wrap is the one opt-out: a call to action too long for a phone wraps its text beside the icon (MRV-8.2 decisions).
+    if (tops.length > 1 && !(el.matches('.btn--wrap') && vw < 640)) {
       add('wrapped-control', el, tops.length + ' text lines in a single-line control');
       continue;
     }
@@ -383,6 +398,9 @@ export function auditDom() {
         // because content scrolled up behind a top header can still be scrolled back.
         if (!atEdge || !isControl(el)) continue;
         if (y !== 0 && rectOf(layerOf(top)).top <= vh / 2) continue;
+        // At the top, a layer anchored in the lower half hides only what scrolling can clear: covered content that the page can
+        // scroll above the layer is reachable (the end-of-page case above has no scroll left, so it still counts). MRV-8.2.
+        if (y === 0 && rectOf(layerOf(top)).top > vh / 2 && maxScroll >= rect.bottom - rectOf(layerOf(top)).top) continue;
       }
       add('covered-text', el, 'covered by ' + sel(top) + ' at scroll ' + y);
     }
