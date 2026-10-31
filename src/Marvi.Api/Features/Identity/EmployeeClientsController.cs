@@ -19,10 +19,12 @@ namespace Marvi.Api.Features.Identity;
 public class EmployeeClientsController : ControllerBase
 {
     private readonly AppDbContext _dbContext;
+    private readonly ClientRegistrationService _registration;
 
-    public EmployeeClientsController(AppDbContext dbContext)
+    public EmployeeClientsController(AppDbContext dbContext, ClientRegistrationService registration)
     {
         _dbContext = dbContext;
+        _registration = registration;
     }
 
     /// <summary>
@@ -57,13 +59,14 @@ public class EmployeeClientsController : ControllerBase
             .Take(size)
             .ToListAsync();
 
-        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.Number, c.CompanyName, c.Status, c.PricingTierId, c.PricingTier?.Name, c.CreatedAt)).ToList();
+        var items = clients.Select(c => new ClientSummaryDto(c.Id, c.Number, c.CompanyName, c.Status, c.PricingTierId, c.PricingTier?.Name, c.CreatedAt, c.AccountType)).ToList();
         return Ok(new PagedResult<ClientSummaryDto>(items, page, size, total));
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ClientProfileDto>> GetClient(Guid id)
     {
+        Response.Headers.CacheControl = "no-store"; // the registration data (birth date, CPF mask) is not kept by browsers or proxies
         var clientAccount = await _dbContext.ClientAccounts
             .Include(c => c.PricingTier)
             .FirstOrDefaultAsync(c => c.Id == id);
@@ -77,6 +80,7 @@ public class EmployeeClientsController : ControllerBase
     [HttpGet("by-number/{number}")]
     public async Task<ActionResult<ClientProfileDto>> GetClientByNumber(string number)
     {
+        Response.Headers.CacheControl = "no-store";
         if (!CustomerNumbers.TryParse(number, out var parsed))
         {
             return BadRequest(CustomerNumbers.NotANumber);
@@ -117,7 +121,8 @@ public class EmployeeClientsController : ControllerBase
             clientAccount.Status,
             quotes.Select(ToQuoteDto).ToList(),
             orders.Select(ToOrderDto).ToList(),
-            email);
+            email,
+            _registration.ToDto(clientAccount));
     }
 
     private static QuoteDto ToQuoteDto(Quote quote) => QuoteDto.From(quote);

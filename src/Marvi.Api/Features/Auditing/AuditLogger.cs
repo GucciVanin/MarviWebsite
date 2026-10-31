@@ -17,6 +17,8 @@ public static class AuditActions
     public const string Approve = "Approve";
     public const string Suspend = "Suspend";
     public const string Import = "Import";
+    /// <summary>An admin asked to see a personal identifier in full (a customer's CPF, MRV-9.4).</summary>
+    public const string Reveal = "Reveal";
 }
 
 /// <summary>

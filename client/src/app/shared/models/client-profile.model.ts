@@ -1,4 +1,5 @@
 import type { ClientAddress } from './client-address.model';
+import type { AccountType, Registration, RegistrationRequest } from './registration.model';
 
 export type ClientAccountStatus = 'Pending' | 'Approved' | 'Suspended';
 
@@ -14,8 +15,14 @@ export interface ClientProfile {
   status: ClientAccountStatus;
   /** When the customer registered (UTC). */
   createdAt: string;
+  /** The account type and registration data (MRV-9.4); the CPF only masked. */
+  registration: Registration;
+  /** True once the customer is approved: the verified record can only be changed by an admin. */
+  registrationLocked: boolean;
 }
 
 export interface UpdateClientProfileRequest {
   companyName: string;
+  accountType?: AccountType;
+  registration?: RegistrationRequest;
 }

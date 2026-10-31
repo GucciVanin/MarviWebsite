@@ -3,6 +3,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EmployeePortal } from './employee-portal';
+import { registration } from '../../shared/models/testing/registration';
 
 const line = (id: string, productName: string, qty: number, suggested: number | null) => ({
   id,
@@ -29,6 +30,7 @@ const summary = (id: string, companyName: string, status: string) => ({ id, cust
 const clientPage = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 10, totalCount });
 
 const profile = (status: string) => ({
+  registration: registration(),
   id: 'c-123',
   customerNumber: 42,
   companyName: 'Bar do Zé',

@@ -105,6 +105,7 @@ flowchart TD
 flowchart LR
     subgraph Identity
         I6[ClientAddressesController + ClientAddressService]
+        I7[ClientRegistrationService + CpfProtector]
         I1[AuthController]
         I2[AdminClientsController]
         I3[AdminEmployeesController]
@@ -364,7 +365,7 @@ erDiagram
 
 `Product.CategoryId` is a real foreign key to `Category` (restrict delete; nullable). Not drawn as
 relationships because they are plain id lists: `Deal.ProductIds` and `Deal.CategoryIds` (no foreign key, so
-`AdminCategoriesController` checks deals itself before deleting). `ClientAccount` has many `ClientAddress` (MRV-9.3, cascade; filtered unique indexes `ix_client_addresses_one_billing` and `ix_client_addresses_one_default`). `AuditLogEntry.ActorUserId` is not a foreign key. `ContactMessage` (MRV-2.8) stands alone: no relationships; `HandledAt` is a concurrency token.
+`AdminCategoriesController` checks deals itself before deleting). `ClientAccount` carries the registration data (MRV-9.4): `AccountType`, the company fields or the personal ones, and the CPF only as `CpfProtected` (Data Protection) and `CpfHash` (HMAC); `Cnpj` and `CpfHash` have unique indexes (NULLs never collide). `ClientAccount` has many `ClientAddress` (MRV-9.3, cascade; filtered unique indexes `ix_client_addresses_one_billing` and `ix_client_addresses_one_default`). `AuditLogEntry.ActorUserId` is not a foreign key. `ContactMessage` (MRV-2.8) stands alone: no relationships; `HandledAt` is a concurrency token.
 
 ## 6. Authentication and authorization
 
@@ -626,3 +627,11 @@ flowchart LR
 
 **Remove `Foo`:** delete the four folders above, the `AddFooFeature` line and the lazy route, remove its
 `DbSet`s and add a migration dropping its tables, then fix any cross-feature references listed in §4.2.
+
+## Registration data and the CPF (MRV-9.4)
+
+- **Rules in the Domain, one place each:** `CnpjRules` (14 characters, first 12 digits or A-Z, módulo 11 over ASCII minus 48, repeated character refused), `CpfRules` (módulo 11, `Mask`), `RegistrationRules.Check` (what each account type may and must have, the 18+ age rule, completeness via `Missing`). `ClientRegistrationService` (Api) validates, compares with the stored record (`ChangesLockedField`), applies it and builds the audit snapshot; registration, `PUT /api/client/profile` and the admin edit all go through it.
+- **CPF:** `CpfProtector` is the only code that handles it in the clear: `Protect`/`Reveal` with an `IDataProtector` (purpose `Marvi.ClientAccount.Cpf.v1`) and `Hash` with HMAC-SHA256 keyed by `Privacy:CpfHashKey`. DTOs carry `CpfMasked` only. The Data Protection keyring is persisted to `DataProtection:KeysPath` (compose: volume `marvi-dataprotection` at `/keys`; the Testing host uses throwaway keys, `DataProtection:Ephemeral`, refused in Production by the guard).
+- **Lock:** after approval (status not Pending) a customer's `PUT /api/client/profile` that changes a locked field answers 403; a Suspended customer changes nothing; admins edit everything, audited as `Update` with `Before`/`After`, and every "Mostrar CPF" is an audited `Reveal`.
+- **SPA:** `shared/ui/registration-fields` (+ `RegistrationDraft`) is the one form for registration (compact), the profile (locked after approval) and the admin editor; `shared/ui/registration-summary` (`dl[appRegistrationFacts]`) is the staff view (badge, document, completeness); masks and the check digits live in `shared/format/registration.ts`.
+

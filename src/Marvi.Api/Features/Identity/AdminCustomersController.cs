@@ -33,6 +33,6 @@ public class AdminCustomersController : ControllerBase
             .FirstOrDefaultAsync(c => c.Number == parsed);
         return client is null
             ? NotFound()
-            : Ok(new ClientSummaryDto(client.Id, client.Number, client.CompanyName, client.Status, client.PricingTierId, client.PricingTier?.Name, client.CreatedAt));
+            : Ok(new ClientSummaryDto(client.Id, client.Number, client.CompanyName, client.Status, client.PricingTierId, client.PricingTier?.Name, client.CreatedAt, client.AccountType));
     }
 }

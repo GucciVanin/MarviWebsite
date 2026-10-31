@@ -307,7 +307,7 @@ const raceResults = await Promise.all([
   call('PUT', `/api/admin/clients/${profileRace.id}/approve`, { token: admin, body: { pricingTierId: standard.id } }),
   ...[1, 2, 3, 4, 5, 6].map((n) => call('PUT', '/api/client/profile', { token: profileRace.token, body: { companyName: `Perfil ${n}` } })),
 ]);
-ok('a customer saving their profile while an admin decides them never gets a 500 (200, or 409 at worst), and the decision still wins', raceResults.every((r) => r.status < 500) && raceResults[0].status === 204
+ok('a customer saving their profile while an admin decides them never gets a 500 (200, 403 once approved, or 409 at worst), and the decision still wins', raceResults.every((r) => r.status < 500) && raceResults[0].status === 204
   && (await call('GET', '/api/client/profile', { token: profileRace.token })).json.status === 'Approved', raceResults.map((r) => r.status).join(','));
 ok('a suspended customer can be approved again (204)', (await call('PUT', `/api/admin/clients/${racer.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204);
 
@@ -343,13 +343,15 @@ ok('the old update-credit endpoint is gone (404)', (await call('PUT', `/api/admi
 section('CLIENT PROFILE: a customer edits their own company details (on real Postgres)');
 const ownProfile = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
 ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.addresses.length === 1 && ownProfile.billingAddressKey === ownProfile.addresses[0].key);
-const putProfile = await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: '  Adega do Dedé Ltda ' } });
+// MRV-9.4: the verified record is locked once approved, so the name edits below use a customer who is still Pending.
+const editor = await registerClient('Adega do Dedé Provisória', 'dede2@adega.test', { approve: false });
+const putProfile = await call('PUT', '/api/client/profile', { token: editor.token, body: { companyName: '  Adega do Dedé Ltda ' } });
 ok('...and sees since when they have been registered', registeredRecently(ownProfile.createdAt));
-ok('...edits the company name: trimmed (200), the address untouched', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda' && putProfile.json.addresses.length === 1);
+ok('...a Pending customer edits the company name: trimmed (200), the address untouched', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda' && putProfile.json.addresses.length === 1);
 ok('a missing company name and a NUL character are refused (400) and change nothing',
-  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: ' ' } })).status === 400
-  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'A\u0000dega' } })).status === 400
-  && (await call('GET', '/api/client/profile', { token: clientD.token })).json.companyName === 'Adega do Dedé Ltda');
+  (await call('PUT', '/api/client/profile', { token: editor.token, body: { companyName: ' ' } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: editor.token, body: { companyName: 'A\u0000dega' } })).status === 400
+  && (await call('GET', '/api/client/profile', { token: editor.token })).json.companyName === 'Adega do Dedé Ltda');
 ok('it is always the caller\'s own account: another customer\'s details are untouched', (await call('GET', '/api/client/profile', { token: clientA.token })).json.companyName === 'Bar do Zé');
 
 section('CLIENT ADDRESSES (MRV-9.3): several named, structured addresses per customer (on real Postgres)');
@@ -733,9 +735,10 @@ const endpoints = [
   ['GET', '/api/employee/clients/by-number/1', undefined, ['employee', 'admin']], ['GET', '/api/admin/customers/by-number/1', undefined, ['admin']],
   ['GET', '/api/admin/pending-actions', undefined, ['admin']],
   ['GET', '/api/admin/contact-messages', undefined, ['admin']], ['POST', `/api/admin/contact-messages/${ID}/handle`, undefined, ['admin']],
-  ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X' }, ['client']],
+  ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'Bar do Zé' }, ['client']], // the client's own, unchanged name: an approved customer's record is locked (403 for a change)
   ['POST', '/api/client/addresses', addr(1), ['client']], ['PUT', `/api/client/addresses/${ID}`, addr(1), ['client']], ['DELETE', `/api/client/addresses/${ID}`, undefined, ['client']],
   ['PUT', `/api/admin/clients/${ID}/addresses/${ID}`, addr(1), ['admin']],
+  ['PUT', `/api/admin/clients/${ID}/registration`, { companyName: 'X', accountType: 'Business' }, ['admin']], ['POST', `/api/admin/clients/${ID}/cpf/reveal`, { reason: 'Conferir cadastro' }, ['admin']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {
@@ -944,6 +947,91 @@ ok('unicode survived the round trip', q(`select count(*) from categories where n
 ok('timestamps are stored in UTC (timestamptz)', q(`select data_type from information_schema.columns where table_name='deals' and column_name='start_date'`) === 'timestamp with time zone');
 ok('money columns are numeric, not floating point', q(`select string_agg(data_type, ',') from information_schema.columns where table_name='orders' and column_name='total_amount'`) === 'numeric');
 
+
+section('REGISTRATION DATA (MRV-9.4): account types, CNPJ/CPF, lock after approval, encrypted CPF (on real Postgres)');
+// Distinct valid numbers per run: CNPJ = root + 0001 + check digits (módulo 11, ASCII-48); CPF = 9 digits + two check digits.
+const cnpjDigits = (first12) => {
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const dv = (s, w) => { const r = [...s].reduce((a, c, i) => a + (c.charCodeAt(0) - 48) * w[i], 0) % 11; return r < 2 ? 0 : 11 - r; };
+  const d1 = dv(first12, w1);
+  return `${d1}${dv(first12 + d1, w2)}`;
+};
+const mkCnpj = (root8) => { const f = root8 + '0001'; return f + cnpjDigits(f); };
+const mkCpf = (nine) => {
+  const dv = (s, from) => { const r = [...s].reduce((a, c, i) => a + Number(c) * (from - i), 0) % 11; return r < 2 ? 0 : 11 - r; };
+  const d1 = dv(nine, 10);
+  return nine + d1 + dv(nine + d1, 11);
+};
+const fmtCpf = (c) => `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`;
+const regOf = (extra = {}) => ({ phone: '(11) 91234-5678', invoiceEmail: 'nfe@empresa.test', legalName: 'Empresa Teste Ltda', tradeName: 'Empresa', stateRegistrationStatus: 'Contributor', stateRegistration: '110.042.490.114', municipalRegistration: '123', mainCnae: '4634-6/01', taxRegime: 'SimplesNacional', openingDate: '2010-05-04', contactName: 'Ana', ...extra });
+const registerRaw = (name, email, accountType, registration) => call('POST', '/api/auth/register', { body: { email, password: 'Client-1234!', companyName: name, billingAddress: addr(1), accountType, registration } });
+
+const cnpjAlpha = '12ABC34501DE35';
+const biz = await registerRaw('Empresa Alfanumérica', 'alfa@empresa.test', 'Business', regOf({ cnpj: '12.abc.345/01de-35' }));
+ok('a business account registers with an alphanumeric CNPJ from the Receita example (201), stored normalised', biz.status === 201 && sql(`select cnpj||'|'||account_type||'|'||phone||'|'||main_cnae||'|'||state_registration from client_accounts where id='${biz.json.id}'`) === `${cnpjAlpha}|0|11912345678|4634601|110042490114`);
+const bizBad = await registerRaw('Empresa Errada', 'errada@empresa.test', 'Business', regOf({ cnpj: '11222333000182' }));
+ok('a wrong CNPJ check digit is refused (400) naming the CNPJ, and no login is left behind', bizBad.status === 400 && bizBad.text.includes('CNPJ') && sql(`select count(*) from "AspNetUsers" where email='errada@empresa.test'`) === '0');
+const dupCnpj = await registerRaw('Outra Empresa', 'outra@empresa.test', 'Business', regOf({ cnpj: cnpjAlpha }));
+ok('a CNPJ already registered answers 409 with the one generic text (no CNPJ, no CPF, no name)', dupCnpj.status === 409 && dupCnpj.text.includes('Não foi possível concluir o cadastro') && !dupCnpj.text.includes('CNPJ') && !dupCnpj.text.includes('Alfanumérica'));
+const cnpjRace = mkCnpj('77000001');
+const cnpjRaceResults = await Promise.all([1, 2, 3, 4, 5, 6].map((n) => registerRaw(`Corrida ${n}`, `corrida${n}@cnpj.test`, 'Business', { cnpj: cnpjRace })));
+ok('6 simultaneous registrations of one CNPJ: exactly one 201, the rest 409, none a 500, one account and no orphan login',
+  cnpjRaceResults.filter((r) => r.status === 201).length === 1 && cnpjRaceResults.filter((r) => r.status === 409).length === 5
+  && sql(`select count(*) from client_accounts where cnpj='${cnpjRace}'`) === '1' && sql(`select count(*) from "AspNetUsers" where email like 'corrida%@cnpj.test'`) === '1', cnpjRaceResults.map((r) => r.status).join(','));
+
+const cpfRace = mkCpf('555666777');
+const cpfRaceResults = await Promise.all([1, 2, 3, 4, 5, 6].map((n) => registerRaw(`Pessoa ${n}`, `corrida${n}@cpf.test`, 'Personal', { cpf: cpfRace, birthDate: '1990-01-01' })));
+ok('6 simultaneous registrations of one CPF: exactly one 201, the rest 409, none a 500, no orphan login (the keyed hash is unique on Postgres)',
+  cpfRaceResults.filter((r) => r.status === 201).length === 1 && cpfRaceResults.filter((r) => r.status === 409).length === 5
+  && sql(`select count(*) from "AspNetUsers" where email like 'corrida%@cpf.test'`) === '1', cpfRaceResults.map((r) => r.status).join(','));
+
+const cpfA = mkCpf('123456789');
+const person = await registerRaw('João da Silva', 'joao@pessoa.test', 'Personal', { cpf: cpfA, birthDate: '1990-03-02', phone: '11 3333-4444', invoiceEmail: 'joao@pessoa.test' });
+const personToken = await login('joao@pessoa.test', 'Client-1234!');
+ok('a personal account registers with CPF and birth date (201)', person.status === 201);
+const stored = sql(`select cpf_protected||'|'||cpf_hash from client_accounts where id='${person.json.id}'`);
+ok('the CPF is stored encrypted: the column is not the number, holds none of its digits in a row, and the hash is a 64-character keyed digest',
+  !stored.includes(cpfA) && !stored.includes(cpfA.slice(0, 6)) && /^[^|]{40,}\|[0-9a-f]{64}$/.test(stored));
+ok('...no column of the database holds the plain CPF anywhere (client_accounts as text)', sql(`select count(*) from client_accounts c where c::text like '%${cpfA}%'`) === '0');
+const personOwn = (await call('GET', '/api/client/profile', { token: personToken })).json;
+ok('the customer sees their CPF masked only, with the birth date', personOwn.registration.cpfMasked === `***.${cpfA.slice(3, 6)}.${cpfA.slice(6, 9)}-**` && personOwn.registration.birthDate === '1990-03-02' && !JSON.stringify(personOwn).includes(cpfA));
+const staffView = await call('GET', `/api/employee/clients/${person.json.id}`, { token: emp });
+ok('staff (employee) see the type and the masked CPF, never the number', staffView.json.registration.accountType === 'Personal' && staffView.json.registration.cpfMasked === personOwn.registration.cpfMasked && !staffView.text.includes(cpfA));
+ok('the same CPF cannot register twice: 409 with exactly the same text as a duplicate CNPJ', await (async () => { const r = await registerRaw('Cópia', 'copia@pessoa.test', 'Personal', { cpf: cpfA, birthDate: '1990-03-02' }); return r.status === 409 && r.text === dupCnpj.text; })());
+const young = await registerRaw('Menor', 'menor@pessoa.test', 'Personal', { cpf: mkCpf('222333444'), birthDate: new Date(Date.now() - 17 * 365 * 86400000).toISOString().slice(0, 10) });
+ok('a person under 18 is refused (400) with the age rule explained', young.status === 400 && young.text.includes('18 anos') && young.text.includes('bebidas alcoólicas'));
+ok('the personal account cannot carry company fields, nor the business one a CPF (400)',
+  (await registerRaw('X', 'x1@pessoa.test', 'Personal', { cpf: mkCpf('333444555'), birthDate: '1990-01-01', cnpj: mkCnpj('88000001') })).status === 400
+  && (await registerRaw('X', 'x2@empresa.test', 'Business', { cpf: mkCpf('444555666') })).status === 400);
+
+// Lock after approval.
+await call('PUT', `/api/admin/clients/${person.json.id}/approve`, { token: admin, body: { pricingTierId: standard.id } });
+ok('after approval the customer cannot change a locked field (403 telling them to contact the company)', (await call('PUT', '/api/client/profile', { token: personToken, body: { companyName: 'Outro Nome', registration: { birthDate: '1990-03-02' } } })).status === 403);
+const phoneEdit = await call('PUT', '/api/client/profile', { token: personToken, body: { companyName: 'João da Silva', registration: { birthDate: '1990-03-02', phone: '21 98888-7777', invoiceEmail: 'novo@pessoa.test' } } });
+ok('...but can still change phone and invoice e-mail (200); the stored CPF is kept when left out', phoneEdit.status === 200 && phoneEdit.json.registration.phone === '21988887777' && phoneEdit.json.registration.hasCpf === true && phoneEdit.json.registrationLocked === true);
+
+// Admin full control, audited; reveal audited; keys survive a restart.
+const adminEdit = await call('PUT', `/api/admin/clients/${person.json.id}/registration`, { token: admin, body: { companyName: 'João Pedro da Silva', accountType: 'Personal', registration: { birthDate: '1990-03-02' } } });
+ok('an admin changes the verified record (200)', adminEdit.status === 200 && sql(`select company_name from client_accounts where id='${person.json.id}'`) === 'João Pedro da Silva');
+ok('...it is audited with before and after, and the audit trail holds no full CPF', sql(`select count(*) from audit_log_entries where entity_id='${person.json.id}' and action='Update' and details::text like '%Before%' and details::text like '%After%'`) === '1'
+  && sql(`select count(*) from audit_log_entries where details::text like '%${cpfA}%' or details::text like '%${fmtCpf(cpfA)}%'`) === '0');
+ok('changing the account type needs a confirmation (409)', (await call('PUT', `/api/admin/clients/${person.json.id}/registration`, { token: admin, body: { companyName: 'Empresa', accountType: 'Business', registration: { cnpj: mkCnpj('99000001') } } })).status === 409);
+const noReason = await call('POST', `/api/admin/clients/${person.json.id}/cpf/reveal`, { token: admin, body: { reason: 'x' } });
+ok('"Mostrar CPF" without a reason of 3 to 200 characters is refused (400) naming the field', noReason.status === 400 && noReason.json[0].field === 'reason');
+const reveal = await call('POST', `/api/admin/clients/${person.json.id}/cpf/reveal`, { token: admin, body: { reason: 'Conferir cadastro' } });
+ok('"Mostrar CPF" is admin-only, answers the full formatted CPF with no-store, and is audited with the masked CPF only',
+  reveal.status === 200 && reveal.json.cpf === fmtCpf(cpfA) && (reveal.headers.get('cache-control') ?? '').includes('no-store')
+  && (await call('POST', `/api/admin/clients/${person.json.id}/cpf/reveal`, { token: emp, body: { reason: 'Conferir cadastro' } })).status === 403
+  && sql(`select count(*) from audit_log_entries where entity_id='${person.json.id}' and action='Reveal' and details::text like '%***.%' and details::text like '%Conferir cadastro%'`) === '1');
+execSync('docker compose -f deploy/docker-compose.yml restart api', { cwd: ROOT, stdio: 'ignore' });
+for (let i = 0; i < 60; i++) { try { if ((await fetch(API + '/health')).status === 200) break; } catch { /* still starting */ } await new Promise((r) => setTimeout(r, 2000)); }
+const adminAfter = await login(ADMIN.email, ADMIN.password);
+const revealAfter = await call('POST', `/api/admin/clients/${person.json.id}/cpf/reveal`, { token: adminAfter, body: { reason: 'Depois do reinício' } });
+ok('the Data Protection keys survive an API restart: the stored CPF still decrypts afterwards', revealAfter.status === 200 && revealAfter.json.cpf.replace(/\D/g, '') === cpfA);
+ok('the profile responses carry no-store (they hold the birth date and the CPF mask)', (await call('GET', '/api/client/profile', { token: personToken })).headers.get('cache-control')?.includes('no-store') === true);
+ok('the CPF hash key canary is stored once as a 64-character fingerprint, not the key', sql(`select count(*) from app_settings where key='cpf_hash_key_fingerprint' and value ~ '^[0-9a-f]{64}$'`) === '1');
+ok('...and the keys live on the mounted volume, not in the repository', execSync('docker compose -f deploy/docker-compose.yml exec -T api ls /keys', { cwd: ROOT, encoding: 'utf8' }).includes('key-'));
+
 section('AUDIT TRAIL');
 const audit = (await call('GET', '/api/admin/audit-log?pageSize=500', { token: admin })).json;
 const adminUserId = q(`select id from "AspNetUsers" where email='${ADMIN.email}'`);
@@ -953,7 +1041,7 @@ const others = audit.filter((a) => a.entityName !== 'ClientAddress');
 ok('every admin audit entry names the acting admin', others.every((a) => a.actorUserId === adminUserId), `${others.filter((a) => a.actorUserId !== adminUserId).length} entries with another actor`);
 ok('customer address changes name the customer who made them (not an admin, never empty)', audit.filter((a) => a.entityName === 'ClientAddress' && a.details.data?.includes('"By":"Customer"')).every((a) => a.actorUserId !== adminUserId && a.actorUserId !== '00000000-0000-0000-0000-000000000000'));
 const actions = new Set(audit.map((a) => `${a.action}:${a.entityName}`));
-for (const need of ['Create:Product', 'Create:Category', 'Create:Deal', 'Create:Warehouse', 'Create:CoverageArea', 'Upsert:ProductPricing', 'Upsert:InventoryRecord', 'Approve:ClientAccount', 'Suspend:ClientAccount', 'Create:EmployeeAccount', 'Create:PricingTier']) {
+for (const need of ['Create:Product', 'Create:Category', 'Create:Deal', 'Create:Warehouse', 'Create:CoverageArea', 'Upsert:ProductPricing', 'Upsert:InventoryRecord', 'Approve:ClientAccount', 'Suspend:ClientAccount', 'Update:ClientAccount', 'Reveal:ClientAccount', 'Create:EmployeeAccount', 'Create:PricingTier']) {
   ok(`audited: ${need}`, actions.has(need));
 }
 const auditDump = JSON.stringify(audit);

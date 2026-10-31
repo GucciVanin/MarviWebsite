@@ -2,10 +2,11 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { address, twoAddresses } from '../../../shared/models/testing/client-address';
+import { personalRegistration, registration } from '../../../shared/models/testing/registration';
 import { ClientProfileCard } from './client-profile';
 
 const profile = (over: object = {}) => ({
-  id: 'c1', customerNumber: 42, companyName: 'Bar do Zé', ...twoAddresses(), status: 'Approved', createdAt: '2026-10-14T13:42:00Z', ...over,
+  id: 'c1', customerNumber: 42, companyName: 'Bar do Zé', ...twoAddresses(), status: 'Approved', createdAt: '2026-10-14T13:42:00Z', registration: registration(), registrationLocked: false, ...over,
 });
 
 describe('ClientProfileCard', () => {
@@ -48,12 +49,12 @@ describe('ClientProfileCard', () => {
     }
   };
 
-  it('fills the company form and lists the addresses as cards: label, formatted address, badges, no key', async () => {
+  it('fills the registration form and lists the addresses as cards: label, formatted address, badges, no key', async () => {
     const { http, root, settle, field, cards } = setup();
     http.expectOne('/api/client/profile').flush(profile());
     await settle();
 
-    expect(field<HTMLInputElement>('profile-company').value).toBe('Bar do Zé');
+    expect(field<HTMLInputElement>('profile-name').value).toBe('Bar do Zé');
     expect(root.querySelector('#profile-billing')).toBeNull();
     expect(root.querySelector('#profile-shipping')).toBeNull();
     const [matriz, filial] = cards().map((c) => (c.textContent ?? '').replace(/\s+/g, ' '));
@@ -88,19 +89,19 @@ describe('ClientProfileCard', () => {
     expect(text(root)).toContain('Cliente desde 14/10/2026');
   });
 
-  it('saves only the company name', async () => {
+  it('saves the name together with the registration data', async () => {
     const { fixture, http, root, settle, type } = setup();
     http.expectOne('/api/client/profile').flush(profile());
     await settle();
 
-    type('profile-company', 'Bar do Zé Ltda');
+    type('profile-name', 'Bar do Zé Ltda');
     await settle();
     root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
     fixture.detectChanges();
 
     const request = http.expectOne('/api/client/profile');
     expect(request.request.method).toBe('PUT');
-    expect(request.request.body).toEqual({ companyName: 'Bar do Zé Ltda' });
+    expect(request.request.body).toMatchObject({ companyName: 'Bar do Zé Ltda', accountType: 'Business', registration: { cnpj: '11222333000181', mainCnae: '4634601', stateRegistrationStatus: 'Contributor' } });
     request.flush(profile({ companyName: 'Bar do Zé Ltda' }));
     await settle();
 
@@ -114,7 +115,7 @@ describe('ClientProfileCard', () => {
     const save = () => root.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     expect(save().disabled).toBe(false);
 
-    type('profile-company', '   ');
+    type('profile-name', '   ');
     await settle();
     expect(save().disabled).toBe(true);
   });
@@ -127,10 +128,10 @@ describe('ClientProfileCard', () => {
     root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
     fixture.detectChanges();
 
-    expect(field<HTMLInputElement>('profile-company').readOnly).toBe(true);
+    expect(field<HTMLInputElement>('profile-name').readOnly).toBe(true);
     http.expectOne('/api/client/profile').flush(profile());
     await settle();
-    expect(field<HTMLInputElement>('profile-company').readOnly).toBe(false);
+    expect(field<HTMLInputElement>('profile-name').readOnly).toBe(false);
   });
 
   it('explains in pt-BR when the server refuses the company name, and keeps what was typed', async () => {
@@ -138,7 +139,7 @@ describe('ClientProfileCard', () => {
     http.expectOne('/api/client/profile').flush(profile());
     await settle();
 
-    type('profile-company', 'Acme');
+    type('profile-name', 'Acme');
     await settle();
     root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
     fixture.detectChanges();
@@ -147,7 +148,7 @@ describe('ClientProfileCard', () => {
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('dados enviados são inválidos');
     expect(root.querySelector('[role="alert"] small')?.textContent).toContain('Company name is required');
-    expect(field<HTMLInputElement>('profile-company').value).toBe('Acme');
+    expect(field<HTMLInputElement>('profile-name').value).toBe('Acme');
     expect(text(root)).not.toContain('Dados salvos');
   });
 
@@ -489,4 +490,174 @@ describe('ClientProfileCard', () => {
       expect(Array.from(root.querySelectorAll('button')).some((b) => b.textContent?.trim() === 'Adicionar endereço')).toBe(true);
     });
   });
+
+  describe('registration data (MRV-9.4)', () => {
+    it('shows the "Dados cadastrais" form, with the business fields in order and the CNPJ formatted with Matriz', async () => {
+      const { http, root, settle, field } = setup();
+      http.expectOne('/api/client/profile').flush(profile());
+      await settle();
+
+      expect(root.querySelector('#registration-title')?.textContent).toBe('Dados cadastrais');
+      expect(field<HTMLInputElement>('profile-cnpj').value).toBe('11.222.333/0001-81');
+      expect(text(root)).toContain('Estabelecimento: Matriz');
+      expect(field<HTMLInputElement>('profile-legal').value).toBe('Acme Comércio Ltda');
+      expect(field<HTMLSelectElement>('profile-ie-status').value).toBe('Contributor');
+      expect(field<HTMLInputElement>('profile-ie').value).toBe('110042490114');
+      expect(field<HTMLInputElement>('profile-cnae').value).toBe('4634-6/01');
+      expect(field<HTMLInputElement>('profile-phone').value).toBe('(11) 91234-5678');
+    });
+
+    it('a Pending customer may still choose another account type', async () => {
+      const { fixture, http, root, settle, field, type } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ status: 'Pending' }));
+      await settle();
+
+      field<HTMLInputElement>('profile-type-personal').click();
+      await settle();
+      type('profile-cpf', '11144477735');
+      type('profile-birth', '1990-03-02');
+      await settle();
+      root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      const request = http.expectOne('/api/client/profile');
+      expect(request.request.body).toMatchObject({ companyName: 'Bar do Zé', accountType: 'Personal', registration: { cpf: '11144477735', birthDate: '1990-03-02' } });
+      expect(request.request.body.registration.cnpj).toBeUndefined();
+      request.flush(profile({ registration: personalRegistration() }));
+      await settle();
+      expect(field<HTMLInputElement>('profile-cpf').value).toBe('');
+    });
+
+    it('after approval the verified fields are read-only with the reason, and there is no type choice', async () => {
+      const { http, root, settle, field } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ registrationLocked: true }));
+      await settle();
+
+      expect(root.querySelector('input[type="radio"]')).toBeNull();
+      expect(field<HTMLInputElement>('profile-name').readOnly).toBe(true);
+      expect(field<HTMLInputElement>('profile-cnpj').readOnly).toBe(true);
+      expect(field<HTMLInputElement>('profile-phone').readOnly).toBe(false);
+      expect(text(root)).toContain('só a Marvi pode alterá-los');
+    });
+
+    it('a locked customer saves a new phone with the stored values sent back unchanged', async () => {
+      const { fixture, http, root, settle, field, type } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ registrationLocked: true }));
+      await settle();
+
+      type('profile-phone', '21988887777');
+      await settle();
+      root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+
+      const request = http.expectOne('/api/client/profile');
+      expect(request.request.body).toMatchObject({
+        companyName: 'Bar do Zé', accountType: 'Business',
+        registration: { phone: '(21) 98888-7777', cnpj: '11222333000181', legalName: 'Acme Comércio Ltda', mainCnae: '4634601', stateRegistration: '110042490114', openingDate: '2010-05-04' },
+      });
+      request.flush(profile({ registrationLocked: true, registration: registration({ phone: '21988887777' }) }));
+      await settle();
+      expect(field<HTMLInputElement>('profile-phone').value).toBe('(21) 98888-7777');
+    });
+
+    it('shows the 403 "contact the company" text when the server refuses a locked change', async () => {
+      const { fixture, http, root, settle } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ registrationLocked: true }));
+      await settle();
+
+      root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+      http.expectOne('/api/client/profile').flush('Seu cadastro já foi verificado e só pode ser alterado pela empresa. Entre em contato para pedir a mudança.', { status: 403, statusText: 'Forbidden' });
+      await settle();
+
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('Entre em contato');
+    });
+
+    it('a Pending personal account shows the CPF field empty to retype, with the masked current value in the hint, never the number', async () => {
+      const { http, root, settle, field } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ status: 'Pending', registration: personalRegistration() }));
+      await settle();
+
+      expect(field<HTMLInputElement>('profile-cpf').value).toBe('');
+      expect(text(root)).toContain('CPF cadastrado: ***.444.777-**');
+      expect(text(root)).toContain('Deixe em branco para manter o CPF');
+      expect(field<HTMLInputElement>('profile-birth').value).toBe('1990-03-02');
+      expect(text(root)).not.toContain('111.444.777');
+    });
+  });
+
+
+  describe('a Suspended customer and field problems from the server (MRV-9.4)', () => {
+    it('sees the whole registration form read-only with the reason, and cannot save', async () => {
+      const { http, root, settle } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ status: 'Suspended', registrationLocked: true }));
+      await settle();
+
+      const form = root.querySelector('form')!;
+      expect(Array.from(form.querySelectorAll<HTMLInputElement>('input[type="text"], input[type="tel"], input[type="email"], input[type="date"]')).every((i) => i.readOnly)).toBe(true);
+      expect(Array.from(form.querySelectorAll<HTMLSelectElement>('select')).every((i) => i.disabled)).toBe(true);
+      expect(root.querySelector<HTMLButtonElement>('form button[type="submit"]')!.disabled).toBe(true);
+      expect(text(root)).toContain('Sua conta está suspensa');
+      expect(text(root)).toContain('só para leitura');
+    });
+
+    it('an Approved customer still edits phone, e-mail and contact', async () => {
+      const { http, root, settle, field } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ registrationLocked: true }));
+      await settle();
+
+      expect(field<HTMLInputElement>('profile-phone').readOnly).toBe(false);
+      expect(text(root)).not.toContain('Sua conta está suspensa');
+    });
+
+    it('shows a problem the server named by field under that field, and forgets it when the next save starts', async () => {
+      const { fixture, http, root, settle, type } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ status: 'Pending' }));
+      await settle();
+
+      type('profile-phone', '11912345678');
+      await settle();
+      root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+      http.expectOne('/api/client/profile').flush([{ field: 'phone', message: 'Telefone inválido: informe o DDD e o número (10 ou 11 dígitos).' }], { status: 400, statusText: 'Bad Request' });
+      await settle();
+
+      expect(root.querySelector('#profile-phone-hint')?.textContent).toContain('Telefone inválido');
+      expect(root.querySelector('#profile-phone')!.getAttribute('aria-invalid')).toBe('true');
+
+      root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+      http.expectOne('/api/client/profile').flush(profile());
+      await settle();
+      expect(root.querySelector('#profile-phone-hint')?.textContent?.trim()).toBe('');
+    });
+
+    it('shows the generic duplicate answer (409) as text, without saying which number', async () => {
+      const { fixture, http, root, settle } = setup();
+      http.expectOne('/api/client/profile').flush(profile({ status: 'Pending' }));
+      await settle();
+
+      root.querySelector<HTMLFormElement>('form')!.dispatchEvent(new Event('submit'));
+      fixture.detectChanges();
+      http.expectOne('/api/client/profile').flush('Não foi possível concluir o cadastro com estes dados. Se você já tem conta, entre ou fale conosco.', { status: 409, statusText: 'Conflict' });
+      await settle();
+
+      const alert = root.querySelector('[role="alert"]')?.textContent ?? '';
+      expect(alert).toContain('Não foi possível concluir o cadastro com estes dados');
+      expect(alert).not.toContain('CNPJ já');
+    });
+  });
+
+
+  it('an Approved personal customer sees their CPF masked in the read-only field, and no full CPF is in the page', async () => {
+    const { http, root, settle, field } = setup();
+    http.expectOne('/api/client/profile').flush(profile({ registrationLocked: true, registration: personalRegistration() }));
+    await settle();
+
+    expect(field<HTMLInputElement>('profile-cpf').value).toBe('***.444.777-**');
+    expect(field<HTMLInputElement>('profile-cpf').readOnly).toBe(true);
+    expect(root.innerHTML).not.toContain('111.444.777-35');
+    expect(root.innerHTML).not.toContain('11144477735');
+  });
+
 });

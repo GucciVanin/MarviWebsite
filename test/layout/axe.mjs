@@ -19,23 +19,30 @@ const ACCOUNTS = {
   mercado: { email: 'mercado@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   pendente: { email: 'pendente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   suspenso: { email: 'suspenso@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
+  pessoa: { email: 'pessoa@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
 };
 if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
   ACCOUNTS.admin = {
     email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD,
-    routes: ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/importacao', '/admin/auditoria'],
+    routes: ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/importacao', '/admin/auditoria'],
   };
 }
+
+// The registration page is public (no account): its two account types are audited signed out (MRV-9.4).
+ACCOUNTS.visitante = { routes: ['/register#business', '/register#personal'] };
 
 const browser = await chromium.launch();
 let failures = 0, checked = 0, skipped = 0;
 for (const [role, account] of Object.entries(ACCOUNTS)) {
-  const res = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: account.email, password: account.password }) });
-  if (!res.ok) { console.log(`${role}\tSKIPPED sign-in failed (${res.status})`); skipped++; continue; }
-  const token = (await res.json()).token;
+  let token = null;
+  if (account.email) {
+    const res = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: account.email, password: account.password }) });
+    if (!res.ok) { console.log(`${role}\tSKIPPED sign-in failed (${res.status})`); skipped++; continue; }
+    token = (await res.json()).token;
+  }
   for (const width of WIDTHS) {
     const ctx = await browser.newContext({ viewport: { width, height: width < 600 ? 812 : 900 }, locale: 'pt-BR', reducedMotion: 'reduce', bypassCSP: true });
-    await ctx.addInitScript(([tk, tv, pk]) => { try { localStorage.setItem(tk, tv); localStorage.setItem(pk, '1'); } catch { /* no storage */ } }, [TOKEN_KEY, token, PRIVACY_KEY]);
+    await ctx.addInitScript(([tk, tv, pk]) => { try { if (tv) localStorage.setItem(tk, tv); localStorage.setItem(pk, '1'); } catch { /* no storage */ } }, [TOKEN_KEY, token, PRIVACY_KEY]);
     for (const route of account.routes) {
       if (ONLY && !ONLY.test(`${role} ${route}`)) continue;
       const page = await ctx.newPage();
@@ -47,7 +54,22 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
         await page.locator('button[aria-haspopup="dialog"]').first().click();
         await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
       }
-      if (step === 'address-add') {
+      if (step === 'business') {
+        await page.locator('#register-type-business').click();
+        await page.locator('#register-cnpj').fill('12abc34501de35');
+      } else if (step === 'personal') {
+        await page.locator('#register-type-personal').click();
+        await page.locator('#register-cpf').fill('11144477735');
+        await page.locator('#register-birth').fill('2020-01-01');
+      } else if (step === 'registration' || step === 'registration-personal' || step === 'reveal') {
+        const type = step === 'registration' ? 'Empresa' : 'Pessoa física';
+        await page.locator('[data-testid="customer"]', { hasText: type }).first().getByRole('button', { name: 'Editar' }).click();
+        await page.waitForSelector('#admin-registration-name', { timeout: 8000 });
+        if (step === 'reveal') {
+          await page.getByRole('button', { name: 'Mostrar CPF' }).click();
+          await page.waitForSelector('#admin-reveal-reason', { timeout: 8000 });
+        }
+      } else if (step === 'address-add') {
         await page.getByRole('button', { name: 'Adicionar endereço' }).click();
         await page.waitForSelector('#address-new-cep', { timeout: 8000 });
       } else if (step === 'address-edit') {

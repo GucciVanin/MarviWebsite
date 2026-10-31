@@ -34,19 +34,22 @@ const ACCOUNTS = {
   mercado: { email: 'mercado@demo.marvi.test', password: 'Demo-Cliente-1!' },
   pendente: { email: 'pendente@demo.marvi.test', password: 'Demo-Cliente-1!' },
   suspenso: { email: 'suspenso@demo.marvi.test', password: 'Demo-Cliente-1!' },
+  pessoa: { email: 'pessoa@demo.marvi.test', password: 'Demo-Cliente-1!' },
 };
 
 const PUBLIC = ['/', '/login', '/register', '/privacidade', '/contato', '/storefront'];
-const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/importacao', '/admin/auditoria'];
+const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/importacao', '/admin/auditoria'];
 // group = who is signed in and how the page is opened. `notice` leaves the privacy notice visible (fixed layer, AC-3/AC-9).
 const GROUPS = [
   { name: 'public', account: null, notice: false, routes: PUBLIC },
+  { name: 'public-register', account: null, notice: false, routes: ['/register#business', '/register#personal'] },
   { name: 'public-notice', account: null, notice: true, routes: ['/', '/storefront', '/contato', '/register'] },
   { name: 'public-as-employee', account: 'employee', notice: false, routes: ['/', '/storefront', '/contato'] },
   { name: 'client-portal', account: 'cliente', notice: false, routes: ['/portal', '/portal#address-add', '/portal#address-edit'] },
   { name: 'client-portal-wholesale', account: 'mercado', notice: false, routes: ['/portal'] },
   { name: 'client-portal-pending', account: 'pendente', notice: false, routes: ['/portal'] },
   { name: 'client-portal-suspended', account: 'suspenso', notice: false, routes: ['/portal'] },
+  { name: 'client-portal-personal', account: 'pessoa', notice: false, routes: ['/portal'] },
   { name: 'employee-portal', account: 'employee', notice: false, routes: ['/employee', '/employee#widget', '/employee/historico', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
   { name: 'admin-portal', account: 'admin', notice: false, routes: ADMIN },
 ];
@@ -109,6 +112,9 @@ async function openWidget(page) {
 //   address-add  the customer's "Adicionar endereço" form on /portal
 //   address-edit the first address card's edit form on /portal
 //   address-fix  the admin customers editor with its first address's fix form
+//   business     the registration page with the business account chosen and an alphanumeric CNPJ typed (MRV-9.4)
+//   personal     the registration page with the personal account chosen, a CPF and a birth date under 18 typed (the longest message)
+//   registration / registration-personal   the admin customers editor of the first company / person, with the registration form
 async function openStep(page, step) {
   if (step === 'address-add') {
     await page.getByRole('button', { name: 'Adicionar endereço' }).click();
@@ -121,6 +127,24 @@ async function openStep(page, step) {
     await page.waitForSelector('[data-testid="customer-addresses"] li', { timeout: 8000 });
     await page.locator('[data-testid="customer-addresses"] li').first().getByRole('button', { name: 'Corrigir endereço' }).click();
     await page.waitForSelector('#admin-address-cep', { timeout: 8000 });
+  } else if (step === 'business') {
+    await page.locator('#register-type-business').click();
+    await page.locator('#register-cnpj').fill('12abc34501de35');
+    await page.waitForSelector('#register-cnpj-hint', { timeout: 8000 });
+  } else if (step === 'personal') {
+    await page.locator('#register-type-personal').click();
+    await page.locator('#register-cpf').fill('11144477735');
+    await page.locator('#register-birth').fill('2020-01-01');
+    await page.waitForSelector('#register-birth-hint', { timeout: 8000 });
+  } else if (step === 'registration' || step === 'registration-personal' || step === 'reveal') {
+    const type = step === 'registration' ? 'Empresa' : 'Pessoa física';
+    await page.locator('[data-testid="customer"]', { hasText: type }).first().getByRole('button', { name: 'Editar' }).click();
+    await page.waitForSelector('#admin-registration-name', { timeout: 8000 });
+    if (step === 'reveal') {
+      // Only the question is opened; nothing is sent, so nothing is audited.
+      await page.getByRole('button', { name: 'Mostrar CPF' }).click();
+      await page.waitForSelector('#admin-reveal-reason', { timeout: 8000 });
+    }
   } else {
     return false;
   }

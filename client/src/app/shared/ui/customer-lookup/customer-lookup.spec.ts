@@ -5,6 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideRouter } from '@angular/router';
 import type { ClientProfile } from '../../../features/employee-portal/api/employee.service';
 import { twoAddresses } from '../../models/testing/client-address';
+import { registration } from '../../models/testing/registration';
 import { CustomerLookup, openDocuments } from './customer-lookup';
 
 const profile = (patch: Partial<ClientProfile> = {}): ClientProfile => ({
@@ -15,6 +16,7 @@ const profile = (patch: Partial<ClientProfile> = {}): ClientProfile => ({
   ...twoAddresses(),
   pricingTierName: 'Atacado',
   contactEmail: 'ze@bar.example.com',
+  registration: registration(),
   status: 'Approved',
   quotes: [
     { id: 'q1', status: 'Submitted' },
@@ -125,9 +127,10 @@ describe('CustomerLookup (the "Consultar cliente" widget)', () => {
     expect(dialog()!.innerHTML).not.toContain('6f1c2a3e');
     expect(shown).toContain('Cotações em aberto 2');
     expect(shown).toContain('Pedidos em aberto 1');
-    // Not built yet (MRV-9.3, MRV-9.4) or not in the API: a dash, never an empty row.
-    expect(shown).toContain('Tipo de conta —');
-    expect(shown).toContain('CNPJ / CPF —');
+    // The account type and the document are the customer's (MRV-9.4); the rest: a dash, never an empty row.
+    expect(shown).toContain('Tipo de conta Empresa');
+    expect(shown).toContain('CNPJ 11.222.333/0001-81 (Matriz)');
+    expect(shown).toContain('Cadastro Completo');
     expect(shown).toContain('E-mail de contato ze@bar.example.com');
     expect(dialog()!.querySelectorAll('dd:empty').length).toBe(0);
   });

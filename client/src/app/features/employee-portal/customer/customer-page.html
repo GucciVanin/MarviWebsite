@@ -29,12 +29,11 @@
           <div><dt>{{ l.number }}</dt><dd>{{ customer.customerNumber | customerNumber }}</dd></div>
           <div><dt>{{ l.since }}</dt><dd>{{ customer.createdAt | ptDate }}</dd></div>
           <div><dt>{{ l.tier }}</dt><dd>{{ customer.pricingTierName ?? l.none }}</dd></div>
-          <div><dt>{{ l.accountType }}</dt><dd>{{ l.none }}</dd></div>
-          <div><dt>{{ l.document }}</dt><dd>{{ l.none }}</dd></div>
           <div><dt>{{ l.email }}</dt><dd>{{ customer.contactEmail || l.none }}</dd></div>
           <div><dt>{{ l.openQuotes }}</dt><dd>{{ counts()?.quotes }}</dd></div>
           <div><dt>{{ l.openOrders }}</dt><dd>{{ counts()?.orders }}</dd></div>
         </dl>
+        <dl class="facts" data-testid="customer-registration" appRegistrationFacts [registration]="customer.registration" [full]="true"></dl>
 
         <h2>{{ t.addresses }}</h2>
         <h3>{{ l.billing }}</h3>

@@ -1,0 +1,121 @@
+@let d = draft();
+@let p = d.problems();
+@if (typeEditable()) {
+  <fieldset class="choice-group" [disabled]="readOnly()">
+    <legend>{{ t.typeLegend }}</legend>
+    <label class="choice" [class.choice--on]="d.type() === 'Business'" [for]="id('type-business')">
+      <input [id]="id('type-business')" type="radio" [name]="id('type')" value="Business" [checked]="d.type() === 'Business'" (change)="d.chooseType('Business')" />
+      <span><strong>{{ t.business }}</strong><span class="muted">{{ t.businessHint }}</span></span>
+    </label>
+    <label class="choice" [class.choice--on]="d.type() === 'Personal'" [for]="id('type-personal')">
+      <input [id]="id('type-personal')" type="radio" [name]="id('type')" value="Personal" [checked]="d.type() === 'Personal'" (change)="d.chooseType('Personal')" />
+      <span><strong>{{ t.personal }}</strong><span class="muted">{{ t.personalHint }}</span></span>
+    </label>
+  </fieldset>
+} @else if (d.type()) {
+  <p class="muted"><strong>{{ t.typeChosen }}:</strong> {{ d.type() === 'Business' ? t.business : t.personal }}</p>
+}
+
+@if (d.type() === null) {
+  <p class="muted" [id]="id('choose')">{{ t.chooseFirst }}</p>
+} @else {
+  @if (locked()) {
+    <p class="alert" role="note" [id]="id('lock')">{{ t.locked }}</p>
+  }
+  <div class="address-fields">
+    <div class="field">
+      <label [for]="id('name')">{{ d.type() === 'Business' ? t.companyName : t.fullName }}</label>
+      <input [id]="id('name')" [name]="id('name')" type="text" [autocomplete]="d.type() === 'Business' ? 'organization' : 'name'" aria-required="true" [maxLength]="limits.name" [readOnly]="fixed()" [attr.aria-describedby]="described('name-hint')" [attr.aria-invalid]="p['name'] ? 'true' : null" [value]="d.name()" (input)="d.name.set(pick($event))" />
+      <p [id]="id('name-hint')" class="muted" role="status">{{ p['name'] }}</p>
+    </div>
+
+    @if (d.type() === 'Business') {
+      <div class="field">
+        <label [for]="id('cnpj')">{{ d.compact ? t.cnpjOptional : t.cnpj }}</label>
+        <input [id]="id('cnpj')" [name]="id('cnpj')" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="18" [attr.aria-describedby]="described('cnpj-hint')" [attr.aria-invalid]="p['cnpj'] ? 'true' : null" [readOnly]="fixed()" [value]="d.cnpj()" (input)="masked($event, d.setCnpj.bind(d), d.cnpj)" />
+        <p [id]="id('cnpj-hint')" class="muted" role="status">{{ p['cnpj'] || (kind() ? t.cnpjKind + ': ' + t.kinds[kind()!] : t.cnpjHint) }}</p>
+      </div>
+      @if (!d.compact) {
+        <div class="field">
+          <label [for]="id('legal')">{{ t.legalName }}</label>
+          <input [id]="id('legal')" [name]="id('legal')" type="text" autocomplete="off" [maxLength]="limits.legalName" [readOnly]="fixed()" [attr.aria-describedby]="described('legal-hint')" [attr.aria-invalid]="p['legalName'] ? 'true' : null" [value]="d.legalName()" (input)="d.legalName.set(pick($event))" />
+          <p [id]="id('legal-hint')" class="muted" role="status">{{ p['legalName'] }}</p>
+        </div>
+        <div class="field">
+          <label [for]="id('trade')">{{ t.tradeName }}</label>
+          <input [id]="id('trade')" [name]="id('trade')" type="text" autocomplete="off" [maxLength]="limits.tradeName" [readOnly]="fixed()" [attr.aria-describedby]="described('trade-hint')" [attr.aria-invalid]="p['tradeName'] ? 'true' : null" [value]="d.tradeName()" (input)="d.tradeName.set(pick($event))" />
+          <p [id]="id('trade-hint')" class="muted" role="status">{{ p['tradeName'] }}</p>
+        </div>
+        <div class="field">
+          <label [for]="id('ie-status')">{{ t.ieStatus }}</label>
+          <select [id]="id('ie-status')" [name]="id('ie-status')" [disabled]="fixed()" [attr.aria-describedby]="locked() ? id('lock') : null" (change)="d.setIeStatus($any(pick($event)))">
+            <option value="" [selected]="d.ieStatus() === ''">{{ t.chooseOne }}</option>
+            @for (status of ieStatuses; track status) {
+              <option [value]="status" [selected]="d.ieStatus() === status">{{ t.ieStatuses[status] }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label [for]="id('ie')">{{ t.ie }}</label>
+          <input [id]="id('ie')" [name]="id('ie')" type="text" autocomplete="off" autocapitalize="characters" [maxLength]="limits.ie + 4" [disabled]="d.ieStatus() !== 'Contributor'" [readOnly]="fixed()" [attr.aria-describedby]="described('ie-hint')" [attr.aria-invalid]="p['stateRegistration'] ? 'true' : null" [value]="d.ie()" (input)="d.ie.set(pick($event))" />
+          <p [id]="id('ie-hint')" class="muted" role="status">{{ p['stateRegistration'] || t.ieHint }}</p>
+        </div>
+        <div class="field">
+          <label [for]="id('municipal')">{{ t.municipal }}</label>
+          <input [id]="id('municipal')" [name]="id('municipal')" type="text" autocomplete="off" [maxLength]="limits.municipal" [readOnly]="fixed()" [attr.aria-describedby]="described('municipal-hint')" [attr.aria-invalid]="p['municipalRegistration'] ? 'true' : null" [value]="d.municipal()" (input)="d.municipal.set(pick($event))" />
+          <p [id]="id('municipal-hint')" class="muted" role="status">{{ p['municipalRegistration'] }}</p>
+        </div>
+        <div class="field">
+          <label [for]="id('cnae')">{{ t.cnae }}</label>
+          <input [id]="id('cnae')" [name]="id('cnae')" type="text" inputmode="numeric" autocomplete="off" placeholder="0000-0/00" maxlength="9" [readOnly]="fixed()" [attr.aria-describedby]="described('cnae-hint')" [attr.aria-invalid]="p['mainCnae'] ? 'true' : null" [value]="d.cnae()" (input)="masked($event, d.setCnae.bind(d), d.cnae)" />
+          <p [id]="id('cnae-hint')" class="muted" role="status">{{ p['mainCnae'] }}</p>
+        </div>
+        <div class="field">
+          <label [for]="id('regime')">{{ t.regime }}</label>
+          <select [id]="id('regime')" [name]="id('regime')" [disabled]="fixed()" [attr.aria-describedby]="locked() ? id('lock') : null" (change)="d.regime.set($any(pick($event)))">
+            <option value="" [selected]="d.regime() === ''">{{ t.chooseOne }}</option>
+            @for (regime of regimes; track regime) {
+              <option [value]="regime" [selected]="d.regime() === regime">{{ t.regimes[regime] }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label [for]="id('opening')">{{ t.opening }}</label>
+          <input [id]="id('opening')" [name]="id('opening')" type="date" min="1900-01-01" [max]="today" [readOnly]="fixed()" [attr.aria-describedby]="described('opening-hint')" [attr.aria-invalid]="p['openingDate'] ? 'true' : null" [value]="d.opening()" (input)="d.opening.set(pick($event))" />
+          <p [id]="id('opening-hint')" class="muted" role="status">{{ p['openingDate'] }}</p>
+        </div>
+      }
+    } @else {
+      <div class="field">
+        <label [for]="id('cpf')">{{ t.cpf }}</label>
+        <input [id]="id('cpf')" [name]="id('cpf')" type="text" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" maxlength="14" aria-required="true" [readOnly]="fixed()" [attr.aria-describedby]="described('cpf-hint')" [attr.aria-invalid]="p['cpf'] ? 'true' : null" [value]="locked() ? (d.cpfMasked() ?? '') : d.cpf()" (input)="masked($event, d.setCpf.bind(d), d.cpf)" />
+        <p [id]="id('cpf-hint')" class="muted" role="status">{{ p['cpf'] || (d.hasCpf() && !locked() ? (d.cpfMasked() ? t.cpfCurrent + ' ' + d.cpfMasked() + '. ' : '') + t.cpfKeep : '') }}</p>
+      </div>
+      <div class="field">
+        <label [for]="id('birth')">{{ t.birthDate }}</label>
+        <input [id]="id('birth')" [name]="id('birth')" type="date" min="1900-01-01" [max]="today" autocomplete="off" aria-required="true" [readOnly]="fixed()" [attr.aria-describedby]="described('birth-hint')" [attr.aria-invalid]="p['birthDate'] ? 'true' : null" [value]="d.birth()" (input)="d.birth.set(pick($event))" />
+        <p [id]="id('birth-hint')" class="muted" role="status">{{ p['birthDate'] || t.birthHint }}</p>
+      </div>
+    }
+
+    @if (!d.compact) {
+      <div class="field">
+        <label [for]="id('email')">{{ d.type() === 'Business' ? t.invoiceEmailBusiness : t.invoiceEmailPerson }}</label>
+        <input [id]="id('email')" [name]="id('email')" type="email" autocomplete="email" [maxLength]="limits.email" [readOnly]="readOnly()" [attr.aria-describedby]="id('email-hint')" [attr.aria-invalid]="p['invoiceEmail'] ? 'true' : null" [value]="d.invoiceEmail()" (input)="d.invoiceEmail.set(pick($event))" />
+        <p [id]="id('email-hint')" class="muted" role="status">{{ p['invoiceEmail'] }}</p>
+      </div>
+      <div class="field">
+        <label [for]="id('phone')">{{ t.phone }}</label>
+        <input [id]="id('phone')" [name]="id('phone')" type="tel" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000" maxlength="15" [readOnly]="readOnly()" [attr.aria-describedby]="id('phone-hint')" [attr.aria-invalid]="p['phone'] ? 'true' : null" [value]="d.phone()" (input)="masked($event, d.setPhone.bind(d), d.phone)" />
+        <p [id]="id('phone-hint')" class="muted" role="status">{{ p['phone'] }}</p>
+      </div>
+      @if (d.type() === 'Business') {
+        <div class="field">
+          <label [for]="id('contact')">{{ t.contact }}</label>
+          <input [id]="id('contact')" [name]="id('contact')" type="text" autocomplete="name" [maxLength]="limits.contact" [readOnly]="readOnly()" [attr.aria-describedby]="id('contact-hint')" [attr.aria-invalid]="p['contactName'] ? 'true' : null" [value]="d.contact()" (input)="d.contact.set(pick($event))" />
+          <p [id]="id('contact-hint')" class="muted" role="status">{{ p['contactName'] }}</p>
+        </div>
+      }
+    }
+  </div>
+}

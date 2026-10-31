@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, map, of, throwError } from 'rxjs';
 import type { ClientAddress, ClientAddressRequest } from '../../../shared/models/client-address.model';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
+import type { AccountType, Registration, RegistrationRequest } from '../../../shared/models/registration.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 
 export interface CreateEmployeeRequest {
@@ -31,6 +32,14 @@ export interface ProductImportReport {
 
 export interface UpdateClientTierRequest {
   pricingTierId: string;
+}
+
+/** An admin's edit of a customer's registration record (MRV-9.4); a changed account type needs `confirmTypeChange`. A CPF left out stays as stored. */
+export interface UpdateClientRegistrationRequest {
+  companyName: string;
+  accountType: AccountType;
+  registration: RegistrationRequest;
+  confirmTypeChange: boolean;
 }
 
 /** Approving is the admin's explicit choice of the customer's pricing tier: nobody is approved by default. */
@@ -205,6 +214,15 @@ export class AdminService {
 
   updateClientTier(id: string, request: UpdateClientTierRequest): Observable<void> {
     return this.http.put<void>(`/api/admin/clients/${id}/pricing-tier`, request);
+  }
+
+  updateClientRegistration(id: string, request: UpdateClientRegistrationRequest): Observable<Registration> {
+    return this.http.put<Registration>(`/api/admin/clients/${id}/registration`, request);
+  }
+
+  /** Shows the full CPF of a customer. The admin says why (3 to 200 characters); the API writes an audit entry with the reason before it answers. */
+  revealClientCpf(id: string, reason: string): Observable<{ cpf: string }> {
+    return this.http.post<{ cpf: string }>(`/api/admin/clients/${id}/cpf/reveal`, { reason });
   }
 
   /** An admin fixes one of a customer's addresses (MRV-9.3); the same rules as the customer's own edit, audited. */

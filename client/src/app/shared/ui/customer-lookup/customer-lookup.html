@@ -43,8 +43,9 @@
         </div>
         <div><dt>{{ t.since }}</dt><dd>{{ customer.createdAt | ptDate }}</dd></div>
         <div><dt>{{ t.tier }}</dt><dd>{{ customer.pricingTierName ?? t.none }}</dd></div>
-        <div><dt>{{ t.accountType }}</dt><dd>{{ t.none }}</dd></div>
-        <div><dt>{{ t.document }}</dt><dd>{{ t.none }}</dd></div>
+      </dl>
+      <dl class="lookup__facts" data-testid="lookup-registration" appRegistrationFacts [registration]="customer.registration"></dl>
+      <dl class="lookup__facts">
         <div class="lookup__wide"><dt>{{ t.billing }}</dt><dd data-testid="lookup-billing">{{ billing() ? (billing() | address) : t.none }}</dd></div>
         <div class="lookup__wide">
           <dt>{{ t.deliveryAddresses }}</dt>

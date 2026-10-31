@@ -5,9 +5,11 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { EMPLOYEE_PORTAL_ROUTES } from '../employee-portal.routes';
 import { staffPageGuard } from '../../../core/auth/role.guard';
 import { twoAddresses } from '../../../shared/models/testing/client-address';
+import { personalRegistration, registration } from '../../../shared/models/testing/registration';
 import { CustomerPage } from './customer-page';
 
 const profile = (patch: object = {}) => ({
+  registration: registration(),
   id: 'c-123',
   customerNumber: 42,
   companyName: 'Bar do Zé',
@@ -79,9 +81,29 @@ describe('CustomerPage', () => {
     expect(text()).toContain('E-mail de contato ze@bar.example.com');
     expect(text()).toContain('Cotações em aberto 1');
     expect(text()).toContain('Pedidos em aberto 1');
-    // Not built yet (MRV-9.3, MRV-9.4) or not in the API: a dash.
-    expect(text()).toContain('Tipo de conta —');
-    expect(text()).toContain('CNPJ / CPF —');
+    // The account type and the registration data (MRV-9.4).
+    expect(text()).toContain('Tipo de conta Empresa');
+    expect(text()).toContain('CNPJ 11.222.333/0001-81 (Matriz)');
+    expect(text()).toContain('Razão social Acme Comércio Ltda');
+    expect(text()).toContain('Inscrição estadual Contribuinte do ICMS · 110042490114');
+    expect(text()).toContain('CNAE principal 4634-6/01');
+    expect(text()).toContain('Data de abertura 04/05/2010');
+  });
+
+  it('shows a personal account with the "Pessoa física" badge, the CPF masked, the birth date and what is missing (MRV-9.4)', async () => {
+    const { http, root, settle, text } = setup();
+
+    http.expectOne('/api/employee/clients/by-number/42').flush(
+      profile({ companyName: 'João Silva', registration: personalRegistration({ missing: ['phone'] }) }),
+    );
+    await settle();
+
+    expect(root.querySelector('[data-testid="customer-registration"] [data-testid="account-type"]')?.textContent).toBe('Pessoa física');
+    expect(text()).toContain('CPF ***.444.777-**');
+    expect(text()).toContain('Data de nascimento 02/03/1990');
+    expect(text()).toContain('Falta: Telefone');
+    expect(text()).not.toContain('111.444.777-35');
+    expect(text()).not.toContain('Razão social');
   });
 
   it('lists the customer\'s quotes and orders by their numbers', async () => {

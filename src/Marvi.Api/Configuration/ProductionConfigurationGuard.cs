@@ -60,6 +60,32 @@ public static class ProductionConfigurationGuard
             problems.Add("Jwt:Key still holds an example value.");
         }
 
+        // The CPF hash key (MRV-9.4) is a secret like the JWT key: changing it later would make every stored CPF hash stop matching.
+        var cpfKey = configuration["Privacy:CpfHashKey"];
+        if (string.IsNullOrWhiteSpace(cpfKey))
+        {
+            problems.Add("Privacy:CpfHashKey is not set.");
+        }
+        else if (cpfKey.Length < MinJwtKeyLength)
+        {
+            problems.Add($"Privacy:CpfHashKey is shorter than {MinJwtKeyLength} characters.");
+        }
+        else if (HoldsAnExample(cpfKey))
+        {
+            problems.Add("Privacy:CpfHashKey still holds an example value.");
+        }
+
+        // The Data Protection keys encrypt the stored CPFs; without a folder that survives restarts they would be lost with the container.
+        if (string.IsNullOrWhiteSpace(configuration["DataProtection:KeysPath"]))
+        {
+            problems.Add("DataProtection:KeysPath is not set (a folder on a persistent volume, outside the repository).");
+        }
+
+        if (configuration.GetValue<bool>("DataProtection:Ephemeral"))
+        {
+            problems.Add("DataProtection:Ephemeral is for tests only: the stored CPFs would be lost at every restart.");
+        }
+
         var adminEmail = configuration["Seed:AdminEmail"];
         if (!string.IsNullOrWhiteSpace(adminEmail) && adminEmail.EndsWith("@marvi.local", StringComparison.OrdinalIgnoreCase))
         {

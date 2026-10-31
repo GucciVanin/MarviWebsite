@@ -31,6 +31,9 @@ Every Angular service, guard, interceptor and helper with logic under `client/sr
 | shared/format/pt-date.pipe.ts | pipe | `format-pipes.spec.ts` | local date and time | null, empty, invalid are empty | no spec | none |
 | shared/format/number.pipes.ts (`customerNumber`, `documentNumber`, MRV-9.1) | pipe | `format-pipes.spec.ts` | C-000042, Q-000123, P-000045, more than six digits | null, undefined, 0, negative, fractional, NaN are empty (never C-000000) | no spec | none |
 | core/auth/role.guard.ts `staffPageGuard` (MRV-9.2) | guard | `role.guard.matrix.spec.ts` | Employee, Admin allowed | Anonymous and expired session to /login; Client to /portal; unknown role to / | none | none |
+| shared/format/registration.ts (MRV-9.4) | helpers | `registration.spec.ts` | CNPJ (alphanumeric) and CPF check digits, masks, age, dates |
+| shared/ui/registration-fields (MRV-9.4) | component + `RegistrationDraft` | `registration-fields.spec.ts`, `registration-draft.spec.ts` | field order per type, IE toggle, masks, locked fields, CPF never shown |
+| shared/ui/registration-summary (MRV-9.4) | staff facts | `registration-summary.spec.ts`, `customer-lookup.spec.ts`, `customer-page.spec.ts` | badge, document, completeness, masked CPF |
 | shared/format/address.ts (MRV-9.3) | helpers + pipe | `address.spec.ts` | CEP mask and format, street/place lines, 27 states, same-place, billing/other lookup | n/a | legacy rows with only a street | none |
 | shared/ui/address-fields (MRV-9.3) | component + `AddressDraft` | `address-draft.spec.ts`; exercised by `client-profile.spec.ts`, `register.spec.ts`, `admin-customers.spec.ts` | required parts, CEP, UF, request shape, compact (registration), mask in the DOM | incomplete CEP, no state | n/a | none |
 | shared/ui/address-summary (MRV-9.3) | component | `address-summary.spec.ts` | label, badges, kind, lines, notes, no key | needs-review marker | n/a | none |

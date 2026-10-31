@@ -26,6 +26,10 @@ services:
       Jwt__Key: ${JWT_KEY:?set JWT_KEY in deploy/.env}
       Seed__AdminEmail: ${SEED_ADMIN_EMAIL:?set SEED_ADMIN_EMAIL in deploy/.env}
       Seed__AdminPassword: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD in deploy/.env}
+      # Registration data (MRV-9.4). The CPF is stored encrypted with ASP.NET Data Protection, whose keys live in /keys (the named volume
+      # below, so they survive container restarts and rebuilds; never in the repository). The hash key makes CPFs unique without storing them.
+      DataProtection__KeysPath: /keys
+      Privacy__CpfHashKey: ${CPF_HASH_KEY:-dev-only-compose-cpf-hash-key-CHANGE-ME-before-production-1234567890}
       # This compose file is for development and the runtime test suite, which run on the example values of deploy/.env.example.
       # The API image is Production by default and refuses example secrets there (MRV-3.3a); this says, loudly, that here it is fine.
       # A real deployment must NOT set it (see docs/operations.md).
@@ -35,12 +39,17 @@ services:
       RateLimiting__Coverage__PermitLimit: "100000"
       RateLimiting__Contact__PermitLimit: "100000"
       RateLimiting__Addresses__PermitLimit: "100000"
+      RateLimiting__Register__PermitLimit: "100000"
+      RateLimiting__Profile__PermitLimit: "100000"
+      RateLimiting__Reveal__PermitLimit: "100000"
       # The nginx proxy in front of the API forwards the real client address; trust it (the API is only meant to be reached through it).
       ForwardedHeaders__Enabled: "true"
       # Google reviews on the home page (MRV-2.5); both empty hides the section.
       Reviews__Google__ApiKey: ${GOOGLE_PLACES_API_KEY:-}
       Reviews__Google__PlaceId: ${GOOGLE_PLACE_ID:-}
       Reviews__Google__BaseUrl: ${GOOGLE_PLACES_BASE_URL:-}
+    volumes:
+      - marvi-dataprotection:/keys
     ports:
       - "8080:8080"
     depends_on:
@@ -68,3 +77,4 @@ services:
 
 volumes:
   marvi-db-data:
+  marvi-dataprotection:

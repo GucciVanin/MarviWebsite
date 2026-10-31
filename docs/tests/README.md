@@ -6,6 +6,7 @@
 | Client | `bash /tmp/ct.sh` (Docker node:24; host Node 22 is too old for the Angular CLI) | Vitest via ng test |
 | Layout audit | `bash test/layout/run.sh` (dev stack up) and `bash test/layout/run.sh --fixtures` | Docker, pinned Playwright; see [layout-audit.md](layout-audit.md). Fails until MRV-8.5 clears the baseline |
 | Runtime | stop the dev stack, `bash test/runtime/run.sh`, restart the dev stack | Real Postgres, own compose project |
+| Migration registration (MRV-9.4) | `bash test/runtime/migration-registration.sh` | Throwaway Postgres on 127.0.0.1:55435; every existing customer becomes a Business account with no data, the CNPJ and CPF-hash unique indexes, `Down`. Notes for categorising real customers in production: `docs/operations.md` section 7 (an admin edits each person's account once: Clientes, Editar, Dados cadastrais, Conta pessoal) |
 | Migration addresses (MRV-9.3) | `bash test/runtime/migration-addresses.sh` | Throwaway Postgres on 127.0.0.1:55434; legacy billing/shipping text becomes addresses flagged for review, one billing and one default per customer, `Down` restores the text |
 | Migration numbering (MRV-9.1) | `bash test/runtime/migration-numbering.sh` | Throwaway Postgres container on port 55432 (never the dev stack); proves existing rows are numbered by creation time, the sequences continue and `Down` works |
 

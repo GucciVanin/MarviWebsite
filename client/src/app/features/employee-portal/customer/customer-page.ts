@@ -8,6 +8,7 @@ import { CustomerNumberPipe, DocumentNumberPipe, parseCustomerNumber } from '../
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import { AddressSummary } from '../../../shared/ui/address-summary/address-summary';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
+import { RegistrationFacts } from '../../../shared/ui/registration-summary/registration-summary';
 import { openDocuments } from '../../../shared/ui/customer-lookup/customer-lookup';
 import { ClientProfile, EmployeeService } from '../api/employee.service';
 
@@ -17,7 +18,7 @@ import { ClientProfile, EmployeeService } from '../api/employee.service';
  */
 @Component({
   selector: 'app-customer-page',
-  imports: [RouterLink, ErrorAlert, AddressSummary, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
+  imports: [RouterLink, ErrorAlert, AddressSummary, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe, RegistrationFacts],
   templateUrl: './customer-page.html',
 })
 export class CustomerPage implements OnInit {

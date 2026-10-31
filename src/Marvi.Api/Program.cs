@@ -72,6 +72,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    await CpfKeyCheck.EnsureAsync(scope.ServiceProvider, app.Environment, app.Logger);
     await IdentityModule.SeedRolesAsync(scope.ServiceProvider);
     await IdentityModule.SeedAdminAsync(scope.ServiceProvider, app.Configuration);
     await DefaultPricingTier.GetOrCreateAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());

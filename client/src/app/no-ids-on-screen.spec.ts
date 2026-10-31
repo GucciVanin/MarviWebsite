@@ -24,6 +24,7 @@ import { AdminOperations } from './features/admin-portal/operations/admin-operat
 import { AdminCustomers } from './features/admin-portal/customers/admin-customers';
 import { AdminImport } from './features/admin-portal/import/admin-import';
 import { AdminAudit } from './features/admin-portal/audit/admin-audit';
+import { registration } from './shared/models/testing/registration';
 
 /**
  * MRV-9.1 (AC-4): the browser never shows a database id. Every routed page is rendered with API answers whose every id is a GUID, and
@@ -83,6 +84,7 @@ const addressOf = (n: number, over: object = {}) => ({
   isBilling: n === 0, isDefaultDelivery: n === 0, needsReview: n === 1, ...over,
 });
 const profile = {
+  registration: registration(), registrationLocked: false,
   id: CUSTOMER.id, customerNumber: 42, companyName: CUSTOMER.companyName, createdAt: '2026-10-14T13:42:00Z',
   addresses: [addressOf(0), addressOf(1)], billingAddressKey: g(1400), defaultDeliveryKey: g(1400), pricingTierName: 'Standard', status: 'Approved', quotes: [quote(1)], orders: [order(1)],
 };

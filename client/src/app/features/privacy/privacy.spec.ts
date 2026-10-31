@@ -21,7 +21,7 @@ describe('Privacy policy page', () => {
     for (const expected of ['responsável', 'dados coletamos', 'Para que', 'art. 18', 'dispositivo', 'Terceiros', 'Última atualização']) {
       expect(headings.some((h) => h.includes(expected))).toBe(true);
     }
-    expect(el.textContent).toContain('28/10/2026');
+    expect(el.textContent).toContain('30/10/2026');
   });
 
   it('shows legal name, CNPJ and contacts as plain placeholder text, never as links', () => {

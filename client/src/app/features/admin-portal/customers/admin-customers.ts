@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, OnInit, afterNextRender, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, Injector, OnInit, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { action } from '../../../core/http/action';
@@ -15,6 +15,9 @@ import { AddressFields } from '../../../shared/ui/address-fields/address-fields'
 import { AddressSummary } from '../../../shared/ui/address-summary/address-summary';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
+import { RegistrationDraft } from '../../../shared/ui/registration-fields/registration-draft';
+import { RegistrationFields } from '../../../shared/ui/registration-fields/registration-fields';
+import type { AccountType } from '../../../shared/models/registration.model';
 import { EmployeeService } from '../../employee-portal/api/employee.service';
 import { AdminService, PricingTier } from '../api/admin.service';
 import { PendingActionsService } from '../api/pending-actions.service';
@@ -27,7 +30,7 @@ const PAGE_SIZE = 20;
  */
 @Component({
   selector: 'app-admin-customers',
-  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, ApprovalForm, AddressFields, AddressSummary],
+  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, ApprovalForm, AddressFields, AddressSummary, RegistrationFields],
   templateUrl: './admin-customers.html',
 })
 export class AdminCustomers implements OnInit {
@@ -35,6 +38,7 @@ export class AdminCustomers implements OnInit {
   protected readonly portal = PT.employeePortal;
   protected readonly refs = PT.numbers;
   protected readonly a = PT.address;
+  protected readonly types = PT.registration.accountType;
   private readonly admin = inject(AdminService);
   private readonly staff = inject(EmployeeService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -71,6 +75,35 @@ export class AdminCustomers implements OnInit {
 
   protected readonly canSave = computed(() => this.editTierId() !== '' && !this.saveAction.busy());
 
+  /**
+   * The customer's registration record being edited (MRV-9.4): the admin has full control, whatever the status. Changing the account type clears the
+   * other type's fields, so it needs a confirming tick. The CPF is never loaded (the API sends it masked): an empty CPF field keeps it, and "Mostrar CPF"
+   * asks the API, which writes an audit entry before answering.
+   */
+  protected readonly registration = new RegistrationDraft();
+  private readonly savedType = signal<AccountType | null>(null);
+  protected readonly confirmType = signal(false);
+  protected readonly registrationAction = action();
+  protected readonly registrationMessage = signal<string | null>(null);
+  protected readonly revealAction = action();
+  protected readonly shownCpf = signal<string | null>(null);
+  /** "Mostrar CPF" asks why first; the reason is sent with the request and kept in the audit entry. */
+  protected readonly revealing = signal(false);
+  protected readonly revealReason = signal('');
+  protected readonly canReveal = computed(() => this.revealReason().trim().length >= 3 && this.revealReason().trim().length <= 200 && !this.revealAction.busy());
+  protected readonly typeChanged = computed(() => this.savedType() !== null && this.registration.type() !== this.savedType());
+  protected readonly canSaveRegistration = computed(
+    () => this.registration.canSubmit() && (!this.typeChanged() || this.confirmType()) && !this.registrationAction.busy(),
+  );
+
+  constructor() {
+    // What the server named by field shows under that field of the registration form.
+    effect(() => {
+      const failure = this.registrationAction.error();
+      untracked(() => this.registration.setServerProblems(failure?.fields ?? []));
+    });
+  }
+
   ngOnInit(): void {
     this.customers.load();
     this.tiers.load();
@@ -92,6 +125,14 @@ export class AdminCustomers implements OnInit {
     this.confirmingSuspendId.set(null);
     this.editingId.set(customer.id);
     this.editTierId.set(customer.pricingTierId ?? '');
+    this.registration.type.set(null);
+    this.savedType.set(null);
+    this.confirmType.set(false);
+    this.registrationMessage.set(null);
+    this.registrationAction.reset();
+    this.revealAction.reset();
+    this.shownCpf.set(null);
+    this.revealing.set(false);
     this.loadAddresses(customer);
   }
 
@@ -106,6 +147,11 @@ export class AdminCustomers implements OnInit {
     }
     this.addressesAction.run(this.staff.getClient(customer.id), (profile) => {
       this.addresses.set(profile.addresses);
+      if (!returnKey) {
+        // Only when the editor opens: reloading after an address fix must not throw away registration data being typed.
+        this.registration.load(profile.companyName, profile.registration);
+        this.savedType.set(profile.registration.accountType);
+      }
       if (returnKey) {
         this.focusSoon(this.fixButton(returnKey));
       }
@@ -164,7 +210,64 @@ export class AdminCustomers implements OnInit {
     });
   }
 
+  protected saveRegistration(customer: ClientSummary): void {
+    if (!this.canSaveRegistration()) {
+      return;
+    }
+    const draft = this.registration;
+    this.registrationMessage.set(null);
+    this.registrationAction.run(
+      this.admin.updateClientRegistration(customer.id, { companyName: draft.name().trim(), accountType: draft.type()!, registration: draft.request(), confirmTypeChange: this.confirmType() }),
+      (saved) => {
+        if (this.editingId() !== customer.id) {
+          return;
+        }
+        draft.load(draft.name().trim(), saved);
+        this.savedType.set(saved.accountType);
+        this.confirmType.set(false);
+        this.shownCpf.set(null);
+        this.registrationMessage.set(this.t.registrationSaved);
+        this.customers.load();
+      },
+    );
+  }
+
+  protected askToReveal(): void {
+    this.revealAction.reset();
+    this.revealReason.set('');
+    this.revealing.set(true);
+    this.focusSoon('#admin-reveal-reason');
+  }
+
+  protected cancelReveal(): void {
+    this.revealing.set(false);
+    this.revealAction.reset();
+    this.focusSoon('[data-testid="show-cpf"]');
+  }
+
+  protected hideCpf(): void {
+    this.shownCpf.set(null);
+    this.focusSoon('[data-testid="show-cpf"]');
+  }
+
+  /** The reason is wrong once something is typed and it is outside 3 to 200 characters. */
+  protected readonly reasonInvalid = computed(() => this.revealReason().trim().length > 0 && this.revealReason().trim().length < 3);
+
+  protected showCpf(customer: ClientSummary): void {
+    if (!this.canReveal()) {
+      return;
+    }
+    this.revealAction.run(this.admin.revealClientCpf(customer.id, this.revealReason().trim()), (shown) => {
+      if (this.editingId() === customer.id) {
+        this.shownCpf.set(shown.cpf);
+        this.revealing.set(false);
+        this.focusSoon('#admin-hide-cpf');
+      }
+    });
+  }
+
   protected stopEditing(): void {
+    this.shownCpf.set(null);
     this.saveAction.reset();
     this.editingId.set(null);
   }

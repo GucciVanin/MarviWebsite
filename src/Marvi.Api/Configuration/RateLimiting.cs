@@ -19,11 +19,20 @@ public static class RateLimiting
     public const string ContactPolicy = "contact";
     /// <summary>The write endpoints of a customer's addresses and the admin's address fix (MRV-9.3); <c>RateLimiting:Addresses</c>.</summary>
     public const string AddressesPolicy = "addresses";
+    /// <summary>Creating an account (<c>POST /api/auth/register</c>), tighter than sign-in: it is also a CNPJ/CPF probe (MRV-9.4); <c>RateLimiting:Register</c>.</summary>
+    public const string RegisterPolicy = "register";
+    /// <summary>Saving the customer's own registration data (<c>PUT /api/client/profile</c>); a Pending customer can change the CPF/CNPJ freely, so this bounds duplicate probing (MRV-9.4); <c>RateLimiting:Profile</c>.</summary>
+    public const string ProfilePolicy = "profile";
+    /// <summary>The admin's "Mostrar CPF" (<c>POST .../cpf/reveal</c>), each one audited (MRV-9.4); <c>RateLimiting:Reveal</c>.</summary>
+    public const string RevealPolicy = "reveal";
 
     private const int DefaultAuthPermits = 10;
     private const int DefaultCoveragePermits = 30;
     private const int DefaultContactPermits = 5;
     private const int DefaultAddressesPermits = 60;
+    private const int DefaultRegisterPermits = 5;
+    private const int DefaultProfilePermits = 20;
+    private const int DefaultRevealPermits = 10;
     private const int DefaultWindowSeconds = 60;
 
     public static IServiceCollection AddMarviRateLimiting(this IServiceCollection services, IConfiguration configuration)
@@ -46,6 +55,9 @@ public static class RateLimiting
             AddPolicy(options, CoveragePolicy, configuration.GetSection("RateLimiting:Coverage"), DefaultCoveragePermits);
             AddPolicy(options, ContactPolicy, configuration.GetSection("RateLimiting:Contact"), DefaultContactPermits);
             AddPolicy(options, AddressesPolicy, configuration.GetSection("RateLimiting:Addresses"), DefaultAddressesPermits);
+            AddPolicy(options, RegisterPolicy, configuration.GetSection("RateLimiting:Register"), DefaultRegisterPermits);
+            AddPolicy(options, ProfilePolicy, configuration.GetSection("RateLimiting:Profile"), DefaultProfilePermits);
+            AddPolicy(options, RevealPolicy, configuration.GetSection("RateLimiting:Reveal"), DefaultRevealPermits);
         });
 
         return services;

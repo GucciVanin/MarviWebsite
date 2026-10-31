@@ -20,4 +20,5 @@ public record ClientProfileDto(
     ClientAccountStatus Status,
     List<QuoteDto> Quotes,
     List<OrderDto> Orders,
-    string? ContactEmail = null);
+    string? ContactEmail = null,
+    RegistrationDto? Registration = null);

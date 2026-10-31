@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ClientPortal } from './client-portal';
+import { registration } from '../../shared/models/testing/registration';
 
 const product = (id: string, name: string, price: number | null, inStock = true) => ({
   id,
@@ -58,7 +59,7 @@ describe('ClientPortal', () => {
     http.expectOne('/api/orders/mine').flush(data.orders ?? []);
     // The portal and the details card each ask for the profile.
     http.match('/api/client/profile').forEach((request) =>
-      request.flush({ id: 'c1', companyName: 'Bar do Zé', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, status, createdAt: '2026-10-14T13:42:00Z' }),
+      request.flush({ id: 'c1', companyName: 'Bar do Zé', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, status, createdAt: '2026-10-14T13:42:00Z', registration: registration(), registrationLocked: status !== 'Pending' }),
     );
     fixture.detectChanges();
     // Only an approved customer gets the quote builder, so the catalog is asked for only then.
@@ -89,7 +90,7 @@ describe('ClientPortal', () => {
     expect(root.querySelector('app-product-picker')).toBeNull();
     expect(text(root)).not.toContain('Solicitar cotação');
     // They can still keep their own details up to date.
-    expect(root.querySelector('#profile-company')).not.toBeNull();
+    expect(root.querySelector('#profile-name')).not.toBeNull();
   });
 
   it('tells a suspended customer their account is suspended, and offers no way to build a quote', async () => {
@@ -378,7 +379,7 @@ describe('ClientPortal', () => {
     http.expectOne('/api/quotes/mine').flush('x', { status: 500, statusText: 'Server Error' });
     http.expectOne('/api/orders/mine').flush([]);
     http.match('/api/client/profile').forEach((request) =>
-      request.flush({ id: 'c1', companyName: 'Bar', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, status: 'Approved', createdAt: '2026-10-14T13:42:00Z' }),
+      request.flush({ id: 'c1', companyName: 'Bar', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, status: 'Approved', createdAt: '2026-10-14T13:42:00Z', registration: registration(), registrationLocked: true }),
     );
     fixture.detectChanges();
     http.expectOne((r) => r.url === '/api/products').flush([]);

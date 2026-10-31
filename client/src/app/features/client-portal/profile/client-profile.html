@@ -4,11 +4,12 @@
   @if (profile.loaded()) {
     <p class="muted">{{ t.customerNumber }}: <strong>{{ profile.data()?.customerNumber | customerNumber }}</strong></p>
     <p class="muted">{{ t.since }} {{ profile.data()?.createdAt | ptDate }}</p>
-    <form (ngSubmit)="save()">
-      <div class="field">
-        <label for="profile-company">{{ t.company }}</label>
-        <input id="profile-company" name="company" type="text" autocomplete="organization" required [maxLength]="maxCompany" [readOnly]="saveAction.busy()" [ngModel]="companyName()" (ngModelChange)="companyName.set($event); saved.set(false)" />
-      </div>
+    <form (ngSubmit)="save()" [attr.aria-label]="t.registrationTitle">
+      <h3 id="registration-title">{{ t.registrationTitle }}</h3>
+      <app-registration-fields idPrefix="profile" [draft]="registration" [typeEditable]="!locked()" [locked]="locked()" [readOnly]="saveAction.busy() || suspended()" />
+      @if (suspended()) {
+        <p class="alert" role="note">{{ t.suspendedReadOnly }}</p>
+      }
       <button type="submit" class="btn btn--primary" [disabled]="!canSave()">{{ t.save }}</button>
     </form>
     <app-error-alert [error]="saveAction.error()" />

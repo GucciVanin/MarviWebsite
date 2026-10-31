@@ -58,7 +58,8 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
     public async Task ACustomer_EditsTheirCompanyName_AndStaffSeeTheSame()
     {
         var admin = await _factory.AdminAsync();
-        var (client, id) = await _factory.RegisterClientAsync();
+        // Only a Pending customer can still rename themselves: approval verifies the record (MRV-9.4, ClientRegistrationTests).
+        var (client, id) = await _factory.RegisterPendingClientAsync();
 
         var response = await PutAsync(client, "  Bar do Zé  ");
 
@@ -75,7 +76,7 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
     {
         var (client, _) = await _factory.RegisterClientAsync();
 
-        var response = await client.PutAsJsonAsync("/api/client/profile", new { companyName = "Acme", billingAddress = "Rua A", shippingAddresses = new[] { "Rua B" } });
+        var response = await client.PutAsJsonAsync("/api/client/profile", new { companyName = "Acme Co", billingAddress = "Rua A", shippingAddresses = new[] { "Rua B" } });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var profile = (await response.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!;
@@ -104,16 +105,21 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
     }
 
     [Fact]
-    public async Task ASuspendedCustomer_CanStillMaintainTheirDetails()
+    public async Task ASuspendedCustomer_CannotEditAnyRegistrationField()
     {
         var admin = await _factory.AdminAsync();
         var (client, id) = await _factory.RegisterClientAsync();
         (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).EnsureSuccessStatusCode();
 
-        var response = await PutAsync(client, "Acme Renamed");
+        var response = await client.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest("Acme Co", null, new RegistrationRequest(Phone: "11 91234-5678")));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(ClientAccountStatus.Suspended, (await response.Content.ReadFromJsonAsync<ClientOwnProfileDto>())!.Status);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await PutAsync(client, "Acme Renamed")).StatusCode);
+        // Reading is still allowed, and an unchanged save is not an edit.
+        var profile = (await client.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!;
+        Assert.Equal(ClientAccountStatus.Suspended, profile.Status);
+        Assert.Null(profile.Registration!.Phone);
+        Assert.Equal(HttpStatusCode.OK, (await PutAsync(client, "Acme Co")).StatusCode);
     }
 
     [Theory]

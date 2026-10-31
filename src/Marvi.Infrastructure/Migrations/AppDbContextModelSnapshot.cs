@@ -376,14 +376,64 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int>("AccountType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("account_type");
+
+                    b.Property<DateOnly?>("BirthDate")
+                        .HasColumnType("date")
+                        .HasColumnName("birth_date");
+
+                    b.Property<string>("Cnpj")
+                        .HasMaxLength(14)
+                        .HasColumnType("character varying(14)")
+                        .HasColumnName("cnpj");
+
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("company_name");
 
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("contact_name");
+
+                    b.Property<string>("CpfHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("cpf_hash");
+
+                    b.Property<string>("CpfProtected")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("cpf_protected");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("InvoiceEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("invoice_email");
+
+                    b.Property<string>("LegalName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("legal_name");
+
+                    b.Property<string>("MainCnae")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("main_cnae");
+
+                    b.Property<string>("MunicipalRegistration")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("municipal_registration");
 
                     b.Property<int>("Number")
                         .ValueGeneratedOnAdd()
@@ -391,14 +441,41 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnName("number")
                         .HasDefaultValueSql("nextval('client_number_seq')");
 
+                    b.Property<DateOnly?>("OpeningDate")
+                        .HasColumnType("date")
+                        .HasColumnName("opening_date");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
                     b.Property<Guid?>("PricingTierId")
                         .HasColumnType("uuid")
                         .HasColumnName("pricing_tier_id");
+
+                    b.Property<string>("StateRegistration")
+                        .HasMaxLength(14)
+                        .HasColumnType("character varying(14)")
+                        .HasColumnName("state_registration");
+
+                    b.Property<int?>("StateRegistrationStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("state_registration_status");
 
                     b.Property<int>("Status")
                         .IsConcurrencyToken()
                         .HasColumnType("integer")
                         .HasColumnName("status");
+
+                    b.Property<int?>("TaxRegime")
+                        .HasColumnType("integer")
+                        .HasColumnName("tax_regime");
+
+                    b.Property<string>("TradeName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("trade_name");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -406,6 +483,14 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_client_accounts");
+
+                    b.HasIndex("Cnpj")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_accounts_cnpj");
+
+                    b.HasIndex("CpfHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_accounts_cpf_hash");
 
                     b.HasIndex("Number")
                         .IsUnique()
@@ -788,6 +873,25 @@ namespace Marvi.Infrastructure.Migrations
                         .HasDatabaseName("ix_quote_line_items_quote_id");
 
                     b.ToTable("quote_line_items", (string)null);
+                });
+
+            modelBuilder.Entity("Marvi.Infrastructure.Data.AppSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key")
+                        .HasName("pk_app_settings");
+
+                    b.ToTable("app_settings", (string)null);
                 });
 
             modelBuilder.Entity("Marvi.Infrastructure.Data.ApplicationUser", b =>

@@ -10,22 +10,23 @@ import type { ClientAddress } from '../../../shared/models/client-address.model'
 import { AddressDraft } from '../../../shared/ui/address-fields/address-draft';
 import { AddressFields } from '../../../shared/ui/address-fields/address-fields';
 import { AddressSummary } from '../../../shared/ui/address-summary/address-summary';
+import { RegistrationDraft } from '../../../shared/ui/registration-fields/registration-draft';
+import { RegistrationFields } from '../../../shared/ui/registration-fields/registration-fields';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { ClientProfile, ProfileService } from '../api/profile.service';
 
 // The server's limits (ClientProfileRules, ClientAddressRules): checked here too so the customer is told in pt-BR before sending.
-const MAX_COMPANY_LENGTH = 200;
 const MAX_ADDRESSES = 20;
 
 /**
- * The customer's own company details (MRV-2.2) and their addresses (MRV-9.3). The company name has its own small form; the addresses are
+ * The customer's own company details (MRV-2.2) and their addresses (MRV-9.3). The account type and registration data are one form (locked after approval); the addresses are
  * cards with an "Adicionar endereço" form, edit and remove (after a confirming click). Everything is keyed by the address's opaque key,
  * which is never shown.
  */
 @Component({
   selector: 'app-client-profile',
-  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, AddressFields, AddressSummary],
+  imports: [FormsModule, ErrorAlert, LoadState, PtDatePipe, CustomerNumberPipe, AddressFields, AddressSummary, RegistrationFields],
   templateUrl: './client-profile.html',
 })
 export class ClientProfileCard implements OnInit {
@@ -39,10 +40,13 @@ export class ClientProfileCard implements OnInit {
   protected readonly addressAction = action();
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render.
-  protected readonly companyName = signal('');
+  /** The account type and registration data being edited (MRV-9.4). Once approved the verified fields are read-only: only an admin changes them. */
+  protected readonly registration = new RegistrationDraft();
+  protected readonly locked = signal(false);
+  /** A Suspended customer edits nothing (MRV-9.4): the whole form is read-only, with the reason. */
+  protected readonly suspended = signal(false);
   protected readonly saved = signal(false);
-  protected readonly canSave = computed(() => this.companyName().trim() !== '' && !this.saveAction.busy());
-  protected readonly maxCompany = MAX_COMPANY_LENGTH;
+  protected readonly canSave = computed(() => this.registration.canSubmit() && !this.saveAction.busy() && !this.suspended());
 
   protected readonly addresses = signal<ClientAddress[]>([]);
   protected readonly draft = new AddressDraft();
@@ -60,6 +64,11 @@ export class ClientProfileCard implements OnInit {
 
   constructor() {
     // Fill the form once, when the details first arrive; a retry after an error must not overwrite what is being typed.
+    // What the server named by field shows under that field.
+    effect(() => {
+      const failure = this.saveAction.error();
+      untracked(() => this.registration.setServerProblems(failure?.fields ?? []));
+    });
     effect(() => {
       const loaded = this.profile.data();
       if (loaded && !this.filled) {
@@ -77,8 +86,9 @@ export class ClientProfileCard implements OnInit {
       return;
     }
     this.saved.set(false);
-    this.saveAction.run(this.service.update({ companyName: this.companyName().trim() }), (saved) => {
-      this.companyName.set(saved.companyName);
+    const draft = this.registration;
+    this.saveAction.run(this.service.update({ companyName: draft.name().trim(), accountType: draft.type()!, registration: draft.request() }), (saved) => {
+      this.fillRegistration(saved);
       this.addresses.set(saved.addresses);
       this.saved.set(true);
     });
@@ -196,7 +206,13 @@ export class ClientProfileCard implements OnInit {
 
   private fill(profile: ClientProfile): void {
     this.filled = true;
-    this.companyName.set(profile.companyName);
+    this.fillRegistration(profile);
     this.addresses.set(profile.addresses);
+  }
+
+  private fillRegistration(profile: ClientProfile): void {
+    this.registration.load(profile.companyName, profile.registration);
+    this.locked.set(profile.registrationLocked);
+    this.suspended.set(profile.status === 'Suspended');
   }
 }

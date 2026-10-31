@@ -24,6 +24,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
 
     public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
     public DbSet<ClientAddress> ClientAddresses => Set<ClientAddress>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<EmployeeAccount> EmployeeAccounts => Set<EmployeeAccount>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Category> Categories => Set<Category>();
@@ -92,6 +93,32 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         // Customer, quote and order numbers (MRV-9.1): the database hands them out from a sequence on insert, so they are unique and never
         // reused (a sequence does not go back when a row is deleted or an insert rolls back). A unique index backs that up.
         ConfigureNumber<ClientAccount>(builder, "client_number_seq");
+        builder.Entity<AppSetting>(e =>
+        {
+            e.HasKey(s => s.Key);
+            e.Property(s => s.Key).HasMaxLength(100);
+            e.Property(s => s.Value).HasMaxLength(200);
+        });
+
+        // Registration data (MRV-9.4). Existing rows become Business accounts (the database default); the owner categorises real customers when the production
+        // database is migrated. CNPJ and the keyed CPF hash are unique when present (NULLs never collide). The CPF itself is only stored encrypted.
+        builder.Entity<ClientAccount>(e =>
+        {
+            e.Property(c => c.AccountType).HasDefaultValue(AccountType.Business);
+            e.Property(c => c.Phone).HasMaxLength(20);
+            e.Property(c => c.InvoiceEmail).HasMaxLength(RegistrationRules.MaxEmailLength);
+            e.Property(c => c.Cnpj).HasMaxLength(CnpjRules.Length);
+            e.Property(c => c.LegalName).HasMaxLength(RegistrationRules.MaxNameLength);
+            e.Property(c => c.TradeName).HasMaxLength(RegistrationRules.MaxNameLength);
+            e.Property(c => c.StateRegistration).HasMaxLength(14);
+            e.Property(c => c.MunicipalRegistration).HasMaxLength(RegistrationRules.MaxMunicipalRegistrationLength);
+            e.Property(c => c.MainCnae).HasMaxLength(7);
+            e.Property(c => c.ContactName).HasMaxLength(RegistrationRules.MaxContactNameLength);
+            e.Property(c => c.CpfProtected).HasMaxLength(500);
+            e.Property(c => c.CpfHash).HasMaxLength(64);
+            e.HasIndex(c => c.Cnpj).IsUnique();
+            e.HasIndex(c => c.CpfHash).IsUnique();
+        });
         ConfigureNumber<Quote>(builder, "quote_number_seq");
         ConfigureNumber<Order>(builder, "order_number_seq");
         // A customer's addresses (MRV-9.3). The street column is wider than the 200 the rules allow because the migration copies the old

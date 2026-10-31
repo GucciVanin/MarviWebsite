@@ -24,10 +24,10 @@ public static class ClientProfileRules
             return (null, $"Company name is limited to {MaxCompanyNameLength} characters.");
         }
 
-        if (company.Any(char.IsControl))
+        if (RegistrationRules.ContainsInvisible(company))
         {
-            // A NUL character cannot be stored.
-            return (null, "Company name cannot contain control characters or line breaks.");
+            // A NUL character cannot be stored; zero-width and bidirectional format characters (MRV-9.4) would make two names look the same.
+            return (null, "Company name cannot contain control characters, line breaks or invisible format characters.");
         }
 
         return (new ClientProfile(company), null);

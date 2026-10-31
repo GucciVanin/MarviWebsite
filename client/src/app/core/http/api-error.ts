@@ -6,6 +6,22 @@ export interface ApiError {
   status: number;
   message: string;
   detail: string | null;
+  /** The problems the server named by field (`[{ field, message }]`, MRV-9.4), so a form can show each next to its control. */
+  fields?: FieldProblem[];
+}
+
+export interface FieldProblem {
+  field: string;
+  message: string;
+}
+
+/** The `[{ field, message }]` list the API answers a registration-data 400 with; null for any other body. */
+export function fieldProblems(body: unknown): FieldProblem[] | null {
+  if (!Array.isArray(body) || body.length === 0) {
+    return null;
+  }
+  const found = body.filter((item): item is FieldProblem => !!item && typeof item === 'object' && typeof item.field === 'string' && typeof item.message === 'string');
+  return found.length === body.length ? found : null;
 }
 
 function serverText(body: unknown): string | null {
@@ -39,10 +55,12 @@ export function describeApiError(error: unknown): ApiError {
   if (!(error instanceof HttpErrorResponse)) {
     return { status: 0, message: PT.errors.generic, detail: null };
   }
+  const fields = error.status === 0 ? null : fieldProblems(error.error);
   return {
     status: error.status,
     message: messageFor(error.status),
     // No server text on a network failure: the "body" is a browser event, not something to show.
-    detail: error.status === 0 ? null : serverText(error.error),
+    detail: error.status === 0 ? null : fields ? fields.map((p) => p.message).join(' ') : serverText(error.error),
+    ...(fields ? { fields } : {}),
   };
 }

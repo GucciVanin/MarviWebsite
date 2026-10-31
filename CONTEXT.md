@@ -52,6 +52,22 @@ _Avoid_: Shipping address
 The same kind of reference for a Quote (`Q-000123`) and an Order (`P-000045`), each from its own sequence. Pages that show a document name it by its number, never by its id.
 _Avoid_: Quote id, order id, reference
 
+**Account type**:
+Whether a Customer buys as a company (`Business`, "Empresa") or as a person (`Personal`, "Pessoa física"), chosen at registration. A Business account carries the CNPJ and company data; a Personal account the CPF and a birth date (18 or older: the distributor sells alcohol). The display name is the company name or the full name. After Approval the verified record is locked for the Customer; only an Admin changes it (audited).
+_Avoid_: Customer type, kind
+
+**CNPJ**:
+A company's 14-character tax number: 8 of company root, 4 of establishment order (`0001` is the head office, "Matriz"; others "Filial") and 2 check digits. Since July 2026 the first 12 characters may be letters. Unique per account.
+_Avoid_: Company id
+
+**CPF**:
+A person's 11-digit tax number. Personal data (LGPD): stored encrypted, shown to staff and in the audit log only masked (`***.456.789-**`); an Admin sees it in full only through the audited "Mostrar CPF". Unique per account.
+_Avoid_: Document, personal id
+
+**State registration**:
+A company's ICMS registration (`Inscrição estadual`), required only when its status is Contributor; Exempt and non-contributor companies have none.
+_Avoid_: IE number (in prose)
+
 **Pricing tier**:
 A named price list a Customer is assigned to; exactly one is the default, used for anonymous visitors and new Customers.
 _Avoid_: Price group, level

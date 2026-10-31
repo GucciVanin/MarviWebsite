@@ -7,6 +7,7 @@ import { CustomerNumberPipe, formatCustomerNumber } from '../../format/number.pi
 import { PtDatePipe } from '../../format/pt-date.pipe';
 import type { ClientProfile } from '../../../features/employee-portal/api/employee.service';
 import { ErrorAlert } from '../error-alert/error-alert';
+import { RegistrationFacts } from '../registration-summary/registration-summary';
 import { CustomerLookupService } from './customer-lookup.service';
 
 let nextWidget = 0;
@@ -28,7 +29,7 @@ export function openDocuments(profile: ClientProfile): { quotes: number; orders:
  */
 @Component({
   selector: 'app-customer-lookup',
-  imports: [RouterLink, ErrorAlert, CustomerNumberPipe, PtDatePipe, AddressPipe],
+  imports: [RouterLink, ErrorAlert, CustomerNumberPipe, PtDatePipe, AddressPipe, RegistrationFacts],
   templateUrl: './customer-lookup.html',
   styleUrl: './customer-lookup.scss',
 })

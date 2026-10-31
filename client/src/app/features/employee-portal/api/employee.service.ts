@@ -5,6 +5,7 @@ import type { Quote, QuoteStatus } from '../../../shared/models/quote.model';
 import type { Order } from '../../../shared/models/order.model';
 import type { ClientAddress } from '../../../shared/models/client-address.model';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
+import type { Registration } from '../../../shared/models/registration.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 
 export type { ClientSummary } from '../../../shared/models/client-summary.model';
@@ -85,6 +86,8 @@ export interface ClientProfile {
   orders: Order[];
   /** The customer's login e-mail, for staff only (MRV-9.2). */
   contactEmail: string | null;
+  /** The account type and registration data (MRV-9.4): the CPF only masked. */
+  registration: Registration;
 }
 
 @Injectable({ providedIn: 'root' })

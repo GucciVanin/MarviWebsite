@@ -3,10 +3,11 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { twoAddresses } from '../../../shared/models/testing/client-address';
+import { personalRegistration, registration } from '../../../shared/models/testing/registration';
 import { AdminCustomers } from './admin-customers';
 
 const customer = (id: string, companyName: string, status = 'Approved', tierId: string | null = 't-std') => ({
-  id, customerNumber: Number(id.replace(/\D/g, '')) + 41, companyName, status, pricingTierId: tierId, pricingTierName: tierId === 't-gold' ? 'Ouro' : 'Standard', createdAt: '2026-10-14T13:42:00Z',
+  id, customerNumber: Number(id.replace(/\D/g, '')) + 41, companyName, status, pricingTierId: tierId, pricingTierName: tierId === 't-gold' ? 'Ouro' : 'Standard', createdAt: '2026-10-14T13:42:00Z', accountType: 'Business',
 });
 const page = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 20, totalCount });
 const tiers = [{ id: 't-std', name: 'Standard', isDefault: true }, { id: 't-gold', name: 'Ouro', isDefault: false }];
@@ -117,7 +118,7 @@ describe('AdminCustomers', () => {
 
     button('Editar', row('Bar do Zé')).click();
     fixture.detectChanges();
-    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', customerNumber: 42, companyName: 'Bar do Zé', ...twoAddresses(), quotes: [], orders: [] });
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', customerNumber: 42, companyName: 'Bar do Zé', ...twoAddresses(), registration: registration(), quotes: [], orders: [] });
     await settle();
     const section = root.querySelector<HTMLElement>('[data-testid="customer-addresses"]')!;
     expect(text(section)).toContain('Matriz');
@@ -192,7 +193,7 @@ describe('AdminCustomers', () => {
 
     button('Editar', row('Bar do Zé')).click();
     fixture.detectChanges();
-    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, quotes: [], orders: [] });
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', companyName: 'Bar do Zé', registration: registration(), addresses: [], billingAddressKey: null, defaultDeliveryKey: null, quotes: [], orders: [] });
     await settle();
 
     expect(text(root)).toContain('Este cliente não tem endereços cadastrados.');
@@ -372,4 +373,173 @@ describe('AdminCustomers', () => {
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('Erro no servidor');
     expect(root.querySelector('[data-testid="customer"]')).toBeNull();
   });
+
+  describe('registration data (MRV-9.4)', () => {
+    const detail = (reg = registration()) => ({ id: 'c1', customerNumber: 42, companyName: 'Bar do Zé', ...twoAddresses(), registration: reg, quotes: [], orders: [] });
+
+    async function openEditor(items?: object[]) {
+      const ctx = setup(items);
+      await ctx.settle();
+      ctx.button('Editar', ctx.row('Bar do Zé')).click();
+      ctx.fixture.detectChanges();
+      return ctx;
+    }
+
+    it('shows the account type badge of every customer in the list', async () => {
+      const { root, settle } = setup([customer('c1', 'Bar do Zé'), { ...customer('c2', 'João Silva'), accountType: 'Personal' }]);
+      await settle();
+
+      const badges = Array.from(root.querySelectorAll('[data-testid="customer"] [data-testid="account-type"]')).map((b) => b.textContent);
+      expect(badges).toEqual(['Empresa', 'Pessoa física']);
+      expect(root.querySelector('thead')?.textContent).toContain('Tipo');
+    });
+
+    it('opens the whole registration record in the editor, any status, with the CPF empty', async () => {
+      const { http, root, settle } = await openEditor();
+      http.expectOne('/api/employee/clients/c1').flush(detail(personalRegistration()));
+      await settle();
+
+      const editor = root.querySelector<HTMLElement>('[data-testid="customer-registration-editor"]')!;
+      expect(editor.querySelector<HTMLInputElement>('#admin-registration-cpf')!.value).toBe('');
+      expect(editor.querySelector<HTMLInputElement>('#admin-registration-birth')!.value).toBe('1990-03-02');
+      expect(editor.querySelector<HTMLInputElement>('#admin-registration-type-personal')!.checked).toBe(true);
+      expect(editor.textContent).toContain('CPF cadastrado: ***.444.777-**');
+      expect(editor.textContent).not.toContain('111.444.777-35');
+    });
+
+    it('saves the edited record and sends the registration data of the type', async () => {
+      const { fixture, http, root, settle, button, set } = await openEditor();
+      http.expectOne('/api/employee/clients/c1').flush(detail());
+      await settle();
+
+      await set('#admin-registration-legal', 'Acme Corrigida Ltda');
+      await set('#admin-registration-regime', 'LucroReal', 'change');
+      button('Salvar dados cadastrais').click();
+      fixture.detectChanges();
+
+      const request = http.expectOne('/api/admin/clients/c1/registration');
+      expect(request.request.method).toBe('PUT');
+      expect(request.request.body).toMatchObject({
+        companyName: 'Bar do Zé', accountType: 'Business', confirmTypeChange: false,
+        registration: { cnpj: '11222333000181', legalName: 'Acme Corrigida Ltda', taxRegime: 'LucroReal' },
+      });
+      request.flush(registration({ legalName: 'Acme Corrigida Ltda', taxRegime: 'LucroReal' }));
+      http.expectOne((r) => r.url === '/api/employee/clients').flush(page([customer('c1', 'Bar do Zé')]));
+      await settle();
+
+      expect(text(root)).toContain('Dados cadastrais salvos.');
+    });
+
+    it('changing the account type needs a confirming tick, then sends the confirmation', async () => {
+      const { fixture, http, root, settle, button, set } = await openEditor();
+      http.expectOne('/api/employee/clients/c1').flush(detail());
+      await settle();
+
+      root.querySelector<HTMLInputElement>('#admin-registration-type-personal')!.click();
+      await settle();
+      await set('#admin-registration-cpf', '52998224725');
+      await set('#admin-registration-birth', '1990-03-02');
+      const save = () => button('Salvar dados cadastrais');
+      expect(save().disabled).toBe(true);
+      expect(text(root)).toContain('Confirmo a mudança do tipo de conta');
+
+      root.querySelector<HTMLInputElement>('#admin-registration-confirm-type')!.click();
+      await settle();
+      expect(save().disabled).toBe(false);
+      save().click();
+      fixture.detectChanges();
+
+      const request = http.expectOne('/api/admin/clients/c1/registration');
+      expect(request.request.body).toMatchObject({ accountType: 'Personal', confirmTypeChange: true, registration: { cpf: '52998224725', birthDate: '1990-03-02' } });
+      expect(Object.keys(request.request.body.registration)).not.toContain('cnpj');
+    });
+
+    it('shows the server\'s reason when the edit is refused, and keeps what was typed', async () => {
+      const { fixture, http, root, settle, button, set } = await openEditor();
+      http.expectOne('/api/employee/clients/c1').flush(detail());
+      await settle();
+
+      await set('#admin-registration-cnpj', '11444777000161');
+      button('Salvar dados cadastrais').click();
+      fixture.detectChanges();
+      http.expectOne('/api/admin/clients/c1/registration').flush('CNPJ já cadastrado.', { status: 409, statusText: 'Conflict' });
+      await settle();
+
+      expect(root.querySelector('[data-testid="customer-registration-editor"] [role="alert"]')?.textContent).toContain('CNPJ já cadastrado.');
+      expect(root.querySelector<HTMLInputElement>('#admin-registration-cnpj')!.value).toBe('11.444.777/0001-61');
+    });
+
+    it('asks why before it shows the full CPF, sends the reason (an audited call), and can hide it again', async () => {
+      const { fixture, http, root, settle, button, set } = await openEditor();
+      http.expectOne('/api/employee/clients/c1').flush(detail(personalRegistration()));
+      await settle();
+      expect(root.querySelector('[data-testid="shown-cpf"]')).toBeNull();
+
+      button('Mostrar CPF').click();
+      await settle();
+      http.expectNone('/api/admin/clients/c1/cpf/reveal');
+      expect(root.querySelector('label[for="admin-reveal-reason"]')?.textContent).toContain('Motivo da consulta do CPF');
+      const confirm = () => button('Confirmar consulta');
+      expect(confirm().disabled).toBe(true);
+      await set('#admin-reveal-reason', 'ab');
+      expect(confirm().disabled).toBe(true);
+      await set('#admin-reveal-reason', '  Cliente pediu a nota fiscal  ');
+      expect(confirm().disabled).toBe(false);
+      confirm().click();
+      fixture.detectChanges();
+
+      const request = http.expectOne('/api/admin/clients/c1/cpf/reveal');
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ reason: 'Cliente pediu a nota fiscal' });
+      request.flush({ cpf: '111.444.777-35' });
+      await settle();
+
+      expect(root.querySelector('[data-testid="shown-cpf"]')?.textContent).toContain('111.444.777-35');
+      expect(root.querySelector('[data-testid="shown-cpf"]')?.textContent).toContain('auditoria');
+      expect(root.querySelector('[data-testid="reveal-form"]')).toBeNull();
+      button('Ocultar CPF').click();
+      await settle();
+      expect(text(root)).not.toContain('111.444.777-35');
+    });
+
+    it('cancelling the question sends nothing', async () => {
+      const { http, root, settle, button } = await openEditor();
+      http.expectOne('/api/employee/clients/c1').flush(detail(personalRegistration()));
+      await settle();
+
+      button('Mostrar CPF').click();
+      await settle();
+      button('Cancelar', root.querySelector('[data-testid="reveal-form"]')!).click();
+      await settle();
+
+      http.expectNone('/api/admin/clients/c1/cpf/reveal');
+      expect(root.querySelector('[data-testid="reveal-form"]')).toBeNull();
+    });
+
+    it('shows a field problem the server named next to that field', async () => {
+      const { fixture, http, root, settle, button, set } = await openEditor();
+      http.expectOne('/api/employee/clients/c1').flush(detail());
+      await settle();
+
+      await set('#admin-registration-trade', 'Fantasia');
+      button('Salvar dados cadastrais').click();
+      fixture.detectChanges();
+      http.expectOne('/api/admin/clients/c1/registration').flush(
+        [{ field: 'tradeName', message: 'Nome fantasia: no máximo 200 caracteres.' }], { status: 400, statusText: 'Bad Request' },
+      );
+      await settle();
+
+      expect(root.querySelector('#admin-registration-trade-hint')?.textContent).toContain('Nome fantasia: no máximo 200 caracteres.');
+      expect(root.querySelector('#admin-registration-trade')!.getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('offers no "Mostrar CPF" for a business account', async () => {
+      const { http, root, settle } = await openEditor();
+      http.expectOne('/api/employee/clients/c1').flush(detail());
+      await settle();
+
+      expect(root.querySelector('[data-testid="show-cpf"]')).toBeNull();
+    });
+  });
+
 });
