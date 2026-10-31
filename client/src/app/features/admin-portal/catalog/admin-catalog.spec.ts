@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AdminCatalog } from './admin-catalog';
 
@@ -10,7 +11,7 @@ const product = (id: string, sku: string, name: string, categoryId: string | nul
 
 describe('AdminCatalog', () => {
   function setup(data: { categories?: object[]; products?: object[] } = {}) {
-    TestBed.configureTestingModule({ imports: [AdminCatalog], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [AdminCatalog], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
     const fixture = TestBed.createComponent(AdminCatalog);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
@@ -75,7 +76,7 @@ describe('AdminCatalog', () => {
   });
 
   it('tells a failed list from an empty one, and retries just that list', async () => {
-    TestBed.configureTestingModule({ imports: [AdminCatalog], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [AdminCatalog], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
     const fixture = TestBed.createComponent(AdminCatalog);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
@@ -225,103 +226,7 @@ describe('AdminCatalog', () => {
     expect(text(root)).toContain('Refrigerantes');
   });
 
-  // ---- products
-
-  it('creates a product with a category and free-form attributes', async () => {
-    const { fixture, http, root, settle, button, type, choose } = setup({ categories: [category('c1', 'Refrigerantes')] });
-    await settle();
-    await type('productSku', ' COLA-1 ');
-    await type('productName', 'Cola 2L');
-    await type('productDescription', 'Garrafa PET');
-    await choose('productCategory', 'c1');
-    await type('productAttributes', 'marca: Cola\nvolume: 2L\n\n  ');
-
-    button('Salvar produto').click();
-    fixture.detectChanges();
-    const post = http.expectOne('/api/admin/products');
-    expect(post.request.method).toBe('POST');
-    expect(post.request.body).toEqual({
-      sku: 'COLA-1', name: 'Cola 2L', description: 'Garrafa PET', categoryId: 'c1', imageUrl: null, isActive: true,
-      attributes: { marca: 'Cola', volume: '2L' },
-    });
-    post.flush(product('p1', 'COLA-1', 'Cola 2L', 'c1'));
-    http.expectOne('/api/admin/products').flush([product('p1', 'COLA-1', 'Cola 2L', 'c1')]);
-    http.expectOne('/api/admin/categories').flush([category('c1', 'Refrigerantes', 1)]);
-    await settle();
-
-    expect(text(root)).toContain('Produto salvo');
-    expect(root.querySelector('[data-testid="products"] tbody tr')!.textContent).toContain('Cola 2L');
-  });
-
-  it('does not save a product without a SKU and a name', async () => {
-    const { fixture, http, root, settle, button, type } = setup();
-    await settle();
-    await type('productSku', 'COLA-1');
-
-    button('Salvar produto').click();
-    fixture.detectChanges();
-    await settle();
-
-    http.expectNone('/api/admin/products');
-    expect(root.querySelector('[data-testid="product-form"] [role="alert"]')?.textContent).toContain('Informe o código (SKU) e o nome');
-  });
-
-  it('refuses an attribute line that is not "name: value"', async () => {
-    const { fixture, http, root, settle, button, type } = setup();
-    await settle();
-    await type('productSku', 'COLA-1');
-    await type('productName', 'Cola 2L');
-    await type('productAttributes', 'isto não tem dois pontos');
-
-    button('Salvar produto').click();
-    fixture.detectChanges();
-    await settle();
-
-    http.expectNone('/api/admin/products');
-    expect(root.querySelector('[data-testid="product-form"] [role="alert"]')?.textContent).toContain('nome: valor');
-  });
-
-  it('shows why a product could not be saved (duplicate SKU, 409)', async () => {
-    const { fixture, http, root, settle, button, type } = setup();
-    await settle();
-    await type('productSku', 'COLA-1');
-    await type('productName', 'Cola 2L');
-
-    button('Salvar produto').click();
-    fixture.detectChanges();
-    http.expectOne('/api/admin/products').flush('A product with this SKU already exists.', { status: 409, statusText: 'Conflict' });
-    await settle();
-
-    const alert = root.querySelector('[data-testid="product-form"] [role="alert"]')!;
-    expect(alert.textContent).toContain('conflito');
-    expect(alert.querySelector('small')?.textContent).toContain('SKU already exists');
-  });
-
-  it('edits a product: the form shows its attributes one per line and saving sends a PUT', async () => {
-    const { fixture, http, root, settle, button, type } = setup({
-      categories: [category('c1', 'Refrigerantes')],
-      products: [product('p1', 'COLA-1', 'Cola 2L', 'c1', { attributes: { marca: 'Cola', volume: '2L' }, description: 'PET' })],
-    });
-    await settle();
-
-    button('Editar', root.querySelector('[data-testid="products"] tbody tr')!).click();
-    await settle();
-    expect(field(root, 'productSku').value).toBe('COLA-1');
-    expect((root.querySelector('[name="productAttributes"]') as HTMLTextAreaElement).value).toBe('marca: Cola\nvolume: 2L');
-
-    await type('productName', 'Cola 2 litros');
-    button('Salvar produto').click();
-    fixture.detectChanges();
-    const put = http.expectOne('/api/admin/products/p1');
-    expect(put.request.method).toBe('PUT');
-    expect(put.request.body).toMatchObject({ sku: 'COLA-1', name: 'Cola 2 litros', categoryId: 'c1', attributes: { marca: 'Cola', volume: '2L' } });
-    put.flush(null, { status: 204, statusText: 'No Content' });
-    http.expectOne('/api/admin/products').flush([]);
-    http.expectOne('/api/admin/categories').flush([]);
-    await settle();
-
-    expect(text(root)).toContain('Produto salvo');
-  });
+  // ---- products (the form itself is in product-panel.spec.ts)
 
   it('says why a product with history cannot be deleted', async () => {
     const { fixture, http, root, settle, button } = setup({ products: [product('p1', 'COLA-1', 'Cola 2L')] });

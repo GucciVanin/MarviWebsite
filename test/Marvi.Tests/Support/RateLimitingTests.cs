@@ -119,6 +119,24 @@ public class RateLimitingTests : IClassFixture<RateLimitingTests.TightLimitsFact
         Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
     }
 
+    [Fact]
+    public async Task TheGuidedProductCreate_IsLimited_With429AndRetryAfter_ButReadingProductsIsNot()
+    {
+        using var factory = new TightLimitsFactory();
+        var admin = await factory.AdminAsync();
+        var body = new Marvi.Api.Features.Catalog.Contracts.CreateProductWithSetupRequest("x", "x", null, null, null, true, null, null, null);
+
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/products/with-setup", body)).StatusCode);
+        }
+
+        var limited = await admin.PostAsJsonAsync("/api/admin/products/with-setup", body);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/admin/products")).StatusCode);
+    }
+
     /// <summary>Three requests per minute on each limited endpoint group.</summary>
     public sealed class TightLimitsFactory : MarviApiFactory
     {
@@ -130,6 +148,7 @@ public class RateLimitingTests : IClassFixture<RateLimitingTests.TightLimitsFact
                 ["RateLimiting:Auth:PermitLimit"] = "3",
                 ["RateLimiting:Coverage:PermitLimit"] = "3",
                 ["RateLimiting:Addresses:PermitLimit"] = "3",
+                ["RateLimiting:ProductSetup:PermitLimit"] = "3",
             }));
         }
     }

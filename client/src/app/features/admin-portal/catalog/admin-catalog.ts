@@ -1,5 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Component, ElementRef, Injector, OnInit, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { PT } from '../../../core/i18n/pt-br';
 import { loadable } from '../../../core/http/loadable';
@@ -7,33 +6,11 @@ import { confirmedDelete, formFeedback } from '../../../shared/crud/admin-crud';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { AdminService, CategoryAdmin, ProductAdmin } from '../api/admin.service';
-
-/** "name: value" per line, as typed in the product form; null when a line is not in that shape. */
-function parseAttributes(text: string): Record<string, string> | null {
-  const attributes: Record<string, string> = {};
-  for (const raw of text.split('\n')) {
-    const line = raw.trim();
-    if (!line) {
-      continue;
-    }
-    const colon = line.indexOf(':');
-    const name = colon > 0 ? line.slice(0, colon).trim() : '';
-    const value = colon > 0 ? line.slice(colon + 1).trim() : '';
-    if (!name || !value) {
-      return null;
-    }
-    attributes[name] = value;
-  }
-  return attributes;
-}
-
-function formatAttributes(attributes: Record<string, string>): string {
-  return Object.entries(attributes).map(([name, value]) => `${name}: ${value}`).join('\n');
-}
+import { ProductPanel, ProductSaved } from './product-panel';
 
 @Component({
   selector: 'app-admin-catalog',
-  imports: [FormsModule, ErrorAlert, LoadState],
+  imports: [FormsModule, ErrorAlert, LoadState, ProductPanel],
   templateUrl: './admin-catalog.html',
 })
 export class AdminCatalog implements OnInit {
@@ -52,16 +29,22 @@ export class AdminCatalog implements OnInit {
   protected readonly categoryForm = formFeedback();
   protected readonly categoryDelete = confirmedDelete();
 
-  // ---- product form
-  protected readonly editingProductId = signal<string | null>(null);
-  protected readonly productSku = signal('');
-  protected readonly productName = signal('');
-  protected readonly productDescription = signal('');
-  protected readonly productCategory = signal('');
-  protected readonly productImage = signal('');
-  protected readonly productActive = signal(true);
-  protected readonly productAttributes = signal('');
-  protected readonly productForm = formFeedback();
+  // ---- product panel (MRV-9.5): the guided form for a new product, and the same form to edit one
+  private readonly injector = inject(Injector);
+  private readonly newProductButton = viewChild<ElementRef<HTMLButtonElement>>('newProductButton');
+  /** A key per opening, so opening it for another product starts a fresh form. Null: closed. */
+  protected readonly panelKey = signal<number | null>(null);
+  protected readonly editingProduct = signal<ProductAdmin | null>(null);
+  private opened = 0;
+  protected readonly notice = signal('');
+  /** The product created last: the table lists it first. */
+  private readonly newestId = signal<string | null>(null);
+  protected readonly productRows = computed(() => {
+    const newest = this.newestId();
+    const all = this.products.data();
+    return newest ? [...all.filter((p) => p.id === newest), ...all.filter((p) => p.id !== newest)] : all;
+  });
+  protected readonly skus = computed(() => this.products.data().map((p) => p.sku));
   protected readonly productDelete = confirmedDelete();
 
   ngOnInit(): void {
@@ -117,59 +100,28 @@ export class AdminCatalog implements OnInit {
 
   // ---- products
 
-  editProduct(product: ProductAdmin): void {
-    this.productForm.clear();
-    this.editingProductId.set(product.id);
-    this.productSku.set(product.sku);
-    this.productName.set(product.name);
-    this.productDescription.set(product.description ?? '');
-    this.productCategory.set(product.categoryId ?? '');
-    this.productImage.set(product.imageUrl ?? '');
-    this.productActive.set(product.isActive);
-    this.productAttributes.set(formatAttributes(product.attributes));
+  openPanel(product: ProductAdmin | null): void {
+    this.notice.set('');
+    this.editingProduct.set(product);
+    this.panelKey.set(++this.opened);
   }
 
-  resetProductForm(): void {
-    this.editingProductId.set(null);
-    this.productSku.set('');
-    this.productName.set('');
-    this.productDescription.set('');
-    this.productCategory.set('');
-    this.productImage.set('');
-    this.productActive.set(true);
-    this.productAttributes.set('');
-    this.productForm.problem.set(null);
+  closePanel(): void {
+    this.panelKey.set(null);
+    this.editingProduct.set(null);
+    afterNextRender(() => this.newProductButton()?.nativeElement.focus(), { injector: this.injector });
   }
 
-  saveProduct(): void {
-    this.productForm.clear();
-    const sku = this.productSku().trim();
-    const name = this.productName().trim();
-    if (!sku || !name) {
-      this.productForm.refuse(this.t.productRequired);
-      return;
+  productSaved(saved: ProductSaved): void {
+    this.notice.set(saved.created ? this.t.created(saved.name, saved.sku) : this.t.updated(saved.name, saved.sku));
+    if (saved.created && saved.id) {
+      this.newestId.set(saved.id);
     }
-    const attributes = parseAttributes(this.productAttributes());
-    if (attributes === null) {
-      this.productForm.refuse(this.t.attributeFormat);
-      return;
+    this.products.load();
+    this.categories.load(); // the product counts changed
+    if (!saved.again) {
+      this.closePanel();
     }
-    const request = {
-      sku,
-      name,
-      description: this.productDescription().trim() || null,
-      categoryId: this.productCategory() || null,
-      imageUrl: this.productImage().trim() || null,
-      isActive: this.productActive(),
-      attributes,
-    };
-    const id = this.editingProductId();
-    const call: Observable<unknown> = id ? this.admin.updateProduct(id, request) : this.admin.createProduct(request);
-    this.productForm.send(call, () => {
-      this.resetProductForm();
-      this.products.load();
-      this.categories.load(); // the product counts changed
-    });
   }
 
   askDeleteProduct(id: string): void {

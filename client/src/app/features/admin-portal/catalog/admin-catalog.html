@@ -75,7 +75,27 @@
   </section>
 
   <section class="card" data-testid="products-section" aria-labelledby="products-title">
-    <h2 id="products-title">{{ t.productsTitle }}</h2>
+    <div class="toolbar">
+      <h2 id="products-title">{{ t.productsTitle }}</h2>
+      <button type="button" class="btn btn--primary" #newProductButton data-testid="new-product" [attr.aria-expanded]="panelKey() !== null && !editingProduct()" (click)="openPanel(null)">
+        {{ t.newProduct }}
+      </button>
+    </div>
+    @if (notice()) {
+      <p class="alert alert--success" role="status" data-testid="product-notice">{{ notice() }}</p>
+    }
+    @if (panelKey() !== null) {
+      @for (key of [panelKey()]; track key) {
+        <app-product-panel
+          [categories]="categories.data()"
+          [existingSkus]="skus()"
+          [product]="editingProduct()"
+          (saved)="productSaved($event)"
+          (cancelled)="closePanel()"
+          (refresh)="products.load()"
+        />
+      }
+    }
     <app-load-state [state]="products" [emptyText]="t.noProducts" />
     <app-error-alert [error]="productDelete.action.error()" />
     @if (products.data().length) {
@@ -91,7 +111,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (product of products.data(); track product.id) {
+            @for (product of productRows(); track product.id) {
               <tr>
                 <td>{{ product.sku }}</td>
                 <td>{{ product.name }}</td>
@@ -106,7 +126,7 @@
                     <button type="button" class="btn btn--primary btn--small" (click)="deleteProduct(product.id)">{{ t.confirmDelete }}</button>
                     <button type="button" class="btn btn--outline btn--small" (click)="productDelete.cancel()">{{ t.cancel }}</button>
                   } @else {
-                    <button type="button" class="btn btn--outline btn--small" (click)="editProduct(product)">{{ t.edit }}</button>
+                    <button type="button" class="btn btn--outline btn--small" (click)="openPanel(product)">{{ t.edit }}</button>
                     <button type="button" class="btn btn--outline btn--small" (click)="askDeleteProduct(product.id)">{{ t.delete }}</button>
                   }
                 </td>
@@ -116,57 +136,5 @@
         </table>
       </div>
     }
-
-    <form data-testid="product-form" (ngSubmit)="saveProduct()">
-      <h3>{{ editingProductId() ? t.editProduct : t.newProduct }}</h3>
-      <div class="toolbar">
-        <div class="field">
-          <label for="productSku">{{ t.sku }}</label>
-          <input id="productSku" name="productSku" type="text" [(ngModel)]="productSku" />
-        </div>
-        <div class="field">
-          <label for="productName">{{ t.name }}</label>
-          <input id="productName" name="productName" type="text" [(ngModel)]="productName" />
-        </div>
-        <div class="field">
-          <label for="productCategory">{{ t.category }}</label>
-          <select id="productCategory" name="productCategory" [(ngModel)]="productCategory">
-            <option value="">{{ t.noCategory }}</option>
-            @for (category of categories.data(); track category.id) {
-              <option [value]="category.id">{{ category.name }}</option>
-            }
-          </select>
-        </div>
-      </div>
-      <div class="field">
-        <label for="productDescription">{{ t.description }}</label>
-        <textarea id="productDescription" name="productDescription" rows="2" [(ngModel)]="productDescription"></textarea>
-      </div>
-      <div class="field">
-        <label for="productImage">{{ t.imageUrl }}</label>
-        <input id="productImage" name="productImage" type="text" [(ngModel)]="productImage" />
-      </div>
-      <div class="field">
-        <label for="productAttributes">{{ t.attributes }}</label>
-        <textarea id="productAttributes" name="productAttributes" rows="3" [(ngModel)]="productAttributes"></textarea>
-      </div>
-      <div class="field">
-        <label for="productActive">
-          <input id="productActive" name="productActive" type="checkbox" [(ngModel)]="productActive" />
-          {{ t.productActive }}
-        </label>
-      </div>
-      <button type="submit" class="btn btn--primary" [disabled]="productForm.action.busy()">{{ t.saveProduct }}</button>
-      @if (editingProductId()) {
-        <button type="button" class="btn btn--outline" (click)="resetProductForm()">{{ t.cancel }}</button>
-      }
-      @if (productForm.problem(); as problem) {
-        <p class="alert alert--error" role="alert">{{ problem }}</p>
-      }
-      <app-error-alert [error]="productForm.action.error()" />
-      @if (productForm.saved()) {
-        <p class="alert alert--success" role="status">{{ t.productSaved }}</p>
-      }
-    </form>
   </section>
 </div>

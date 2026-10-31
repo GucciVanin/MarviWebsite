@@ -21,6 +21,9 @@ public static class AuditActions
     public const string Reveal = "Reveal";
 }
 
+/// <summary>One row an admin change created or touched, as the audit trail records it.</summary>
+public sealed record AuditedRow(string Action, string EntityName, Guid EntityId, object? Details = null);
+
 /// <summary>
 /// The only way an admin change is committed (MRV-4.4). The change a controller has already made to the tracked entities
 /// and its audit entry are written in ONE save, so they succeed or fail together: there is no state where a change is
@@ -41,9 +44,9 @@ public class AuditLogger
     public const string ConflictMessage = "The data was changed by someone else, or something it refers to was just removed. Reload and try again.";
 
     // Private on purpose: an admin mutation must go through TrySaveAsync so a race is a 409, never a 500.
-    private async Task SaveAsync(string action, string entityName, Guid entityId, object? details = null)
+    private async Task SaveAsync(IEnumerable<AuditedRow> rows)
     {
-        _dbContext.AuditLogEntries.Add(CreateEntry(action, entityName, entityId, details));
+        _dbContext.AuditLogEntries.AddRange(rows.Select(r => CreateEntry(r.Action, r.EntityName, r.EntityId, r.Details)));
         await _dbContext.SaveChangesAsync();
     }
 
@@ -51,11 +54,18 @@ public class AuditLogger
     /// Saves the pending changes together with their audit entry in ONE save. A unique-index or foreign-key rejection (a race that passed the application-level
     /// check) returns false and saves nothing, so the caller answers 409. Other database failures still propagate.
     /// </summary>
-    public async Task<bool> TrySaveAsync(string action, string entityName, Guid entityId, object? details = null)
+    public Task<bool> TrySaveAsync(string action, string entityName, Guid entityId, object? details = null) =>
+        TrySaveAsync(new[] { new AuditedRow(action, entityName, entityId, details) });
+
+    /// <summary>
+    /// The same for a change that creates several rows (a product with its prices and stock, MRV-9.5): one audit entry per row, all in the ONE save,
+    /// so every row and every entry is stored or none is.
+    /// </summary>
+    public async Task<bool> TrySaveAsync(IReadOnlyCollection<AuditedRow> rows)
     {
         try
         {
-            await SaveAsync(action, entityName, entityId, details);
+            await SaveAsync(rows);
             return true;
         }
         catch (DbUpdateConcurrencyException)

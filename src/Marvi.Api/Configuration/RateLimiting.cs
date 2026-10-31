@@ -26,6 +26,9 @@ public static class RateLimiting
     /// <summary>The admin's "Mostrar CPF" (<c>POST .../cpf/reveal</c>), each one audited (MRV-9.4); <c>RateLimiting:Reveal</c>.</summary>
     public const string RevealPolicy = "reveal";
 
+    /// <summary>The admin's guided product creation (<c>POST /api/admin/products/with-setup</c>): one request writes a product, its prices and its stock (MRV-9.5); <c>RateLimiting:ProductSetup</c>.</summary>
+    public const string ProductSetupPolicy = "productSetup";
+
     private const int DefaultAuthPermits = 10;
     private const int DefaultCoveragePermits = 30;
     private const int DefaultContactPermits = 5;
@@ -33,6 +36,7 @@ public static class RateLimiting
     private const int DefaultRegisterPermits = 5;
     private const int DefaultProfilePermits = 20;
     private const int DefaultRevealPermits = 10;
+    private const int DefaultProductSetupPermits = 30;
     private const int DefaultWindowSeconds = 60;
 
     public static IServiceCollection AddMarviRateLimiting(this IServiceCollection services, IConfiguration configuration)
@@ -58,6 +62,7 @@ public static class RateLimiting
             AddPolicy(options, RegisterPolicy, configuration.GetSection("RateLimiting:Register"), DefaultRegisterPermits);
             AddPolicy(options, ProfilePolicy, configuration.GetSection("RateLimiting:Profile"), DefaultProfilePermits);
             AddPolicy(options, RevealPolicy, configuration.GetSection("RateLimiting:Reveal"), DefaultRevealPermits);
+            AddPolicy(options, ProductSetupPolicy, configuration.GetSection("RateLimiting:ProductSetup"), DefaultProductSetupPermits);
         });
 
         return services;

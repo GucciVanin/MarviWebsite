@@ -24,7 +24,7 @@ const ACCOUNTS = {
 if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
   ACCOUNTS.admin = {
     email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD,
-    routes: ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/importacao', '/admin/auditoria'],
+    routes: ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/catalogo#product-new', '/admin/catalogo#product-errors', '/admin/catalogo#product-edit', '/admin/importacao', '/admin/auditoria'],
   };
 }
 
@@ -89,6 +89,25 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
       } else if (step === 'history-orders') {
         await page.getByRole('button', { name: 'Pedidos', exact: true }).click();
         await page.waitForSelector('[data-testid="history-item"] [data-testid="delivery-to"]', { timeout: 8000 });
+      } else if (step === 'product-new' || step === 'product-errors') {
+        await page.getByRole('button', { name: 'Novo produto' }).click();
+        await page.waitForSelector('[data-testid="product-panel"] [data-testid="prices"] tbody tr', { timeout: 8000 });
+        for (const i of [0, 1]) {
+          await page.locator('[data-testid="add-attribute"]').click();
+          await page.locator(`#attr-key-${i}`).fill(i ? 'Quantidade por caixa' : 'Certificação');
+          await page.locator(`#attr-value-${i}`).fill('Valor de atributo bem longo para testar a quebra de linha');
+        }
+        await page.locator('#productImage').fill('https://exemplo.com.br/imagens/produtos/refrigerante-cola.png');
+        if (step === 'product-errors') {
+          await page.locator('#price-0').fill('1,234');
+          await page.locator('#qty-0').fill('-3');
+          await page.locator('#productImage').fill('http://exemplo.com.br/imagem.png');
+          await page.locator('[data-testid="save-product"]').click();
+          await page.waitForSelector('[data-testid="fix-fields"]', { timeout: 8000 });
+        }
+      } else if (step === 'product-edit') {
+        await page.locator('[data-testid="products"] tbody tr').first().getByRole('button', { name: 'Editar' }).click();
+        await page.waitForSelector('[data-testid="product-panel"] #productSku', { timeout: 8000 });
       } else if (step === 'address-fix') {
         await page.locator('[data-testid="customer"]').first().getByRole('button', { name: 'Editar' }).click();
         await page.waitForSelector('[data-testid="customer-addresses"] li', { timeout: 8000 });

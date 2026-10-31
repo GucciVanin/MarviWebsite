@@ -1,0 +1,1 @@
+Slice 9.5 of MRV-9 (spec docs/specs/MRV-9.5-admin-product-creation.md, issue #56): the admin creates a complete, sellable product from the admin portal in one guided flow (product data, structured attributes, price per tier, opening stock per warehouse). Owner 2026-10-30: "Admin should be able to create products through their portal".

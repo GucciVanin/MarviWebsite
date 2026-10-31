@@ -16,3 +16,5 @@ Determinism: each suite runs three times per item; any difference is a fail "non
 Reports: `docs/work-items/<id>/test-report.md`.
 
 Note (MRV-8.5): run the client suite alone, not concurrently with other Docker jobs (a concurrent batch once returned a stale spec count).
+
+Note (MRV-9.5): the runtime suite has a "PRODUCT WITH SETUP" section (guided create on real Postgres with throwaway data: rows, audit entries, storefront price and stock, refusals store nothing, ten simultaneous submits of one SKU leave one product with its own rows and no orphans).

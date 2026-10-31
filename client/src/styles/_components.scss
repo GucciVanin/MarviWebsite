@@ -579,3 +579,60 @@
   // An empty live region reserves no row, yet stays in the page for assistive technology (as under a .field).
   &__result:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 }
+
+// The guided product form (MRV-9.5): a panel on the Catálogo page. Its fields share the address-fields grid (equal columns, shared edges at every
+// width); its tables sit in .table-wrap; everything breaks long words instead of widening the page at 200% text.
+.product-panel {
+  min-width: 0;
+  margin-bottom: var(--space-3);
+  padding: min(var(--space-3), 5vw);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+
+  h3 { margin-top: 0; overflow-wrap: anywhere; }
+  p { overflow-wrap: anywhere; }
+  .field { margin-bottom: var(--space-2); }
+  // Code, name and category fill one row whenever three columns of 11rem fit (and one column when not), so none is left alone beside wider fields.
+  .address-fields { grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+  .address-fields .field { margin-bottom: 0; }
+
+  // The code and its "Sugerir código" button share a row while there is room and stack when there is not.
+  &__inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    align-items: center;
+    input { flex: 1 1 8rem; min-width: 0; }
+  }
+
+  // The address and its preview side by side on equal columns, one above the other on a narrow screen.
+  &__image {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: var(--space-2);
+    align-items: start;
+    margin-bottom: var(--space-2);
+    .field { margin-bottom: 0; }
+  }
+  &__preview {
+    min-width: 0;
+    p { margin: 0; }
+    img { display: block; max-width: 100%; max-height: 10rem; object-fit: contain; border-radius: var(--radius-sm); }
+  }
+
+  &__group {
+    min-width: 0;
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    border: 0;
+    legend { padding: 0; margin-bottom: var(--space-1); font-weight: 700; }
+    > p { margin: 0 0 var(--space-1); }
+  }
+  .table th[scope='row'] { font-size: inherit; text-transform: none; letter-spacing: normal; font-weight: 600; }
+  .table td input { min-width: 6rem; }
+  &__cell-hint { margin: 0.25rem 0 0; }
+  &__cell-hint:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+  &__actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
+}

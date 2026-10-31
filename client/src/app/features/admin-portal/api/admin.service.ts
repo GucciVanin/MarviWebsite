@@ -68,6 +68,12 @@ export interface UpsertProductRequest {
   attributes: Record<string, string>;
 }
 
+/** The guided "Novo produto" (MRV-9.5): the product plus a price per tier and a quantity per warehouse; a row with null is skipped. */
+export interface CreateProductWithSetupRequest extends UpsertProductRequest {
+  prices: { pricingTierId: string; unitPrice: number | null }[];
+  stock: { warehouseId: string; qtyOnHand: number | null }[];
+}
+
 export interface CategoryAdmin {
   id: string;
   name: string;
@@ -312,6 +318,10 @@ export class AdminService {
 
   createProduct(request: UpsertProductRequest): Observable<ProductAdmin> {
     return this.http.post<ProductAdmin>('/api/admin/products', request);
+  }
+
+  createProductWithSetup(request: CreateProductWithSetupRequest): Observable<ProductAdmin> {
+    return this.http.post<ProductAdmin>('/api/admin/products/with-setup', request);
   }
 
   updateProduct(id: string, request: UpsertProductRequest): Observable<void> {

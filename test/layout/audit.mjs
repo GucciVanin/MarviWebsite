@@ -38,7 +38,7 @@ const ACCOUNTS = {
 };
 
 const PUBLIC = ['/', '/login', '/register', '/privacidade', '/contato', '/storefront'];
-const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/importacao', '/admin/auditoria'];
+const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/catalogo#product-new', '/admin/catalogo#product-errors', '/admin/catalogo#product-edit', '/admin/importacao', '/admin/auditoria'];
 // group = who is signed in and how the page is opened. `notice` leaves the privacy notice visible (fixed layer, AC-3/AC-9).
 const GROUPS = [
   { name: 'public', account: null, notice: false, routes: PUBLIC },
@@ -107,6 +107,31 @@ async function openWidget(page) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
+// The admin's product panel (MRV-9.5) in its fullest state; nothing is ever sent (with `errors`, the empty code stops the save in the browser).
+async function openProductPanel(page, errors) {
+  await page.getByRole('button', { name: 'Novo produto' }).click();
+  await page.waitForSelector('[data-testid="product-panel"] [data-testid="prices"] tbody tr', { timeout: 8000 });
+  const long = 'Valor de atributo bem longo para testar a quebra de linha em telas estreitas e com texto ampliado';
+  for (const i of [0, 1]) {
+    await page.locator('[data-testid="add-attribute"]').click();
+    await page.locator(`#attr-key-${i}`).fill(i ? 'Quantidade por caixa' : 'Certificação');
+    await page.locator(`#attr-value-${i}`).fill(long);
+  }
+  await page.locator('#productImage').fill('https://exemplo.com.br/imagens/produtos/refrigerante-cola-2-litros-garrafa-pet-grande.png');
+  await page.locator('#productName').fill('Refrigerante sabor cola 2 litros garrafa PET caixa com seis unidades');
+  if (errors) {
+    await page.locator('#price-0').fill('1,234');
+    await page.locator('#qty-0').fill('-3');
+    await page.locator('#productImage').fill('http://exemplo.com.br/imagem.png');
+    await page.locator('[data-testid="add-attribute"]').click();
+    await page.locator('#attr-key-2').fill('certificação');
+    await page.locator('#attr-value-2').fill('x');
+    await page.locator('#attr-key-0').fill('Certificação');
+    await page.locator('[data-testid="save-product"]').click();
+    await page.waitForSelector('[data-testid="fix-fields"]', { timeout: 8000 });
+  }
+}
+
 // A route written `/path#step` is audited with a form or popup open (MRV-9.2, MRV-9.3); the part after # is never sent to the server. Nothing is submitted.
 //   widget       the customer lookup widget (first "Consultar cliente" button)
 //   address-add  the customer's "Adicionar endereço" form on /portal
@@ -119,6 +144,9 @@ async function openWidget(page) {
 //   business     the registration page with the business account chosen and an alphanumeric CNPJ typed (MRV-9.4)
 //   personal     the registration page with the personal account chosen, a CPF and a birth date under 18 typed (the longest message)
 //   registration / registration-personal   the admin customers editor of the first company / person, with the registration form
+//   product-new     /admin/catalogo with the "Novo produto" panel open, two attribute rows with long text, a long https image address (MRV-9.5)
+//   product-errors  the same panel after "Salvar produto" with an empty code and bad price, quantity and image (every message showing); nothing is sent
+//   product-edit    the same panel opened to edit the first product (its attributes as rows)
 async function openStep(page, step) {
   if (step === 'address-add') {
     await page.getByRole('button', { name: 'Adicionar endereço' }).click();
@@ -163,6 +191,11 @@ async function openStep(page, step) {
       await page.getByRole('button', { name: 'Mostrar CPF' }).click();
       await page.waitForSelector('#admin-reveal-reason', { timeout: 8000 });
     }
+  } else if (step === 'product-new' || step === 'product-errors') {
+    await openProductPanel(page, step === 'product-errors');
+  } else if (step === 'product-edit') {
+    await page.locator('[data-testid="products"] tbody tr').first().getByRole('button', { name: 'Editar' }).click();
+    await page.waitForSelector('[data-testid="product-panel"] #productSku', { timeout: 8000 });
   } else {
     return false;
   }

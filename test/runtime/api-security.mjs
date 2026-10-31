@@ -701,6 +701,41 @@ ok('...and exactly one default tier exists', sql(`select count(*) from pricing_t
 ok('the Standard tier is made the default again (200/204)', [200, 204].includes((await call('PUT', `/api/admin/pricing-tiers/${standard.id}`, { token: admin, body: { name: standard.name, isDefault: true } })).status));
 ok('...and exactly one default tier exists', sql(`select count(*) from pricing_tiers where is_default`) === '1');
 
+section('PRODUCT WITH SETUP (MRV-9.5): one request writes the product, its prices and its stock, or nothing');
+const setupSku = `SET-${crypto.randomUUID().slice(0, 8)}`;
+const setupBody = (sku, extra = {}) => ({ sku, name: 'Produto guiado', description: 'Criado pelo formulario guiado', categoryId: cat.soft.id, imageUrl: 'https://exemplo.com/cola.png', isActive: true, attributes: { Marca: 'Cola', 'Quantidade por caixa': '12' }, prices: [{ pricingTierId: standard.id, unitPrice: 7.5 }, { pricingTierId: wholesale.id, unitPrice: 6 }], stock: [{ warehouseId: wh1.id, qtyOnHand: 12 }, { warehouseId: wh2.id, qtyOnHand: null }], ...extra });
+const countOf = (table) => Number(sql(`select count(*) from ${table}`));
+const setupBefore = { products: countOf('products'), prices: countOf('product_pricings'), stock: countOf('inventory_records'), audit: countOf('audit_log_entries') };
+const setupCreated = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`  ${setupSku}  `) });
+ok('the guided create answers 201 with the trimmed SKU', setupCreated.status === 201 && setupCreated.json?.sku === setupSku, String(setupCreated.status));
+const setupId = setupCreated.json?.id;
+ok('...one product row, two price rows (minimum quantity 1) and one stock row (the empty quantity made none)', countOf('products') === setupBefore.products + 1 && Number(sql(`select count(*) from product_pricings where product_id='${setupId}' and min_qty=1`)) === 2 && Number(sql(`select count(*) from inventory_records where product_id='${setupId}'`)) === 1);
+ok('...the stock row holds the quantity typed and nothing reserved', sql(`select qty_on_hand || '/' || qty_reserved from inventory_records where product_id='${setupId}'`) === '12/0');
+ok('...the attributes round-trip through jsonb unchanged', JSON.stringify((await call('GET', `/api/admin/products/${setupId}`, { token: admin })).json?.attributes) === JSON.stringify({ Marca: 'Cola', 'Quantidade por caixa': '12' }));
+ok('...every row has its own audit entry (4 more entries: product, two prices, one stock)', countOf('audit_log_entries') === setupBefore.audit + 4);
+const shopItem = (await call('GET', '/api/products')).json.find((p) => p.id === setupId);
+ok('...the storefront shows it with the list price (default tier) and in stock', near(shopItem?.price, 7.5) && shopItem?.inStock === true, JSON.stringify(shopItem));
+
+const afterFirst = { products: countOf('products'), prices: countOf('product_pricings'), stock: countOf('inventory_records'), audit: countOf('audit_log_entries') };
+const dupCase = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(setupSku.toLowerCase()) });
+ok('the same SKU in another case is refused (409) on the sku field', dupCase.status === 409 && dupCase.json?.[0]?.field === 'sku', String(dupCase.status));
+const badPrice = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`BAD-${crypto.randomUUID().slice(0, 8)}`, { prices: [{ pricingTierId: standard.id, unitPrice: 9 }, { pricingTierId: wholesale.id, unitPrice: 0 }] }) });
+ok('a bad price on the second tier is refused (400) naming prices[1]', badPrice.status === 400 && badPrice.json?.some((p) => p.field === 'prices[1]'), String(badPrice.status));
+const unknownWarehouse = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`UNK-${crypto.randomUUID().slice(0, 8)}`, { stock: [{ warehouseId: crypto.randomUUID(), qtyOnHand: 3 }] }) });
+ok('an unknown warehouse is refused (400) naming stock[0]', unknownWarehouse.status === 400 && unknownWarehouse.json?.some((p) => p.field === 'stock[0]'), String(unknownWarehouse.status));
+ok('an http image address is refused (400)', (await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`IMG-${crypto.randomUUID().slice(0, 8)}`, { imageUrl: 'http://exemplo.com/a.png' }) })).status === 400);
+ok('none of the refusals left a product, a price, a stock row or an audit entry', countOf('products') === afterFirst.products && countOf('product_pricings') === afterFirst.prices && countOf('inventory_records') === afterFirst.stock && countOf('audit_log_entries') === afterFirst.audit);
+
+const burstSku = `BURST-${crypto.randomUUID().slice(0, 8)}`;
+const doubleClick = await burst(10, () => call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(burstSku) }));
+ok(`10 simultaneous submits of one SKU: exactly one 201, the rest 409, no 500 (statuses ${[...new Set(doubleClick.map((r) => r.status))].sort().join(',')})`, doubleClick.filter((r) => r.status === 201).length === 1 && doubleClick.every((r) => r.status === 201 || r.status === 409));
+const burstId = sql(`select id from products where lower(sku)=lower('${burstSku}')`);
+ok('...and only the winner\'s rows exist: one product, two prices, one stock row, four audit entries (the losers rolled back whole)', sql(`select count(*) from products where lower(sku)=lower('${burstSku}')`) === '1' && sql(`select count(*) from product_pricings where product_id='${burstId}'`) === '2' && sql(`select count(*) from inventory_records where product_id='${burstId}'`) === '1' && countOf('audit_log_entries') === afterFirst.audit + 4);
+ok('...and no orphan price or stock row points at a missing product', sql(`select count(*) from product_pricings pp left join products p on p.id=pp.product_id where p.id is null`) === '0' && sql(`select count(*) from inventory_records ir left join products p on p.id=ir.product_id where p.id is null`) === '0');
+const withoutSetup = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`ALONE-${crypto.randomUUID().slice(0, 8)}`, { prices: [], stock: [] }) });
+const aloneItem = (await call('GET', '/api/products')).json.find((p) => p.id === withoutSetup.json?.id);
+ok('a product with no prices and no stock is created and shows "on request" (price null) and out of stock', withoutSetup.status === 201 && aloneItem && aloneItem.price === null && aloneItem.inStock === false, JSON.stringify(aloneItem));
+
 section('SECURITY: authorization matrix (every endpoint x every role)');
 const ID = crypto.randomUUID();
 const tokens = { anon: undefined, client: clientA.token, employee: emp, admin };
@@ -714,6 +749,7 @@ const endpoints = [
   ['GET', '/api/admin/pricing-tiers', undefined, ['admin']], ['POST', '/api/admin/pricing-tiers', { name: 'Q', isDefault: false }, ['admin']], ['PUT', `/api/admin/pricing-tiers/${ID}`, { name: 'Q', isDefault: false }, ['admin']],
   ['GET', `/api/admin/products/${ID}/pricing`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}/pricing`, { pricingTierId: ID, unitPrice: 1, minQty: 1 }, ['admin']], ['DELETE', `/api/admin/products/${ID}/pricing/${ID}/1`, undefined, ['admin']],
   ['GET', '/api/admin/products', undefined, ['admin']], ['POST', '/api/admin/products', { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} }, ['admin']],
+  ['POST', '/api/admin/products/with-setup', { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {}, prices: [], stock: [] }, ['admin']],
   ['GET', `/api/admin/products/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}`, { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} }, ['admin']], ['DELETE', `/api/admin/products/${ID}`, undefined, ['admin']],
   ['GET', '/api/admin/coverage-areas', undefined, ['admin']], ['POST', '/api/admin/coverage-areas', { warehouseId: ID, type: 'Radius', radiusMiles: 1, polygonGeoJson: null }, ['admin']],
   ['GET', `/api/admin/coverage-areas/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/coverage-areas/${ID}`, { warehouseId: ID, type: 'Radius', radiusMiles: 1, polygonGeoJson: null }, ['admin']], ['DELETE', `/api/admin/coverage-areas/${ID}`, undefined, ['admin']],
@@ -832,6 +868,9 @@ await expectNot500('wrong content type', 'POST', '/api/auth/login', { raw: 'emai
 await expectNot500('json array instead of object', 'POST', '/api/auth/login', { raw: '[1,2,3]', headers: { 'Content-Type': 'application/json' } });
 await expectNot500('null body', 'POST', '/api/admin/products', { token: admin, raw: 'null', headers: { 'Content-Type': 'application/json' } });
 await expectNot500('empty object product', 'POST', '/api/admin/products', { token: admin, body: {} });
+await expectNot500('null body (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, raw: 'null', headers: { 'Content-Type': 'application/json' } });
+await expectNot500('wrong types (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, body: { sku: 5, name: [], prices: 'x', stock: [{ warehouseId: 'nope', qtyOnHand: 1.5 }], attributes: { a: null } } });
+await expectNot500('empty object (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, body: {} });
 await expectNot500('wrong types', 'POST', '/api/admin/products', { token: admin, body: { sku: 5, name: [], isActive: 'yes', attributes: 'x' } });
 await expectNot500('enum garbage', 'POST', '/api/admin/deals', { token: admin, body: { name: 'x', discountType: 'Bogus', discountValue: 1, startDate: iso(0), endDate: iso(1), productIds: [], categoryIds: [], minQty: 1 } });
 await expectNot500('negative quantity', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: -1 }] } });

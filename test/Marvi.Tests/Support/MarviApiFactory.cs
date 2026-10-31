@@ -76,6 +76,7 @@ public class MarviApiFactory : WebApplicationFactory<Program>
             ["RateLimiting:Register:PermitLimit"] = "100000",
             ["RateLimiting:Profile:PermitLimit"] = "100000",
             ["RateLimiting:Reveal:PermitLimit"] = "100000",
+            ["RateLimiting:ProductSetup:PermitLimit"] = "100000",
             // Throwaway Data Protection keys: the CPF encryption works, nothing is written outside the process.
             ["DataProtection:Ephemeral"] = "true"
         }));
