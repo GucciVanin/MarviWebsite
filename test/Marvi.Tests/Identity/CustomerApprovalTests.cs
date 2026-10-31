@@ -66,7 +66,7 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
         var (customer, id) = await _factory.RegisterPendingClientAsync();
         var product = await admin.CreatePricedProductAsync(10m);
 
-        var order = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(id, "1 Main St", [new EmployeeOrderLineItemRequest(product, 1)]));
+        var order = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(id, null, [new EmployeeOrderLineItemRequest(product, 1)]));
         var accept = await customer.PostAsync($"/api/quotes/{Guid.NewGuid()}/accept", null);
 
         Assert.Equal(HttpStatusCode.Forbidden, order.StatusCode);

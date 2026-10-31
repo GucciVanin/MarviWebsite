@@ -123,6 +123,7 @@ describe('CustomerLookup (the "Consultar cliente" widget)', () => {
     expect(shown).toContain('Faixa de preço Atacado');
     expect(shown).toContain('Endereço de cobrança Praça da Sé, 10, Sé, São Paulo/SP, CEP 01001-000');
     // The other addresses are listed by label (MRV-9.3); no key is rendered.
+    expect(shown).toContain('Entrega padrão Matriz: Praça da Sé, 10, Sé, São Paulo/SP, CEP 01001-000');
     expect(shown).toContain('Outros endereços Filial Campinas: Rua Barão de Jaguara, 200 - Sala 3, Centro, Campinas/SP, CEP 13010-000');
     expect(dialog()!.innerHTML).not.toContain('6f1c2a3e');
     expect(shown).toContain('Cotações em aberto 2');
@@ -143,6 +144,7 @@ describe('CustomerLookup (the "Consultar cliente" widget)', () => {
     const shown = facts(dialog()!);
     expect(shown).toContain('Faixa de preço —');
     expect(shown).toContain('Endereço de cobrança —');
+    expect(shown).toContain('Entrega padrão —'); // a customer migrated without a delivery address: the widget tolerates it (MRV-9.6)
     expect(shown).toContain('E-mail de contato —');
   });
 

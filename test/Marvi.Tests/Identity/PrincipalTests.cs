@@ -139,9 +139,9 @@ public class PrincipalTests : IClassFixture<MarviApiFactory>
         var byEmployee = await employee.PutAsJsonAsync($"/api/employee/quotes/{quote.Id}/price",
             new PriceQuoteRequest([new PriceQuoteLineRequest(quote.LineItems.Single().Id, 9m)]));
         var orderByEmployee = await employee.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(accountId, "1 Main St", [new EmployeeOrderLineItemRequest(productId, 1)]));
+            new CreateEmployeeOrderRequest(accountId, null, [new EmployeeOrderLineItemRequest(productId, 1)]));
         var orderByAdmin = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(accountId, "1 Main St", [new EmployeeOrderLineItemRequest(productId, 1)]));
+            new CreateEmployeeOrderRequest(accountId, null, [new EmployeeOrderLineItemRequest(productId, 1)]));
 
         Assert.Equal(employeeId, (await byEmployee.Content.ReadFromJsonAsync<QuoteDto>())!.PricedByEmployeeId);
         Assert.Equal(employeeId, (await orderByEmployee.Content.ReadFromJsonAsync<OrderDto>())!.PlacedByEmployeeId);

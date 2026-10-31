@@ -26,6 +26,11 @@ const profile = (patch: object = {}) => ({
   ...patch,
 });
 
+const snapshot = {
+  label: 'Filial Campinas', postalCode: '13010000', street: 'Rua Barão de Jaguara', number: '200', complement: 'Sala 3', district: 'Centro', city: 'Campinas', state: 'SP',
+  notes: null, line: 'Rua Barão de Jaguara, 200 - Sala 3, Centro, Campinas/SP, CEP 13010-000',
+};
+
 describe('CustomerPage', () => {
   function setup(number: string | null = 'C-000042') {
     TestBed.configureTestingModule({
@@ -52,6 +57,28 @@ describe('CustomerPage', () => {
   }
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('shows where each quote and order of the customer is delivered, the old text of an order made before addresses were structured, and nothing for a quote without one (MRV-9.6)', async () => {
+    const { http, root, settle } = setup();
+    http.expectOne('/api/employee/clients/by-number/42').flush(profile({
+      quotes: [
+        { id: 'q1', number: 7, status: 'Submitted', createdAt: '2026-10-15T10:00:00Z', lineItems: [], deliveryAddressSnapshot: snapshot },
+        { id: 'q2', number: 8, status: 'Accepted', createdAt: '2026-10-16T10:00:00Z', lineItems: [] },
+      ],
+      orders: [
+        { id: 'o1', number: 3, status: 'Placed', placedAt: '2026-10-17T10:00:00Z', totalAmount: 125.5, lineItems: [], deliveryAddress: snapshot.line, deliveryAddressSnapshot: snapshot },
+        { id: 'o2', number: 4, status: 'Placed', placedAt: '2026-10-18T10:00:00Z', totalAmount: 10, lineItems: [], deliveryAddress: 'Rua Antiga, 5', deliveryAddressSnapshot: null },
+      ],
+    }));
+    await settle();
+
+    const quoteCells = Array.from(root.querySelectorAll('[data-testid="customer-quotes"] tbody tr')).map((r) => r.lastElementChild!.textContent!.replace(/\s+/g, ' ').trim());
+    expect(quoteCells[0]).toBe('Filial Campinas: Rua Barão de Jaguara, 200 - Sala 3, Centro, Campinas/SP, CEP 13010-000');
+    expect(quoteCells[1]).toBe('Endereço a confirmar');
+    const orderCells = Array.from(root.querySelectorAll('[data-testid="customer-orders"] tbody tr')).map((r) => r.children[3].textContent!.replace(/\s+/g, ' ').trim());
+    expect(orderCells[0]).toContain('Filial Campinas');
+    expect(orderCells[1]).toBe('Rua Antiga, 5');
+  });
 
   it('loads the customer by the number in the address and shows the full read-only detail', async () => {
     const { http, root, settle, text } = setup();

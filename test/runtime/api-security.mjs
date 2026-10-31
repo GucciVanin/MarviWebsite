@@ -202,7 +202,8 @@ ok('order lines carry the employee final prices', accepted.json?.lineItems?.some
 ok('accepting twice is refused', [400, 409].includes((await call('POST', `/api/quotes/${q1.id}/accept`, { token: clientA.token })).status));
 ok('client A sees exactly its own order', (await call('GET', '/api/orders/mine', { token: clientA.token })).json?.length === 1);
 ok('client B sees none of A\'s orders', (await call('GET', '/api/orders/mine', { token: clientB.token })).json?.length === 0);
-const eo = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddress: 'Rua Entrega 10', lineItems: [{ productId: prod.cola.id, qty: 12 }, { productId: prod.lager.id, qty: 1 }] } });
+const bAddress = (await call('GET', '/api/client/profile', { token: clientB.token })).json.addresses[0];
+const eo = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddressKey: bAddress.key, lineItems: [{ productId: prod.cola.id, qty: 12 }, { productId: prod.lager.id, qty: 1 }] } });
 ok('employee order for client B: 12 cola at qty-break 3.50 + lager 7.20 = 49.20', eo.status === 201 && near(eo.json?.totalAmount, 49.2), `${eo.status} ${eo.json?.totalAmount}`);
 ok('employee order records the placing employee', !!eo.json?.placedByEmployeeId);
 ok('employee order for unpriced product is refused (400)', (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddress: 'x', lineItems: [{ productId: prod.nopr.id, qty: 1 }] } })).status === 400);
@@ -723,6 +724,8 @@ const endpoints = [
   ['PUT', '/api/admin/inventory', { productId: ID, warehouseId: ID, qtyOnHand: 1, reorderPoint: 1 }, ['admin']],
   ['GET', `/api/employee/clients/${ID}`, undefined, ['employee', 'admin']], ['GET', '/api/employee/inventory', undefined, ['employee', 'admin']],
   ['POST', '/api/employee/orders', { clientId: ID, deliveryAddress: 'x', lineItems: [{ productId: ID, qty: 1 }] }, ['employee', 'admin']],
+  ['PUT', '/api/employee/orders/999999/delivery-address', { deliveryAddressKey: ID }, ['employee', 'admin']],
+  ['PUT', '/api/quotes/999999/delivery-address', { deliveryAddressKey: ID }, ['client']],
   ['GET', '/api/employee/quotes/queue', undefined, ['employee', 'admin']], ['PUT', `/api/employee/quotes/${ID}/price`, { lineItems: [{ lineItemId: ID, finalUnitPrice: 1 }] }, ['employee', 'admin']],
   ['GET', '/api/orders/mine', undefined, ['client']], ['GET', '/api/quotes/mine', undefined, ['client']],
   ['POST', '/api/quotes', { lineItems: [{ productId: ID, qty: 1 }] }, ['client']], ['POST', `/api/quotes/${ID}/accept`, undefined, ['client']],
@@ -875,7 +878,7 @@ await mustBe400('product with a duplicate SKU', 'POST', '/api/admin/products', {
 await mustBe400('negative unit price', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: standard.id, unitPrice: -1, minQty: 1 } });
 await mustBe400('pricing with min quantity 0', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: standard.id, unitPrice: 1, minQty: 0 } });
 await mustBe400('pricing for an unknown tier', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: crypto.randomUUID(), unitPrice: 1, minQty: 1 } });
-await mustBe400('employee order with blank address', 'POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddress: ' ', lineItems: [{ productId: prod.cola.id, qty: 1 }] } });
+await mustBe400('employee order with a made-up address for a customer who has saved ones (MRV-9.6)', 'POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddress: 'Rua Inventada 1', lineItems: [{ productId: prod.cola.id, qty: 1 }] } });
 await mustBe400('employee with weak password', 'POST', '/api/admin/employees', { token: admin, body: { email: 'weak.emp@marvi.test', password: 'abc', employeeCode: 'E-9', department: null, hireDate: iso(0) } });
 ok('every invalid business input is rejected with a 4xx', val.length === 0, val.join(' | '));
 
@@ -1032,12 +1035,88 @@ ok('the profile responses carry no-store (they hold the birth date and the CPF m
 ok('the CPF hash key canary is stored once as a 64-character fingerprint, not the key', sql(`select count(*) from app_settings where key='cpf_hash_key_fingerprint' and value ~ '^[0-9a-f]{64}$'`) === '1');
 ok('...and the keys live on the mounted volume, not in the repository', execSync('docker compose -f deploy/docker-compose.yml exec -T api ls /keys', { cwd: ROOT, encoding: 'utf8' }).includes('key-'));
 
+section('DELIVERY ADDRESS (MRV-9.6): the customer chooses where a quote and an order are delivered; the document keeps a copy (on real Postgres)');
+const newAddress = async (token, label, over = {}) => (await call('POST', '/api/client/addresses', { token, body: {
+  label, kind: 'Delivery', postalCode: '13010-111', street: 'Rua ' + label, number: '200', complement: 'Sala 3', district: 'Centro', city: 'Campinas', state: 'SP', deliveryNotes: 'Entregar de manhã', ...over } })).json;
+const aMain = (await call('GET', '/api/client/profile', { token: clientA.token })).json.addresses[0];
+const aFilial = await newAddress(clientA.token, 'Filial 96');
+const aDepot = await newAddress(clientA.token, 'Deposito 96', { number: '300', postalCode: '07190-100' });
+const aBillingOnly = await newAddress(clientA.token, 'Só cobrança 96', { kind: 'Billing', number: '400' });
+const dline = [{ productId: prod.cola.id, qty: 2 }];
+const dq = await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: aFilial.key } });
+ok('a quote asked for a chosen address (201) carries a copy of it', dq.status === 201 && dq.json.deliveryAddressSnapshot?.label === 'Filial 96' && dq.json.deliveryAddressSnapshot?.city === 'Campinas', JSON.stringify(dq.json?.deliveryAddressSnapshot));
+ok('...with no address key or id in the answer', !JSON.stringify(dq.json.deliveryAddressSnapshot).includes(aFilial.key));
+const dqDefault = await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline } });
+ok('without a key the quote goes to the default delivery address', dqDefault.status === 201 && dqDefault.json.deliveryAddressSnapshot?.label === aMain.label, JSON.stringify(dqDefault.json?.deliveryAddressSnapshot?.label));
+ok('the database holds the copy and the link on the quote', q(`select delivery_address_label || '|' || delivery_address_city || '|' || (delivery_address_id is not null) from quotes where number = ${dq.json.number}`) === 'Filial 96|Campinas|true');
+const bKey = bAddress.key;
+ok('another customer\'s address key is 404, an unknown key is 404, a billing-only address is 400 (nothing created)',
+  (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: bKey } })).status === 404
+  && (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: crypto.randomUUID() } })).status === 404
+  && (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: aBillingOnly.key } })).status === 400);
+const noDelivery = await registerClient('Sem Endereço de Entrega', 'sem.entrega@test.test');
+q(`delete from client_addresses where client_account_id = '${noDelivery.id}'`);
+const noDeliveryQuote = await call('POST', '/api/quotes', { token: noDelivery.token, body: { lineItems: dline } });
+ok('a customer migrated without any address is told to register one (400), not an error', noDeliveryQuote.status === 400 && noDeliveryQuote.text === 'Cadastre um endereço de entrega.', `${noDeliveryQuote.status} ${noDeliveryQuote.text}`);
+const dChange = await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aDepot.key } });
+ok('the customer changes the address while the quote waits for its price (200)', dChange.status === 200 && dChange.json.deliveryAddressSnapshot?.label === 'Deposito 96', String(dChange.status));
+ok('someone else\'s quote, or someone else\'s address, is 404', (await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientB.token, body: { deliveryAddressKey: bKey } })).status === 404
+  && (await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: bKey } })).status === 404);
+const dPriced = await call('PUT', `/api/employee/quotes/${dq.json.id}/price`, { token: emp, body: { lineItems: dq.json.lineItems.map((l) => ({ lineItemId: l.id, finalUnitPrice: 4.5 })) } });
+ok('the employee prices it (200)', dPriced.status === 200, String(dPriced.status));
+ok('the customer can still change the address while it is priced (200)', (await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aFilial.key } })).status === 200);
+const dAccepted = await call('POST', `/api/quotes/${dq.json.id}/accept`, { token: clientA.token });
+ok('accepting copies the quote\'s address to the order, with the link to the quote', dAccepted.status === 201 && dAccepted.json.deliveryAddressSnapshot?.label === 'Filial 96' && dAccepted.json.quoteId === dq.json.id && dAccepted.json.deliveryAddress.includes('Rua Filial 96'), JSON.stringify(dAccepted.json?.deliveryAddressSnapshot));
+ok('after accepting, the address can no longer be changed (409)', (await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aDepot.key } })).status === 409);
+// Editing an address and removing one change nothing already made.
+await call('PUT', `/api/client/addresses/${aFilial.key}`, { token: clientA.token, body: { label: 'Filial 96 (nova)', kind: 'Delivery', postalCode: '13010-111', street: 'Rua Mudada', number: '200', complement: 'Sala 3', district: 'Centro', city: 'Campinas', state: 'SP' } });
+const afterEdit = (await call('GET', '/api/orders/mine', { token: clientA.token })).json.find((o) => o.id === dAccepted.json.id);
+ok('editing the address afterwards leaves the order as it was', afterEdit.deliveryAddressSnapshot?.label === 'Filial 96' && afterEdit.deliveryAddressSnapshot?.street === 'Rua Filial 96' && afterEdit.deliveryAddress === dAccepted.json.deliveryAddress);
+const depotQuote = await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: aDepot.key } });
+const depotOrder = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientA.id, deliveryAddressKey: aDepot.key, lineItems: dline } });
+ok('staff place an order for the chosen address of that customer (201) with the copy', depotOrder.status === 201 && depotOrder.json.deliveryAddressSnapshot?.label === 'Deposito 96', String(depotOrder.status));
+ok('removing the address clears the link on the quote and the order but keeps the copy (ON DELETE SET NULL)',
+  (await call('DELETE', `/api/client/addresses/${aDepot.key}`, { token: clientA.token })).status === 204
+  && q(`select (delivery_address_id is null) || '|' || delivery_address_label from orders where number = ${depotOrder.json.number}`) === 'true|Deposito 96'
+  && q(`select (delivery_address_id is null) || '|' || delivery_address_label from quotes where number = ${depotQuote.json.number}`) === 'true|Deposito 96');
+// Staff: choose from the customer's own addresses, amend before shipping, audited.
+ok('staff cannot use another customer\'s address (404) or make one up for a customer who has saved ones (400)',
+  (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientA.id, deliveryAddressKey: bKey, lineItems: dline } })).status === 404
+  && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientA.id, deliveryAddress: 'Rua Inventada', lineItems: dline } })).status === 400);
+const legacyOrder = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'Rua Antiga 5, Campinas', lineItems: dline } });
+ok('a customer with no saved address still gets an order with the old free text (legacy fallback), without a copy', legacyOrder.status === 201 && legacyOrder.json.deliveryAddress === 'Rua Antiga 5, Campinas' && legacyOrder.json.deliveryAddressSnapshot === null, JSON.stringify(legacyOrder.json?.deliveryAddress));
+const amend = await call('PUT', `/api/employee/orders/${depotOrder.json.number}/delivery-address`, { token: emp, body: { deliveryAddressKey: aMain.key } });
+ok('staff amend the address of an order that is not shipped yet (200)', amend.status === 200 && amend.json.deliveryAddressSnapshot?.label === aMain.label && q(`select delivery_address_label from orders where number = ${depotOrder.json.number}`) === aMain.label, String(amend.status));
+ok('an amend with another customer\'s address is 404', (await call('PUT', `/api/employee/orders/${depotOrder.json.number}/delivery-address`, { token: emp, body: { deliveryAddressKey: bKey } })).status === 404);
+q(`update orders set status = 2 where number = ${depotOrder.json.number}`);
+ok('once the order is shipped or delivered the address cannot be amended (409)', (await call('PUT', `/api/employee/orders/${depotOrder.json.number}/delivery-address`, { token: emp, body: { deliveryAddressKey: aFilial.key } })).status === 409
+  && q(`select delivery_address_label from orders where number = ${depotOrder.json.number}`) === aMain.label);
+ok('the amend is in the audit log with the order number, before and after', q(`select count(*) from audit_log_entries where entity_name = 'Order' and details::text like '%DeliveryAddress%' and details::text like '%Deposito 96%'`) === '1');
+// A quote made before MRV-9.6 has no address: it cannot be accepted until the customer picks one (an order never has an empty address).
+const oldQuote = (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline } })).json;
+q(`update quotes set delivery_address_id = null, delivery_address_label = null, delivery_address_street = null, delivery_address_number = null, delivery_address_city = null, delivery_address_state = null, delivery_address_postal_code = null, delivery_address_district = null where number = ${oldQuote.number}`);
+await call('PUT', `/api/employee/quotes/${oldQuote.id}/price`, { token: emp, body: { lineItems: oldQuote.lineItems.map((l) => ({ lineItemId: l.id, finalUnitPrice: 4.5 })) } });
+const oldRefused = await call('POST', `/api/quotes/${oldQuote.id}/accept`, { token: clientA.token });
+ok('a priced quote with no address cannot be accepted (409 with the message); no order is created', oldRefused.status === 409 && oldRefused.text === 'Escolha o endereço de entrega antes de aceitar o orçamento.' && q(`select count(*) from orders where quote_id = '${oldQuote.id}'`) === '0', `${oldRefused.status} ${oldRefused.text}`);
+ok('...the customer picks an address (200) and then accepts (201) with a non-empty address', (await call('PUT', `/api/quotes/${oldQuote.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aMain.key } })).status === 200
+  && (await call('POST', `/api/quotes/${oldQuote.id}/accept`, { token: clientA.token })).status === 201
+  && q(`select length(delivery_address) > 0 from orders where quote_id = '${oldQuote.id}'`) === 't');
+ok('the legacy free text of a staff order is capped at 500 characters and refuses control characters (400), and 500 fits on real Postgres',
+  (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'a'.repeat(501), lineItems: dline } })).status === 400
+  && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'Rua' + String.fromCharCode(10) + 'A', lineItems: dline } })).status === 400
+  && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'b'.repeat(500), lineItems: dline } })).status === 201);
+const concurrentAmend = await Promise.all([1, 2, 3].map(() => call('PUT', `/api/quotes/${depotQuote.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aMain.key } })));
+ok('parallel changes of one quote answer 200 or 409, never 500', concurrentAmend.every((r) => [200, 409].includes(r.status)), concurrentAmend.map((r) => r.status).join(','));
+
 section('AUDIT TRAIL');
 const audit = (await call('GET', '/api/admin/audit-log?pageSize=500', { token: admin })).json;
 const adminUserId = q(`select id from "AspNetUsers" where email='${ADMIN.email}'`);
 ok('audit log has entries for the seeding mutations', audit.length > 40, `entries=${audit.length}`);
 // A customer's own address changes are audited too (MRV-9.3), under the customer's user id; every other entry is an admin's.
-const others = audit.filter((a) => a.entityName !== 'ClientAddress');
+// ...and so is a staff member's amend of an order's address (MRV-9.6), under the employee's user id.
+const amendEntries = audit.filter((a) => a.entityName === 'Order' && a.details.data?.includes('"Field":"DeliveryAddress"'));
+const others = audit.filter((a) => a.entityName !== 'ClientAddress' && !amendEntries.includes(a));
+ok('the amend of the delivery address of an order names the employee who made it', amendEntries.length === 1 && amendEntries[0].actorUserId === q(`select id from "AspNetUsers" where email='${emp1Email}'`), `entries=${amendEntries.length}`);
 ok('every admin audit entry names the acting admin', others.every((a) => a.actorUserId === adminUserId), `${others.filter((a) => a.actorUserId !== adminUserId).length} entries with another actor`);
 ok('customer address changes name the customer who made them (not an admin, never empty)', audit.filter((a) => a.entityName === 'ClientAddress' && a.details.data?.includes('"By":"Customer"')).every((a) => a.actorUserId !== adminUserId && a.actorUserId !== '00000000-0000-0000-0000-000000000000'));
 const actions = new Set(audit.map((a) => `${a.action}:${a.entityName}`));
@@ -1050,7 +1129,8 @@ ok('audit log never contains any password', !/Vendas-1234|Client-1234|Evil-1234|
 const auditPage = await call('GET', '/api/admin/audit-log?page=1&pageSize=2', { token: admin });
 ok('the audit log reports its total size in a header, whatever the page size (for the paging screen)', auditPage.json.length === 2 && Number(auditPage.headers.get('x-total-count')) >= audit.length);
 ok('audit entries are newest-first', audit.every((a, i) => i === 0 || Date.parse(audit[i - 1].timestamp) >= Date.parse(a.timestamp)));
-ok('employee/client actions that are not admin mutations are not in the admin audit trail', !audit.some((a) => a.entityName === 'Quote' || a.entityName === 'Order'));
+// Quotes and orders are not admin mutations; the one exception is staff amending the address of an order (MRV-9.6), audited with before and after.
+ok('employee/client actions that are not admin mutations are not in the admin audit trail', !audit.some((a) => a.entityName === 'Quote' || (a.entityName === 'Order' && !a.details.data?.includes('"Field":"DeliveryAddress"'))));
 ok('audit rows exist in the database', Number(q(`select count(*) from audit_log_entries`)) >= audit.length);
 
 // ---------------------------------------------------------------- result

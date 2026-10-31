@@ -1,6 +1,6 @@
 import { address } from '../models/testing/client-address';
 import {
-  BRAZIL_STATES, AddressPipe, billingAddressOf, foldText, formatAddress, formatPlaceLine, formatPostalCode, formatStreetLine, isSamePlace, maskPostalCode, otherAddressesOf,
+  BRAZIL_STATES, AddressPipe, billingAddressOf, defaultDeliveryOf, deliverableAddresses, foldText, formatAddress, formatPlaceLine, formatPostalCode, formatStreetLine, isSamePlace, maskPostalCode, otherAddressesOf,
 } from './address';
 
 describe('address formatting (MRV-9.3)', () => {
@@ -49,6 +49,28 @@ describe('address formatting (MRV-9.3)', () => {
     expect(isSamePlace({ postalCode: '01001000', number: '11', complement: 'Sala 2' }, saved)).toBe(false);
     expect(isSamePlace({ postalCode: '01001000', number: '10', complement: null }, saved)).toBe(false);
     expect(isSamePlace({ postalCode: '01001000', number: '10', complement: '' }, { ...saved, complement: null })).toBe(true);
+  });
+
+  it('lists only the addresses that can receive goods (MRV-9.6)', () => {
+    const both = address({ key: 'a', kind: 'Both' });
+    const billing = address({ key: 'b', kind: 'Billing' });
+    const delivery = address({ key: 'c', kind: 'Delivery' });
+    expect(deliverableAddresses([both, billing, delivery])).toEqual([both, delivery]);
+    expect(deliverableAddresses(null)).toEqual([]);
+    expect(deliverableAddresses(undefined)).toEqual([]);
+  });
+
+  it('picks the default delivery address, else the only deliverable one, else none (the same rule as the server)', () => {
+    const both = address({ key: 'a', kind: 'Both' });
+    const billing = address({ key: 'b', kind: 'Billing' });
+    const delivery = address({ key: 'c', kind: 'Delivery' });
+    expect(defaultDeliveryOf({ addresses: [both, delivery], defaultDeliveryKey: 'c' })).toBe(delivery);
+    expect(defaultDeliveryOf({ addresses: [billing, delivery], defaultDeliveryKey: null })).toBe(delivery);
+    expect(defaultDeliveryOf({ addresses: [both, delivery], defaultDeliveryKey: null })).toBeNull();
+    // A default that cannot receive goods (it should not exist) is not used.
+    expect(defaultDeliveryOf({ addresses: [billing, delivery], defaultDeliveryKey: 'b' })).toBe(delivery);
+    expect(defaultDeliveryOf({ addresses: [billing], defaultDeliveryKey: 'b' })).toBeNull();
+    expect(defaultDeliveryOf({})).toBeNull();
   });
 
   it('finds the billing address and the others by the chosen key', () => {

@@ -85,6 +85,40 @@ public class RateLimitingTests : IClassFixture<RateLimitingTests.TightLimitsFact
         Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
     }
 
+    [Fact]
+    public async Task TheDeliveryAddressChangeOfAQuote_IsLimited_With429AndRetryAfter()
+    {
+        using var factory = new TightLimitsFactory();
+        var (customer, _) = await factory.RegisterPendingClientAsync();
+        var body = new Marvi.Api.Features.Common.ChangeDeliveryAddressRequest(Guid.NewGuid());
+
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(HttpStatusCode.NotFound, (await customer.PutAsJsonAsync("/api/quotes/1/delivery-address", body)).StatusCode);
+        }
+
+        var limited = await customer.PutAsJsonAsync("/api/quotes/1/delivery-address", body);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task TheDeliveryAddressAmendOfAnOrder_IsLimited_With429AndRetryAfter()
+    {
+        using var factory = new TightLimitsFactory();
+        var admin = await factory.AdminAsync();
+        var body = new Marvi.Api.Features.Common.ChangeDeliveryAddressRequest(Guid.NewGuid());
+
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsJsonAsync("/api/employee/orders/1/delivery-address", body)).StatusCode);
+        }
+
+        var limited = await admin.PutAsJsonAsync("/api/employee/orders/1/delivery-address", body);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+    }
+
     /// <summary>Three requests per minute on each limited endpoint group.</summary>
     public sealed class TightLimitsFactory : MarviApiFactory
     {

@@ -52,7 +52,16 @@
       </table>
 </div>
     }
-    <button type="button" class="btn btn--primary" [disabled]="basket().length === 0 || requestAction.busy()" (click)="requestQuote()">
+    <div class="stack" data-testid="basket-delivery">
+      <app-delivery-picker
+        [addresses]="addresses()"
+        [defaultKey]="defaultKey()"
+        [(selectedKey)]="deliveryKey"
+        [addLabel]="d.addAddress"
+        (addAddress)="openAddAddress()"
+      />
+    </div>
+    <button type="button" class="btn btn--primary" [disabled]="!canRequest()" (click)="requestQuote()">
       {{ t.requestQuote }}
     </button>
     <app-error-alert [error]="requestAction.error()" />
@@ -75,6 +84,27 @@
             {{ statuses.quote[quote.status] ?? quote.status }}
           </span>
         </header>
+        <app-delivery-to [snapshot]="quote.deliveryAddressSnapshot" />
+        @if (quote.status === 'Priced' && !quote.deliveryAddressSnapshot) {
+          <p class="alert" role="status" data-testid="quote-needs-address">{{ d.needAddressBeforeAccepting }}</p>
+        }
+        @if (changedNumber() === quote.number) {
+          <p class="alert alert--success" role="status">{{ d.changed }}</p>
+        }
+        @if (canChangeAddress(quote)) {
+          @if (changingNumber() === quote.number) {
+            <div class="stack" data-testid="quote-change-address">
+              <app-delivery-picker [addresses]="addresses()" [defaultKey]="defaultKey()" [coverage]="false" [(selectedKey)]="changeKey" />
+              <div class="toolbar">
+                <button type="button" class="btn btn--primary btn--small" [disabled]="changeKey() === null || changeAction.busy()" (click)="saveChange(quote)">{{ d.save }}</button>
+                <button type="button" class="btn btn--outline btn--small" (click)="cancelChange()">{{ d.cancel }}</button>
+              </div>
+              <app-error-alert [error]="changeAction.error()" />
+            </div>
+          } @else {
+            <div><button type="button" class="btn btn--outline btn--small btn--wrap" (click)="startChange(quote)">{{ d.change }}</button></div>
+          }
+        }
         <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'quote-' + quote.number">
 <table class="table">
           <thead>
@@ -99,7 +129,7 @@
 </div>
         @if (quote.status === 'Priced') {
           <div class="toolbar">
-            <button type="button" class="btn btn--primary" [disabled]="acceptAction.busy() || rejectAction.busy()" (click)="acceptQuote(quote.id)">
+            <button type="button" class="btn btn--primary" [disabled]="acceptAction.busy() || rejectAction.busy()" (click)="tryAccept(quote)">
               {{ t.accept }}
             </button>
             @if (confirmingRejectId() === quote.id) {
@@ -122,10 +152,11 @@
     @for (order of orders.data(); track order.id) {
       <article class="card" data-testid="order">
         <header class="toolbar">
-          <strong [id]="'order-' + order.number">{{ refs.order }} {{ order.number | documentNumber: 'order' }} · {{ order.deliveryAddress || t.noAddress }}</strong>
+          <strong [id]="'order-' + order.number">{{ refs.order }} {{ order.number | documentNumber: 'order' }}</strong>
           <span class="muted">{{ t.placedOn }} {{ order.placedAt | ptDate }}</span>
           <span class="badge badge--ok">{{ statuses.order[order.status] ?? order.status }}</span>
         </header>
+        <app-delivery-to [snapshot]="order.deliveryAddressSnapshot" [text]="order.deliveryAddress" />
         <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'order-' + order.number">
 <table class="table">
           <thead>
@@ -153,5 +184,5 @@
     }
   </section>
 
-  <app-client-profile />
+  <app-client-profile (addressesChanged)="useAddresses($event)" />
 </div>

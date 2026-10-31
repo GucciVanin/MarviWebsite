@@ -135,17 +135,20 @@ await call('POST', '/api/client/addresses', customers.bar.token, {
 
 // ---- quotes and orders
 const employee = await login(EMPLOYEE);
-const quote = (token, lines) => call('POST', '/api/quotes', token, { lineItems: lines.map(([sku, qty]) => ({ productId: products[sku].id, qty })) });
+// A quote is delivered to the address the customer chooses (MRV-9.6); without a key it goes to their default delivery address.
+const quote = (token, lines, deliveryAddressKey = undefined) => call('POST', '/api/quotes', token, { lineItems: lines.map(([sku, qty]) => ({ productId: products[sku].id, qty })), deliveryAddressKey });
+const barAddresses = (await call('GET', '/api/client/profile', customers.bar.token)).addresses;
+const barAddress = (label) => barAddresses.find((a) => a.label === label).key;
 const priceQuote = (q, discount = 0) => call('PUT', `/api/employee/quotes/${q.id}/price`, employee, {
   lineItems: q.lineItems.map((line) => ({ lineItemId: line.id, finalUnitPrice: Math.round((line.suggestedUnitPrice ?? 0) * (1 - discount) * 100) / 100 })),
 });
 // A priced quote waiting for the customer to accept it, and a new one waiting in the employee's queue.
-await priceQuote(await quote(customers.bar.token, [['REFRI-COLA-2L', 12], ['AGUA-500', 24]]), 0.05);
+await priceQuote(await quote(customers.bar.token, [['REFRI-COLA-2L', 12], ['AGUA-500', 24]], barAddress('Filial Campinas')), 0.05);
 await quote(customers.bar.token, [['CERV-LAGER-600', 10]]);
 // An accepted quote (an order made by the customer) and an order the employee placed directly.
 const accepted = await priceQuote(await quote(customers.mercado.token, [['CERV-PILSEN-350', 48], ['ENERG-250', 12]]));
 await call('POST', `/api/quotes/${accepted.id}/accept`, customers.mercado.token);
-await call('POST', '/api/employee/orders', employee, { clientId: customers.bar.id, deliveryAddress: 'Rua Augusta, 1200, Consolação, São Paulo, SP, CEP 01304-001', lineItems: [{ productId: products['AGUA-GAS-500'].id, qty: 36 }] });
+await call('POST', '/api/employee/orders', employee, { clientId: customers.bar.id, deliveryAddressKey: barAddress('Depósito Guarulhos'), lineItems: [{ productId: products['AGUA-GAS-500'].id, qty: 36 }] });
 
 console.log('Demo data created: 4 categories, 8 products, 2 warehouses, 1 deal, 1 employee, 5 customers (4 companies, 1 person), quotes and orders.');
 console.log(`Sign in as the admin (${ADMIN.email}), the employee (${EMPLOYEE.email}) or a customer (cliente@, mercado@, pendente@, suspenso@, pessoa@demo.marvi.test).`);

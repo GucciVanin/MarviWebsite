@@ -60,6 +60,20 @@ export function isSamePlace(
   );
 }
 
+/** Addresses a delivery can go to: the type is Delivery or Both. */
+export function deliverableAddresses<T extends Pick<ClientAddress, 'kind'>>(addresses: readonly T[] | null | undefined): T[] {
+  return (addresses ?? []).filter((a) => a.kind === 'Delivery' || a.kind === 'Both');
+}
+
+/**
+ * The address a delivery goes to when the customer has not chosen: the default delivery address if it can receive goods, else the only
+ * deliverable one, else none (a customer migrated from the old text may have no default flagged; the same rule the server applies).
+ */
+export function defaultDeliveryOf<T extends Pick<ClientAddress, 'kind' | 'key'>>(customer: { addresses?: readonly T[] | null; defaultDeliveryKey?: string | null }): T | null {
+  const deliverable = deliverableAddresses(customer.addresses);
+  return deliverable.find((a) => a.key === customer.defaultDeliveryKey) ?? (deliverable.length === 1 ? deliverable[0] : null);
+}
+
 /** `{{ address | address }}`: the whole address on one line. */
 @Pipe({ name: 'address' })
 export class AddressPipe implements PipeTransform {

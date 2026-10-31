@@ -47,6 +47,7 @@
       <dl class="lookup__facts" data-testid="lookup-registration" appRegistrationFacts [registration]="customer.registration"></dl>
       <dl class="lookup__facts">
         <div class="lookup__wide"><dt>{{ t.billing }}</dt><dd data-testid="lookup-billing">{{ billing() ? (billing() | address) : t.none }}</dd></div>
+        <div class="lookup__wide"><dt>{{ t.defaultDelivery }}</dt><dd data-testid="lookup-default-delivery">{{ defaultDelivery() ? defaultDelivery()!.label + ': ' + (defaultDelivery() | address) : t.none }}</dd></div>
         <div class="lookup__wide">
           <dt>{{ t.deliveryAddresses }}</dt>
           <dd>

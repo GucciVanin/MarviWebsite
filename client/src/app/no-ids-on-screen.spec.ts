@@ -60,13 +60,15 @@ function guidsIn(root: HTMLElement): string[] {
 
 const CUSTOMER = { id: g(1), customerNumber: 42, companyName: 'Bar do Zé' };
 const line = (n: number) => ({ id: g(100 + n), productId: g(200 + n), productName: `Produto ${n}`, qty: 2, suggestedUnitPrice: 8.5, finalUnitPrice: 7.5, unitPrice: 7.5 });
+// The delivery address a quote or an order carries (MRV-9.6) is a copy: it has no key and no id.
+const snapshot = { label: 'Matriz', postalCode: '01001000', street: 'Praça da Sé', number: '10', complement: null, district: 'Sé', city: 'São Paulo', state: 'SP', notes: 'Entregar de manhã', line: 'Praça da Sé, 10, Sé, São Paulo/SP, CEP 01001-000' };
 const quote = (n: number, status = 'Priced') => ({
   id: g(300 + n), number: 120 + n, clientAccountId: CUSTOMER.id, customerNumber: 42, companyName: CUSTOMER.companyName, status,
-  createdAt: '2026-10-02T13:00:00Z', pricedByEmployeeId: g(900), lineItems: [line(1), line(2)],
+  createdAt: '2026-10-02T13:00:00Z', pricedByEmployeeId: g(900), lineItems: [line(1), line(2)], deliveryAddressSnapshot: snapshot,
 });
 const order = (n: number) => ({
   id: g(400 + n), number: 40 + n, clientAccountId: CUSTOMER.id, customerNumber: 42, companyName: CUSTOMER.companyName, quoteId: g(301), status: 'Placed',
-  deliveryAddress: 'Rua Entrega, 10', warehouseId: g(500), placedByEmployeeId: g(901), placedAt: '2026-10-14T13:42:00Z', totalAmount: 30,
+  deliveryAddress: snapshot.line, deliveryAddressSnapshot: snapshot, warehouseId: g(500), placedByEmployeeId: g(901), placedAt: '2026-10-14T13:42:00Z', totalAmount: 30,
   lineItems: [line(1), line(2)],
 });
 const paged = (items: object[]) => ({ items, page: 1, pageSize: 20, totalCount: items.length });
@@ -111,6 +113,7 @@ function answer(request: TestRequest): { body: unknown; headers?: Record<string,
   const is = (re: RegExp) => re.test(path);
   if (is(/^\/api\/quotes\/mine$/)) return { body: [quote(1), quote(2, 'Submitted')] };
   if (is(/^\/api\/orders\/mine$/)) return { body: [order(1)] };
+  if (is(/^\/api\/coverage\/check$/)) return { body: { supported: true, warehouseName: 'CD São Paulo' } };
   if (is(/^\/api\/client\/profile$/)) return { body: profile };
   if (is(/^\/api\/employee\/quotes\/queue$/)) return { body: [quote(1, 'Submitted')] };
   if (is(/^\/api\/employee\/quotes\/history$/)) return { body: paged([quote(1), quote(2, 'Rejected')]) };
@@ -272,7 +275,9 @@ describe('No internal ids on screen (MRV-9.1)', () => {
     expect(root.querySelector('[data-testid="customer"]')?.textContent).toContain('C-000042');
     expect(guidsIn(root)).toEqual([]);
 
-    (portal as unknown as { deliveryAddress: { set(value: string): void } }).deliveryAddress.set('Rua Entrega, 10');
+    // The customer's default delivery address is already chosen in "Entregar em" (its option value is the key; the page shows only its label and text).
+    expect(root.querySelector('[data-testid="order-delivery"] [data-testid="delivery-selected"]')?.textContent).toContain('Matriz');
+    expect(guidsIn(root)).toEqual([]);
     portal.placeOrder();
     await drain(fixture, http);
 
@@ -303,6 +308,31 @@ describe('No internal ids on screen (MRV-9.1)', () => {
     expect(guidsIn(root)).toEqual([]);
     // The cards say what is wrong, in words, and show neither the key nor any id.
     expect(root.textContent).toContain('Complete este endereço');
+  });
+
+  it('stays clean with the delivery selector, a coverage answer and the quote address picker open (MRV-9.6)', async () => {
+    const { fixture, http, root } = await render(ClientPortal, 'Client');
+    expect(root.querySelector('[data-testid="basket-delivery"] [data-testid="delivery-select"]')).not.toBeNull();
+    expect(guidsIn(root)).toEqual([]);
+
+    press(root, 'Verificar cobertura');
+    await drain(fixture, http);
+    expect(root.querySelector('[data-testid="delivery-coverage-result"]')?.textContent).toContain('CD São Paulo');
+    expect(guidsIn(root)).toEqual([]);
+
+    press(root, 'Alterar endereço de entrega');
+    await drain(fixture, http);
+    expect(root.querySelector('[data-testid="quote-change-address"] [data-testid="delivery-select"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="quote"] [data-testid="delivery-to"]')?.textContent).toContain('Praça da Sé, 10');
+    expect(guidsIn(root)).toEqual([]);
+  });
+
+  it('stays clean with the delivery address of the orders and quotes on the customer page and in the lookup widget (MRV-9.6)', async () => {
+    const { root } = await render(CustomerPage, 'Employee', { number: 'C-000042' });
+
+    expect(root.querySelector('[data-testid="customer-orders"] [data-testid="delivery-to"]')?.textContent).toContain('Matriz');
+    expect(root.querySelector('[data-testid="customer-quotes"] [data-testid="delivery-to"]')?.textContent).toContain('Matriz');
+    expect(guidsIn(root)).toEqual([]);
   });
 
   it('stays clean with the address editor open in the admin customers tab (MRV-9.3)', async () => {

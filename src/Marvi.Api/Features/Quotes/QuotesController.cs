@@ -1,4 +1,6 @@
+using Marvi.Api.Configuration;
 using Marvi.Api.Features.Catalog;
+using Marvi.Api.Features.Common;
 using Marvi.Api.Features.Identity;
 using Marvi.Api.Features.Orders.Contracts;
 using Marvi.Api.Features.Quotes.Contracts;
@@ -9,6 +11,7 @@ using Marvi.Domain.Quotes;
 using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marvi.Api.Features.Quotes;
@@ -54,6 +57,13 @@ public class QuotesController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, "Client account is not active.");
         }
 
+        // Where it is delivered (MRV-9.6): the chosen address of THIS customer, else their default delivery address.
+        var delivery = await DeliveryAddressChoice.ResolveAsync(_dbContext, clientAccount.Id, request.DeliveryAddressKey);
+        if (!delivery.Succeeded)
+        {
+            return delivery.Status == 404 ? NotFound() : BadRequest(delivery.Message);
+        }
+
         var data = await _pricingData.LoadAsync(clientAccount.PricingTier, requested!.Select(l => l.ProductId).ToList());
         var priced = _basketPricing.Price(requested!, data);
         if (priced.Problem == BasketProblem.NoPricingTier)
@@ -76,13 +86,67 @@ public class QuotesController : ControllerBase
             SuggestedUnitPrice = line.UnitPrice
         }).ToList();
 
-        var quote = _quoteWorkflowService.CreateQuote(clientAccount.Id, lineItems);
+        var quote = _quoteWorkflowService.CreateQuote(clientAccount.Id, lineItems, delivery.Address);
 
         _dbContext.Quotes.Add(quote);
         await _dbContext.SaveChangesAsync();
 
         var dto = await LoadQuoteDtoAsync(quote.Id);
         return Created(string.Empty, dto);
+    }
+
+    /// <summary>
+    /// The customer picks another delivery address for their own quote while it is Submitted or Priced (MRV-9.6); after that 409. Someone else's quote
+    /// and an address that is not the customer's answer 404. The quote keeps a copy of the address, not a reference to its current state.
+    /// </summary>
+    [HttpPut("{number:int}/delivery-address")]
+    [EnableRateLimiting(RateLimiting.AddressesPolicy)]
+    public async Task<ActionResult<QuoteDto>> ChangeDeliveryAddress(int number, ChangeDeliveryAddressRequest request)
+    {
+        var clientId = User.ClientId();
+        if (clientId is null)
+        {
+            return Forbid();
+        }
+
+        var quote = await _dbContext.Quotes
+            .Include(q => q.ClientAccount)
+            .Include(q => q.LineItems).ThenInclude(li => li.Product)
+            .FirstOrDefaultAsync(q => q.Number == number && q.ClientAccountId == clientId.Value);
+        if (quote is null)
+        {
+            return NotFound();
+        }
+
+        // Like creating and accepting a quote, re-addressing one is for an eligible (Approved) customer.
+        var accountStatus = await _dbContext.ClientAccounts.Where(c => c.Id == clientId.Value).Select(c => c.Status).FirstOrDefaultAsync();
+        if (!CustomerEligibility.IsEligible(accountStatus))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, "Client account is not active.");
+        }
+
+        var delivery = await DeliveryAddressChoice.ResolveAsync(_dbContext, clientId.Value, request.DeliveryAddressKey);
+        if (!delivery.Succeeded)
+        {
+            return delivery.Status == 404 ? NotFound() : BadRequest(delivery.Message);
+        }
+
+        try
+        {
+            _quoteWorkflowService.ChangeDeliveryAddress(quote, delivery.Address!);
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The quote was accepted or rejected between reading it and saving: its address is no longer changeable.
+            return Conflict("The quote was just changed. Reload and try again.");
+        }
+
+        return Ok(ToDto(quote));
     }
 
     [HttpGet("mine")]
@@ -143,6 +207,10 @@ public class QuotesController : ControllerBase
         {
             return Conflict(ex.Message);
         }
+        catch (QuoteWithoutDeliveryAddressException ex)
+        {
+            return Conflict(ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             return BadRequest(ex.Message);
@@ -150,7 +218,15 @@ public class QuotesController : ControllerBase
 
         // Quote status flip and Order/OrderLineItem inserts persist together in this single SaveChangesAsync call.
         _dbContext.Orders.Add(order);
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The quote's status or address was changed by someone else (a second accept, a change of address) after it was read: no order is created.
+            return Conflict("The quote was just changed. Reload and try again.");
+        }
 
         var dto = await LoadOrderDtoAsync(order.Id);
         return Created(string.Empty, dto);
@@ -189,7 +265,15 @@ public class QuotesController : ControllerBase
             return BadRequest(ex.Message);
         }
 
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict("The quote was just changed. Reload and try again.");
+        }
+
         return Ok(ToDto(quote));
     }
 

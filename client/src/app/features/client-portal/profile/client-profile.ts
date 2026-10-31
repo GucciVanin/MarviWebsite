@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, OnInit, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, ElementRef, Injector, OnInit, afterNextRender, computed, effect, inject, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { action } from '../../../core/http/action';
 import { loadable } from '../../../core/http/loadable';
@@ -6,7 +6,7 @@ import { PT } from '../../../core/i18n/pt-br';
 import { isSamePlace } from '../../../shared/format/address';
 import { CustomerNumberPipe } from '../../../shared/format/number.pipes';
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
-import type { ClientAddress } from '../../../shared/models/client-address.model';
+import type { ClientAddress, WithAddresses } from '../../../shared/models/client-address.model';
 import { AddressDraft } from '../../../shared/ui/address-fields/address-draft';
 import { AddressFields } from '../../../shared/ui/address-fields/address-fields';
 import { AddressSummary } from '../../../shared/ui/address-summary/address-summary';
@@ -60,6 +60,9 @@ export class ClientProfileCard implements OnInit {
   protected readonly canSubmitAddress = computed(() => this.draft.canSubmit() && !this.addressAction.busy());
   protected readonly editing = computed(() => this.addresses().find((a) => a.key === this.editingKey()) ?? null);
 
+  /** Fires with the customer's addresses whenever they are loaded or changed, so the delivery selector above stays in step with this card. */
+  readonly addressesChanged = output<WithAddresses>();
+
   private filled = false;
 
   constructor() {
@@ -90,11 +93,13 @@ export class ClientProfileCard implements OnInit {
     this.saveAction.run(this.service.update({ companyName: draft.name().trim(), accountType: draft.type()!, registration: draft.request() }), (saved) => {
       this.fillRegistration(saved);
       this.addresses.set(saved.addresses);
+      this.addressesChanged.emit(saved);
       this.saved.set(true);
     });
   }
 
-  protected startAdd(): void {
+  /** Opens the "Adicionar endereço" form and moves focus into it (the delivery selector's link to add an address). */
+  startAdd(): void {
     this.closeForms();
     this.draft.reset();
     this.adding.set(true);
@@ -186,6 +191,7 @@ export class ClientProfileCard implements OnInit {
     this.focusSoon('#addresses-title');
     this.addressAction.run(this.service.get(), (loaded) => {
       this.addresses.set(loaded.addresses);
+      this.addressesChanged.emit(loaded);
       this.addressMessage.set(message);
       // Focus goes back to the control that opened the form (an edited address's "Editar", or "Adicionar endereço"); after a removal, to "Adicionar endereço".
       this.focusSoon(returnKey ? this.editButton(returnKey) : '#address-add-btn');

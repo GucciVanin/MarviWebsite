@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Common;
 using Marvi.Domain.Orders;
 
 namespace Marvi.Api.Features.Orders.Contracts;
@@ -16,13 +17,14 @@ public record OrderHistoryItemDto(
     Guid? PlacedByEmployeeId,
     DateTime PlacedAt,
     decimal TotalAmount,
-    List<OrderLineItemDto> LineItems)
+    List<OrderLineItemDto> LineItems,
+    DeliveryAddressSnapshotDto? DeliveryAddressSnapshot = null)
 {
     public static OrderHistoryItemDto From(Order order)
     {
         var dto = OrderDto.From(order);
         return new OrderHistoryItemDto(
             dto.Id, dto.Number, dto.ClientAccountId, dto.CustomerNumber, dto.CompanyName, dto.QuoteId, dto.Status, dto.DeliveryAddress,
-            dto.WarehouseId, dto.PlacedByEmployeeId, dto.PlacedAt, dto.TotalAmount, dto.LineItems);
+            dto.WarehouseId, dto.PlacedByEmployeeId, dto.PlacedAt, dto.TotalAmount, dto.LineItems, dto.DeliveryAddressSnapshot);
     }
 }

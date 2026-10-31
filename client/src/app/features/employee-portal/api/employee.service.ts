@@ -26,7 +26,8 @@ export interface EmployeeOrderLineItemRequest {
 
 export interface CreateEmployeeOrderRequest {
   clientId: string;
-  deliveryAddress: string;
+  /** The key of one of THAT customer's delivery addresses (MRV-9.6); omitted means their default. Staff do not type an address any more. */
+  deliveryAddressKey?: string | null;
   lineItems: EmployeeOrderLineItemRequest[];
 }
 

@@ -331,15 +331,19 @@ erDiagram
     }
     Quote {
         guid Id
-        enum Status
+        enum Status "concurrency token"
         datetime CreatedAt
         guid PricedByEmployeeId
+        guid DeliveryAddressId "nullable link, ON DELETE SET NULL; concurrency token (MRV-9.6)"
+        string DeliveryAddressLabel "snapshot: label, street, number, complement, district, city, state, postal code, notes (all nullable)"
     }
     Order {
         guid Id
         guid QuoteId
         enum Status
-        string DeliveryAddress
+        string DeliveryAddress "the address on one line; the old free text on an order from before MRV-9.6"
+        guid DeliveryAddressId "nullable link, ON DELETE SET NULL (MRV-9.6)"
+        string DeliveryAddressLabel "snapshot copied from the quote or the customer's address; the other columns as on Quote"
         guid WarehouseId
         guid PlacedByEmployeeId
         decimal TotalAmount
@@ -456,25 +460,29 @@ sequenceDiagram
     participant QS as QuoteWorkflowService
     participant DB as AppDbContext
 
-    Client->>QC: POST /api/quotes { lineItems: productId, qty }
-    QC->>QS: CreateQuote (prices suggested via PricingService)
+    Client->>QC: POST /api/quotes { lineItems, deliveryAddressKey? }
+    QC->>QC: DeliveryAddressChoice (own address by key, else the default delivery address)
+    QC->>QS: CreateQuote (prices suggested via PricingService, address copied onto the quote)
     QC->>DB: save quote (Submitted)
+    Client->>QC: PUT /api/quotes/{number}/delivery-address (Submitted or Priced only)
     EQ->>DB: GET queue (Submitted)
     EQ->>QS: PriceQuote(employeeId, final prices)
     EQ->>DB: save (Priced)
     Client->>QC: POST /api/quotes/{id}/accept
     QC->>QS: AcceptQuote(quote)
-    QS-->>QC: new Order (final prices copied)
+    QS-->>QC: new Order (final prices and the quote's address snapshot copied)
     QC->>DB: save quote (Accepted) + order
     QC-->>Client: OrderDto
 ```
 
 ### 7.4 Employee order and admin audit
 
-`EmployeeOrdersController.Create` loads the client, requires Customer eligibility (`Approved`), prices each line with
-`BasketPricingService` using that client's tier, builds the `Order` through `OrderFactory.Place` (also used by `AcceptQuote`, so a total is always the sum of its lines) with `PlacedByEmployeeId`, and saves it. `AcceptQuote` refuses a quote that has a line without a final price (`QuoteNotFullyPricedException`, 409): a missing price is never a free order.
+`EmployeeOrdersController.Create` loads the client, requires Customer eligibility (`Approved`), takes the delivery address from one of THAT client's own (`DeliveryAddressChoice`: the chosen `deliveryAddressKey`, else their default; another customer's or an unknown key is 404; the old free text is accepted only when the client has no structured address at all, logged, and refused otherwise), prices each line with
+`BasketPricingService` using that client's tier, builds the `Order` through `OrderFactory.Place` (also used by `AcceptQuote`, so a total is always the sum of its lines) with `PlacedByEmployeeId` and the address snapshot, and saves it. `AcceptQuote` refuses a quote that has a line without a final price (`QuoteNotFullyPricedException`, 409): a missing price is never a free order.
 Admin controllers commit through `AuditLogger.TrySaveAsync(action, entityName, entityId, details)` (one save of the change and its audit entry; false on a constraint rejection, answered with 409),
 which writes an `AuditLogEntry` with the actor taken from the JWT `sub` claim.
+
+**Delivery address (MRV-9.6).** `Quote` and `Order` implement `IHasDeliveryAddress` (Domain/Delivery): ten nullable columns, `delivery_address_id` (a foreign key to `client_addresses`, `ON DELETE SET NULL`) and a copy of the label, street, number, complement, district, city, UF, CEP and notes, written by `CopyFrom(ClientAddress)` when the address is chosen. A document is a snapshot, not a live reference, so editing or removing the customer's address changes nothing already made; `Line()` writes the snapshot as one line (the DTO's `deliveryAddressSnapshot.line` and an order's `deliveryAddress` text, which for a legacy order stays its free text). `DeliveryAddressChoice.ResolveAsync(db, accountId, key?)` is the one place an address is chosen: it looks the address up by key AND owner (404 otherwise), refuses a billing-only one (400), and without a key uses the default delivery address, else the only deliverable one, else 400 ("Cadastre um endereço de entrega." when there is none, "Escolha o endereço de entrega." when there are several and no default) so a customer migrated without a default or billing address gets a message, not an error. `QuoteWorkflowService.CreateQuote` copies the address onto the quote, `ChangeDeliveryAddress` (`PUT /api/quotes/{number}/delivery-address`, own quote, Submitted or Priced; 409 otherwise) replaces it, and `AcceptQuote` passes the quote itself to `OrderFactory.Place` so the order carries the quote's address; a quote without a snapshot (made before MRV-9.6) is refused with `QuoteWithoutDeliveryAddressException` (409, "Escolha o endereço de entrega antes de aceitar o orçamento."), so an order is never created with an empty address (the customer picks one with the change call, allowed while Priced). `orders.delivery_address` is `varchar(500)` (`Order.MaxDeliveryAddressLength`, migration `OrderDeliveryAddressMaxLength`): a snapshot written out as one line is cut to it and the legacy free text of a staff order is refused above it, or with control or invisible format characters (`ClientAddressRules.HasForbiddenCharacters`). A quote's `Status` and `DeliveryAddressId` are concurrency tokens: an accept racing a change of address, or two accepts, end in a 409 and no order built from an address the quote no longer has (accept, reject, price and change all answer 409 on `DbUpdateConcurrencyException`). Staff amend an order's address with `PUT /api/employee/orders/{number}/delivery-address` (a Placed or Backordered order; Fulfilled or Cancelled is 409), written together with an `Order` / `Update` audit entry holding the order and customer numbers and the label and line before and after. Both PUTs use the `addresses` rate-limit policy. The snapshot text is the customer's free text: the SPA shows it as text, and any future PDF, e-mail or CSV made from it must escape it.
 
 ## 8. Frontend (`client/`)
 
@@ -488,7 +496,7 @@ src/app/
   core/http/                loadable, action, describeApiError (loading and error state, see below)
   core/catalog/             CatalogService: the public product list (search, category) and categories, shared by every screen that picks products
   core/i18n/                pt-br.ts (all copy), identity-errors.ts
-  shared/ui/                app-header, app-footer, load-state, error-alert, count-up (a number that counts up once when first seen; shows the real number from the start and with reduced motion), product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
+  shared/ui/                app-header, app-footer, load-state, error-alert, count-up (a number that counts up once when first seen; shows the real number from the start and with reduced motion), product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form), delivery-picker (MRV-9.6: "Entregar em", a select of the customer's delivery addresses by label and one-line summary with the default chosen, the chosen address written out, an optional informational "Verificar cobertura" through the existing `CoverageService`, and a message (plus a link to add an address, for the customer) when none can receive goods; the key is only an option value and is never shown), delivery-to (the address a quote or order carries, read-only: snapshot or the old text or "Endereço a confirmar"; text escaped by Angular)
   shared/crud/              admin-crud: `formFeedback()` (problem, "saved" notice, request in flight for an admin form) and `confirmedDelete()` (the two-step delete) used by the admin catalog, pricing and operations screens (MRV-2.4b.7)
   shared/format/            brl (R$ 1.234,50) and ptDate (dd/mm/aaaa hh:mm) pipes
   shared/models/            types used by more than one feature (quote, order, catalog)
@@ -592,8 +600,8 @@ flowchart LR
   transitively** from `Marvi.Infrastructure`; do not remove that reference chain.
 - **Polygon coverage is unimplemented** and throws; only `Radius` works.
 - **Geocoding providers are untested against live keys** (their parsing and failure handling are tested with stubbed responses).
-- **Orders do not touch inventory:** no reservation, decrement or stock check yet (Release 2); `Order.WarehouseId` and
-  quote-to-order delivery address are not populated by the quote flow.
+- **Orders do not touch inventory:** no reservation, decrement or stock check yet (Release 2); `Order.WarehouseId` is
+  not populated by the quote flow (the delivery address is, since MRV-9.6). Coverage stays informational: it is not tied to an order and never blocks one.
 - **`Quote.Draft`/`Expired` and `Order.Backordered/Fulfilled/Cancelled`** exist as enum values with
   no workflow yet.
 - **`Marvi.Shared` and `Marvi.Infrastructure/Class1.cs`** are empty template leftovers.

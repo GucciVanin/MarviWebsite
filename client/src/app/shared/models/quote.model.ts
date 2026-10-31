@@ -1,3 +1,5 @@
+import type { DeliveryAddressSnapshot } from './delivery-address.model';
+
 export type QuoteStatus = 'Draft' | 'Submitted' | 'Priced' | 'Accepted' | 'Rejected' | 'Expired';
 
 export interface QuoteLineItem {
@@ -20,4 +22,6 @@ export interface Quote {
   createdAt: string;
   pricedByEmployeeId: string | null;
   lineItems: QuoteLineItem[];
+  /** Where it is delivered, as it was when chosen (MRV-9.6); absent or null on a quote made before that. */
+  deliveryAddressSnapshot?: DeliveryAddressSnapshot | null;
 }

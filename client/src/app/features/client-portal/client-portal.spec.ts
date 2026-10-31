@@ -1,8 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
 import { ClientPortal } from './client-portal';
+import { ClientProfileCard } from './profile/client-profile';
 import { registration } from '../../shared/models/testing/registration';
+import { address, twoAddresses } from '../../shared/models/testing/client-address';
 
 const product = (id: string, name: string, price: number | null, inStock = true) => ({
   id,
@@ -15,6 +18,12 @@ const product = (id: string, name: string, price: number | null, inStock = true)
   inStock,
 });
 
+// Every quote has a delivery address unless a spec says otherwise (a quote from before MRV-9.6 has none).
+const defaultSnapshot = {
+  label: 'Matriz', postalCode: '01001000', street: 'Praça da Sé', number: '10', complement: null, district: 'Sé', city: 'São Paulo', state: 'SP', notes: null,
+  line: 'Praça da Sé, 10, Sé, São Paulo/SP, CEP 01001-000',
+};
+
 const quote = (id: string, status: string, lines: object[] = []) => ({
   id,
   number: Number(id.replace(/\D/g, '')) + 122,
@@ -25,6 +34,7 @@ const quote = (id: string, status: string, lines: object[] = []) => ({
   createdAt: '2026-10-02T13:00:00Z',
   pricedByEmployeeId: null,
   lineItems: lines,
+  deliveryAddressSnapshot: defaultSnapshot as object | null,
 });
 
 const line = (productName: string, qty: number, suggested: number | null, final: number | null) => ({
@@ -43,6 +53,8 @@ interface Data {
   orders?: object[];
   /** The customer's account status; Approved unless a test says otherwise. */
   status?: string;
+  /** The customer's addresses (MRV-9.3): a matriz that is billing and default delivery plus a delivery-only branch unless a test says otherwise. */
+  profileAddresses?: { addresses: object[]; billingAddressKey: string | null; defaultDeliveryKey: string | null };
 }
 
 describe('ClientPortal', () => {
@@ -59,7 +71,7 @@ describe('ClientPortal', () => {
     http.expectOne('/api/orders/mine').flush(data.orders ?? []);
     // The portal and the details card each ask for the profile.
     http.match('/api/client/profile').forEach((request) =>
-      request.flush({ id: 'c1', companyName: 'Bar do Zé', addresses: [], billingAddressKey: null, defaultDeliveryKey: null, status, createdAt: '2026-10-14T13:42:00Z', registration: registration(), registrationLocked: status !== 'Pending' }),
+      request.flush({ id: 'c1', companyName: 'Bar do Zé', ...(data.profileAddresses ?? twoAddresses()), status, createdAt: '2026-10-14T13:42:00Z', registration: registration(), registrationLocked: status !== 'Pending' }),
     );
     fixture.detectChanges();
     // Only an approved customer gets the quote builder, so the catalog is asked for only then.
@@ -201,7 +213,7 @@ describe('ClientPortal', () => {
     button('Solicitar cotação').click();
     fixture.detectChanges();
     const post = http.expectOne('/api/quotes');
-    expect(post.request.body).toEqual({ lineItems: [{ productId: '1', qty: 6 }] });
+    expect(post.request.body).toEqual({ lineItems: [{ productId: '1', qty: 6 }], deliveryAddressKey: twoAddresses().defaultDeliveryKey });
     post.flush(quote('q1', 'Submitted'));
     http.expectOne('/api/quotes/mine').flush([quote('q1', 'Submitted', [line('Cola 2L', 6, 12.5, null)])]);
     await settle();
@@ -255,7 +267,8 @@ describe('ClientPortal', () => {
 
     const cards = root.querySelectorAll('[data-testid="quote"]');
     expect(button('Aceitar cotação', cards[0])).toBeDefined();
-    expect(Array.from(cards[1].querySelectorAll('button'))).toEqual([]);
+    // A quote waiting for its price can only have its address changed; an accepted one has no action at all.
+    expect(Array.from(cards[1].querySelectorAll('button')).map((b) => b.textContent?.trim())).toEqual(['Alterar endereço de entrega']);
     expect(Array.from(cards[2].querySelectorAll('button'))).toEqual([]);
   });
 
@@ -400,6 +413,302 @@ describe('ClientPortal', () => {
     expect(text(root)).toContain('Nenhuma cotação ainda');
   });
 
+  // ---- MRV-9.6: where the quote is delivered
+
+  const matrizKey = twoAddresses().addresses[0].key;
+  const filialKey = twoAddresses().addresses[1].key;
+
+  const snapshot = (label: string, street = 'Praça da Sé', number = '10') => ({
+    label, postalCode: '01001000', street, number, complement: null, district: 'Sé', city: 'São Paulo', state: 'SP', notes: null,
+    line: `${street}, ${number}, Sé, São Paulo/SP, CEP 01001-000`,
+  });
+
+  const choose = (root: HTMLElement, key: string, within: ParentNode = root) => {
+    const select = within.querySelector<HTMLSelectElement>('[data-testid="delivery-select"]')!;
+    select.value = key;
+    select.dispatchEvent(new Event('change'));
+  };
+
+  it('offers "Entregar em" with the default delivery address chosen, listing the addresses by label and summary', async () => {
+    const { root, settle } = setup();
+    await settle();
+
+    const select = root.querySelector<HTMLSelectElement>('[data-testid="basket-delivery"] [data-testid="delivery-select"]')!;
+    expect(root.querySelector('[data-testid="basket-delivery"] label')!.textContent).toContain('Entregar em');
+    expect(Array.from(select.options).map((o) => o.textContent?.trim())).toEqual([
+      'Matriz — Praça da Sé, 10, Sé, São Paulo/SP, CEP 01001-000',
+      'Filial Campinas — Rua Barão de Jaguara, 200 - Sala 3, Centro, Campinas/SP, CEP 13010-000',
+    ]);
+    expect(select.value).toBe(matrizKey);
+    const chosen = root.querySelector('[data-testid="basket-delivery"] [data-testid="delivery-selected"]')!;
+    expect(chosen.textContent).toContain('Matriz');
+    expect(chosen.textContent).toContain('Praça da Sé, 10');
+  });
+
+  it('never shows an address key, only labels and addresses', async () => {
+    const { root, settle } = setup();
+    await settle();
+
+    // The keys are only the option values; neither the text nor any attribute but a value carries one.
+    expect(root.textContent).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
+    expect(root.innerHTML.replace(/value="[^"]*"/g, '')).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
+  });
+
+  it('sends the quote to the address the customer chose', async () => {
+    const { fixture, http, root, settle, button } = setup({ products: [product('1', 'Cola 2L', 12.5)] });
+    await settle();
+    button('Adicionar', root.querySelector('[data-testid="catalog"] tbody tr')!).click();
+    await settle();
+
+    choose(root, filialKey);
+    await settle();
+    expect(root.querySelector('[data-testid="delivery-selected"]')!.textContent).toContain('Filial Campinas');
+    button('Solicitar cotação').click();
+    fixture.detectChanges();
+
+    expect(http.expectOne('/api/quotes').request.body).toEqual({ lineItems: [{ productId: '1', qty: 1 }], deliveryAddressKey: filialKey });
+  });
+
+  it('checks the coverage of the chosen address and shows the answer inline, without blocking the quote', async () => {
+    const { fixture, http, root, settle, button } = setup({ products: [product('1', 'Cola 2L', 12.5)] });
+    await settle();
+    button('Adicionar', root.querySelector('[data-testid="catalog"] tbody tr')!).click();
+    await settle();
+
+    button('Verificar cobertura').click();
+    fixture.detectChanges();
+    const check = http.expectOne('/api/coverage/check');
+    expect(check.request.body).toEqual({ address: 'Praça da Sé, 10, Sé, São Paulo/SP, CEP 01001-000' });
+    check.flush({ supported: false, warehouseName: null });
+    await settle();
+
+    expect(root.querySelector('[data-testid="delivery-coverage-result"]')!.textContent).toContain('fora da nossa área de atendimento');
+    expect(button('Solicitar cotação').disabled).toBe(false);
+  });
+
+  it('says which depot would serve a covered address', async () => {
+    const { fixture, http, root, settle, button } = setup();
+    await settle();
+
+    button('Verificar cobertura').click();
+    fixture.detectChanges();
+    http.expectOne('/api/coverage/check').flush({ supported: true, warehouseName: 'Depósito Centro' });
+    await settle();
+
+    expect(root.querySelector('[data-testid="delivery-coverage-result"]')!.textContent).toContain('Depósito Centro');
+  });
+
+  it('keeps the quote possible when the coverage check fails', async () => {
+    const { fixture, http, root, settle, button } = setup({ products: [product('1', 'Cola 2L', 12.5)] });
+    await settle();
+    button('Adicionar', root.querySelector('[data-testid="catalog"] tbody tr')!).click();
+    await settle();
+
+    button('Verificar cobertura').click();
+    fixture.detectChanges();
+    http.expectOne('/api/coverage/check').flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+
+    expect(root.querySelector('[data-testid="delivery-coverage-failed"]')!.textContent).toContain('Não foi possível verificar a cobertura');
+    expect(button('Solicitar cotação').disabled).toBe(false);
+  });
+
+  it('forgets a coverage answer when another address is chosen', async () => {
+    const { fixture, http, root, settle, button } = setup();
+    await settle();
+    button('Verificar cobertura').click();
+    fixture.detectChanges();
+    http.expectOne('/api/coverage/check').flush({ supported: true, warehouseName: 'Depósito Centro' });
+    await settle();
+
+    choose(root, filialKey);
+    await settle();
+
+    expect(root.querySelector('[data-testid="delivery-coverage-result"]')!.textContent).toBe('');
+  });
+
+  it('tolerates a customer with no delivery address: says so, links to adding one, and cannot ask for a quote', async () => {
+    const { root, settle, button } = setup({ profileAddresses: { addresses: [], billingAddressKey: null, defaultDeliveryKey: null }, products: [product('1', 'Cola 2L', 12.5)] });
+    await settle();
+    button('Adicionar', root.querySelector('[data-testid="catalog"] tbody tr')!).click();
+    await settle();
+
+    expect(root.querySelector('[data-testid="delivery-none"]')!.textContent).toContain('Cadastre um para solicitar uma cotação');
+    expect(button('Solicitar cotação').disabled).toBe(true);
+
+    button('Cadastrar ou completar endereço').click();
+    await settle();
+    expect(root.querySelector('#address-new-label')).not.toBeNull();
+  });
+
+  it('a customer with only a billing address has no delivery address to choose from', async () => {
+    const billingOnly = address({ kind: 'Billing', isDefaultDelivery: false });
+    const { root, settle } = setup({ profileAddresses: { addresses: [billingOnly], billingAddressKey: billingOnly.key, defaultDeliveryKey: null } });
+    await settle();
+
+    expect(root.querySelector('[data-testid="delivery-none"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="delivery-select"]')).toBeNull();
+  });
+
+  it('with no default flagged, uses the only delivery address, but asks to choose among several', async () => {
+    const only = address({ isDefaultDelivery: false });
+    const single = setup({ profileAddresses: { addresses: [only], billingAddressKey: only.key, defaultDeliveryKey: null } });
+    await single.settle();
+    expect(single.root.querySelector<HTMLSelectElement>('[data-testid="delivery-select"]')!.value).toBe(only.key);
+    TestBed.resetTestingModule();
+
+    const { addresses } = twoAddresses();
+    const several = setup({ profileAddresses: { addresses, billingAddressKey: addresses[0].key, defaultDeliveryKey: null } });
+    await several.settle();
+    const select = several.root.querySelector<HTMLSelectElement>('[data-testid="delivery-select"]')!;
+    expect(select.value).toBe('');
+    expect(select.options[0].textContent).toContain('Escolha um endereço');
+    expect(several.root.querySelector('[data-testid="delivery-selected"]')).toBeNull();
+    expect(several.button('Solicitar cotação').disabled).toBe(true);
+  });
+
+  it('marks an address still waiting for review in the list', async () => {
+    const legacy = address({ needsReview: true, street: 'Av. Brasil 100', number: '', district: '', city: '', state: '', postalCode: '' });
+    const { root, settle } = setup({ profileAddresses: { addresses: [legacy], billingAddressKey: legacy.key, defaultDeliveryKey: legacy.key } });
+    await settle();
+
+    expect(root.querySelector<HTMLSelectElement>('[data-testid="delivery-select"]')!.options[0].textContent).toContain('(a completar)');
+  });
+
+  it('picks up an address the customer adds below, without reloading the page', async () => {
+    const none = setup({ profileAddresses: { addresses: [], billingAddressKey: null, defaultDeliveryKey: null } });
+    await none.settle();
+    expect(none.root.querySelector('[data-testid="delivery-select"]')).toBeNull();
+
+    const card = none.fixture.debugElement.query(By.directive(ClientProfileCard)).componentInstance as ClientProfileCard;
+    const added = address();
+    card.addressesChanged.emit({ addresses: [added], billingAddressKey: added.key, defaultDeliveryKey: added.key });
+    await none.settle();
+
+    expect(none.root.querySelector<HTMLSelectElement>('[data-testid="delivery-select"]')!.value).toBe(added.key);
+  });
+
+  it('shows where each quote is delivered', async () => {
+    const { root, settle } = setup({ quotes: [{ ...quote('q1', 'Accepted'), deliveryAddressSnapshot: snapshot('Filial Campinas', 'Rua Barão de Jaguara', '200') }] });
+    await settle();
+
+    const block = root.querySelector('[data-testid="quote"] [data-testid="delivery-to"]')!;
+    expect(block.textContent).toContain('Entregar em');
+    expect(block.textContent).toContain('Filial Campinas');
+    expect(block.textContent).toContain('Rua Barão de Jaguara, 200');
+  });
+
+  it('lets the customer change the address of a priced quote until it is accepted, with the current one chosen', async () => {
+    const { fixture, http, root, settle, button } = setup({
+      quotes: [{ ...quote('q1', 'Priced', [line('Cola 2L', 1, 12.5, 11)]), deliveryAddressSnapshot: snapshot('Matriz') }],
+    });
+    await settle();
+    const card = () => root.querySelector('[data-testid="quote"]')!;
+
+    button('Alterar endereço de entrega', card()).click();
+    await settle();
+    const picker = card().querySelector('[data-testid="quote-change-address"]')!;
+    expect(picker.querySelector<HTMLSelectElement>('select')!.value).toBe(matrizKey);
+    expect(picker.querySelector('[data-testid="delivery-coverage"]')).toBeNull();
+
+    choose(root, filialKey, picker);
+    await settle();
+    button('Salvar endereço', card()).click();
+    fixture.detectChanges();
+    const put = http.expectOne('/api/quotes/123/delivery-address');
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({ deliveryAddressKey: filialKey });
+    put.flush(quote('q1', 'Priced'));
+    http.expectOne('/api/quotes/mine').flush([{ ...quote('q1', 'Priced', [line('Cola 2L', 1, 12.5, 11)]), deliveryAddressSnapshot: snapshot('Filial Campinas', 'Rua Barão de Jaguara', '200') }]);
+    await settle();
+
+    expect(card().querySelector('[data-testid="quote-change-address"]')).toBeNull();
+    expect(card().textContent).toContain('Endereço de entrega atualizado');
+    expect(card().textContent).toContain('Filial Campinas');
+  });
+
+  it('explains a refused change of address and keeps the picker open', async () => {
+    const { fixture, http, root, settle, button } = setup({ quotes: [{ ...quote('q1', 'Priced', [line('Cola 2L', 1, 12.5, 11)]), deliveryAddressSnapshot: snapshot('Matriz') }] });
+    await settle();
+    button('Alterar endereço de entrega').click();
+    await settle();
+    choose(root, filialKey);
+    await settle();
+
+    button('Salvar endereço').click();
+    fixture.detectChanges();
+    http.expectOne('/api/quotes/123/delivery-address').flush('The delivery address can only change while the quote is Priced', { status: 409, statusText: 'Conflict' });
+    await settle();
+
+    expect(root.querySelector('[data-testid="quote-change-address"] [role="alert"]')!.textContent).toContain('entra em conflito');
+    expect(button('Salvar endereço')).toBeDefined();
+  });
+
+  it('does not accept a priced quote that has no address: says so and opens the address picker instead', async () => {
+    const { fixture, http, root, settle, button } = setup({ quotes: [{ ...quote('q1', 'Priced', [line('Cola 2L', 1, 12.5, 11)]), deliveryAddressSnapshot: null }] });
+    await settle();
+
+    expect(root.querySelector('[data-testid="quote-needs-address"]')!.textContent).toContain('Escolha o endereço de entrega antes de aceitar o orçamento.');
+    button('Aceitar cotação').click();
+    await settle();
+
+    http.expectNone('/api/quotes/q1/accept');
+    const picker = root.querySelector('[data-testid="quote-change-address"]')!;
+    expect(picker.querySelector('select')).not.toBeNull();
+    expect(button('Salvar endereço').disabled).toBe(false); // the default address is preselected
+    button('Salvar endereço').click();
+    fixture.detectChanges();
+    http.expectOne('/api/quotes/123/delivery-address').flush(quote('q1', 'Priced'));
+    http.expectOne('/api/quotes/mine').flush([quote('q1', 'Priced', [line('Cola 2L', 1, 12.5, 11)])]);
+    await settle();
+
+    expect(root.querySelector('[data-testid="quote-needs-address"]')).toBeNull();
+    button('Aceitar cotação').click();
+    fixture.detectChanges();
+    http.expectOne('/api/quotes/q1/accept').flush({});
+    http.expectOne('/api/quotes/mine').flush([]);
+    http.expectOne('/api/orders/mine').flush([]);
+  });
+
+  it('shows the server\'s refusal when a stale view accepts a quote that has no address', async () => {
+    const { fixture, http, root, settle, button } = setup({ quotes: [quote('q1', 'Priced', [line('Cola 2L', 1, 12.5, 11)])] });
+    await settle();
+
+    button('Aceitar cotação').click();
+    fixture.detectChanges();
+    http.expectOne('/api/quotes/q1/accept').flush('Escolha o endereço de entrega antes de aceitar o orçamento.', { status: 409, statusText: 'Conflict' });
+    await settle();
+
+    expect(root.querySelector('[role="alert"] small')?.textContent).toContain('Escolha o endereço de entrega antes de aceitar o orçamento.');
+  });
+
+  it('tells the customer the address is sent to a map provider when checking coverage', async () => {
+    const { root, settle } = setup();
+    await settle();
+
+    expect(root.querySelector('[data-testid="basket-delivery"] [data-testid="delivery-coverage-notice"]')!.textContent).toContain('enviado a um provedor de mapas');
+  });
+
+  it('lets the customer back out of changing the address', async () => {
+    const { fixture, http, root, settle, button } = setup({ quotes: [quote('q1', 'Submitted', [line('Cola 2L', 1, 12.5, null)])] });
+    await settle();
+    button('Alterar endereço de entrega').click();
+    await settle();
+
+    button('Cancelar', root.querySelector('[data-testid="quote-change-address"]')!).click();
+    fixture.detectChanges();
+
+    http.expectNone('/api/quotes/123/delivery-address');
+    expect(root.querySelector('[data-testid="quote-change-address"]')).toBeNull();
+  });
+
+  it('offers no change of address for an accepted, rejected or expired quote', async () => {
+    const { root, settle } = setup({ quotes: [quote('q1', 'Accepted'), quote('q2', 'Rejected'), quote('q3', 'Expired')] });
+    await settle();
+
+    expect(root.textContent).not.toContain('Alterar endereço de entrega');
+  });
+
   // ---- my orders
 
   it('shows each order with its lines, total and status', async () => {
@@ -419,6 +728,28 @@ describe('ClientPortal', () => {
     expect(card.textContent).toContain('Realizado em 14/10/2026');
     expect(card.textContent).toContain('Cola 2L');
     expect(card.textContent).toContain('1.234,50');
+  });
+
+  it('shows the delivery address of an order as it was chosen, and the old text of an order made before addresses were structured', async () => {
+    const order = (id: string, number: number, deliveryAddress: string, deliveryAddressSnapshot: object | null) => ({
+      id, number, clientAccountId: 'c1', customerNumber: 42, companyName: 'Bar do Zé', quoteId: null, status: 'Placed', deliveryAddress, deliveryAddressSnapshot,
+      warehouseId: null, placedByEmployeeId: null, placedAt: '2026-10-14T13:42:00Z', totalAmount: 10, lineItems: [],
+    });
+    const { root, settle } = setup({
+      orders: [
+        order('o1', 45, 'Rua B, 200', { ...snapshot('Filial Campinas', 'Rua B', '200'), notes: 'Entregar de manhã' }),
+        order('o2', 46, 'Rua Antiga, 5, Campinas', null),
+        order('o3', 47, '', null),
+      ],
+    });
+    await settle();
+
+    const blocks = Array.from(root.querySelectorAll('[data-testid="order"] [data-testid="delivery-to"]')).map((b) => b.textContent!.replace(/\s+/g, ' ').trim());
+    expect(blocks[0]).toContain('Filial Campinas');
+    expect(blocks[0]).toContain('Rua B, 200');
+    expect(blocks[0]).toContain('Notas de entrega: Entregar de manhã');
+    expect(blocks[1]).toContain('Rua Antiga, 5, Campinas');
+    expect(blocks[2]).toContain('Endereço a confirmar');
   });
 
   it('keeps each table in its own scroll box, focusable and named by its card (MRV-8.5)', async () => {

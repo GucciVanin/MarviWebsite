@@ -14,8 +14,8 @@ const PRIVACY_KEY = 'marvi.privacy-notice';
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
 
 const ACCOUNTS = {
-  employee: { email: 'funcionario@demo.marvi.test', password: 'Demo-Func-1!', routes: ['/employee', '/employee#widget', '/employee/historico', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
-  cliente: { email: 'cliente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal', '/portal#address-add', '/portal#address-edit'] },
+  employee: { email: 'funcionario@demo.marvi.test', password: 'Demo-Func-1!', routes: ['/employee', '/employee#widget', '/employee#order', '/employee/historico', '/employee/historico#history-orders', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
+  cliente: { email: 'cliente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal', '/portal#address-add', '/portal#address-edit', '/portal#delivery-coverage', '/portal#delivery-change'] },
   mercado: { email: 'mercado@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   pendente: { email: 'pendente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   suspenso: { email: 'suspenso@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
@@ -75,6 +75,20 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
       } else if (step === 'address-edit') {
         await page.locator('[data-testid="address"]').first().getByRole('button', { name: 'Editar' }).click();
         await page.waitForSelector('#address-edit-cep', { timeout: 8000 });
+      } else if (step === 'delivery-coverage') {
+        await page.getByRole('button', { name: 'Verificar cobertura' }).first().click();
+        await page.waitForSelector('[data-testid="delivery-coverage-failed"], [data-testid="delivery-coverage-result"]:not(:empty)', { timeout: 15000 });
+      } else if (step === 'delivery-change') {
+        await page.getByRole('button', { name: 'Alterar endereço de entrega' }).first().click();
+        await page.waitForSelector('[data-testid="quote-change-address"] [data-testid="delivery-select"]', { timeout: 8000 });
+      } else if (step === 'order') {
+        await page.locator('button[aria-haspopup="dialog"]').first().click();
+        await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('[data-testid="order-delivery"] [data-testid="delivery-select"]', { timeout: 8000 });
+      } else if (step === 'history-orders') {
+        await page.getByRole('button', { name: 'Pedidos', exact: true }).click();
+        await page.waitForSelector('[data-testid="history-item"] [data-testid="delivery-to"]', { timeout: 8000 });
       } else if (step === 'address-fix') {
         await page.locator('[data-testid="customer"]').first().getByRole('button', { name: 'Editar' }).click();
         await page.waitForSelector('[data-testid="customer-addresses"] li', { timeout: 8000 });

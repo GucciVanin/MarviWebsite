@@ -93,17 +93,17 @@ public class QuoteFlowTests : IClassFixture<MarviApiFactory>
         var unpriced = await CreateProductAsync(admin);
 
         var ok = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientAccountId, "1 Main St", [new EmployeeOrderLineItemRequest(priced, 2)]));
+            new CreateEmployeeOrderRequest(clientAccountId, null, [new EmployeeOrderLineItemRequest(priced, 2)]));
         Assert.Equal(HttpStatusCode.Created, ok.StatusCode);
         Assert.Equal(24m, (await ok.Content.ReadFromJsonAsync<OrderDto>())!.TotalAmount);
 
         var free = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientAccountId, "1 Main St", [new EmployeeOrderLineItemRequest(unpriced, 1)]));
+            new CreateEmployeeOrderRequest(clientAccountId, null, [new EmployeeOrderLineItemRequest(unpriced, 1)]));
         Assert.Equal(HttpStatusCode.BadRequest, free.StatusCode);
 
-        var noAddress = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientAccountId, " ", [new EmployeeOrderLineItemRequest(priced, 1)]));
-        Assert.Equal(HttpStatusCode.BadRequest, noAddress.StatusCode);
+        var inventedAddress = await admin.PostAsJsonAsync("/api/employee/orders",
+            new CreateEmployeeOrderRequest(clientAccountId, "Rua Inventada, 1", [new EmployeeOrderLineItemRequest(priced, 1)]));
+        Assert.Equal(HttpStatusCode.BadRequest, inventedAddress.StatusCode); // staff do not invent an address for a customer who has structured ones
     }
 
     [Fact]

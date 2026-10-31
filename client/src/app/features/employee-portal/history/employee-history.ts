@@ -8,6 +8,7 @@ import { BrlPipe } from '../../../shared/format/brl.pipe';
 import { CustomerNumberPipe, DocumentNumberPipe } from '../../../shared/format/number.pipes';
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import type { PagedResult } from '../../../shared/models/paged.model';
+import { DeliveryTo } from '../../../shared/ui/delivery-to/delivery-to';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { ClientSummary, EmployeeService, HistoryQuery, OrderHistoryItem, QuoteHistoryItem } from '../api/employee.service';
@@ -44,7 +45,7 @@ const NO_FILTERS: AppliedFilters = { client: null, status: '', from: '', to: '' 
  */
 @Component({
   selector: 'app-employee-history',
-  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
+  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, DeliveryTo, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
   templateUrl: './employee-history.html',
 })
 export class EmployeeHistory implements OnInit {

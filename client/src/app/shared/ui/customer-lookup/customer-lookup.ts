@@ -2,7 +2,7 @@ import { Component, ElementRef, HostListener, Injector, afterNextRender, compute
 import { RouterLink } from '@angular/router';
 import { PT } from '../../../core/i18n/pt-br';
 import { action } from '../../../core/http/action';
-import { AddressPipe, billingAddressOf, otherAddressesOf } from '../../format/address';
+import { AddressPipe, billingAddressOf, defaultDeliveryOf, otherAddressesOf } from '../../format/address';
 import { CustomerNumberPipe, formatCustomerNumber } from '../../format/number.pipes';
 import { PtDatePipe } from '../../format/pt-date.pipe';
 import type { ClientProfile } from '../../../features/employee-portal/api/employee.service';
@@ -57,6 +57,11 @@ export class CustomerLookup {
   protected readonly billing = computed(() => {
     const profile = this.profile();
     return profile ? billingAddressOf(profile) : null;
+  });
+  /** Where this customer's deliveries go when nothing else is chosen (MRV-9.6); none for a customer migrated without one. */
+  protected readonly defaultDelivery = computed(() => {
+    const profile = this.profile();
+    return profile ? defaultDeliveryOf(profile) : null;
   });
   protected readonly others = computed(() => {
     const profile = this.profile();

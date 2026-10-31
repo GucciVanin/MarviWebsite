@@ -76,6 +76,7 @@
                   <th>{{ refs.quote }}</th>
                   <th>{{ t.sentOn }}</th>
                   <th>{{ t.status }}</th>
+                  <th>{{ t.delivery }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -84,6 +85,7 @@
                     <td>{{ quote.number | documentNumber: 'quote' }}</td>
                     <td>{{ quote.createdAt | ptDate }}</td>
                     <td>{{ statuses.quote[quote.status] ?? quote.status }}</td>
+                    <td><app-delivery-to [snapshot]="quote.deliveryAddressSnapshot" [compact]="true" /></td>
                   </tr>
                 }
               </tbody>
@@ -104,6 +106,7 @@
                   <th>{{ refs.order }}</th>
                   <th>{{ t.placedOn }}</th>
                   <th>{{ t.status }}</th>
+                  <th>{{ t.delivery }}</th>
                   <th class="num">{{ t.total }}</th>
                 </tr>
               </thead>
@@ -113,6 +116,7 @@
                     <td>{{ order.number | documentNumber: 'order' }}</td>
                     <td>{{ order.placedAt | ptDate }}</td>
                     <td>{{ statuses.order[order.status] ?? order.status }}</td>
+                    <td><app-delivery-to [snapshot]="order.deliveryAddressSnapshot" [text]="order.deliveryAddress" [compact]="true" /></td>
                     <td class="num">{{ order.totalAmount | brl }}</td>
                   </tr>
                 }

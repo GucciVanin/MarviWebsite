@@ -80,6 +80,7 @@
             <span class="muted">{{ refs.quote }} {{ item.number | documentNumber: 'quote' }} · {{ t.sentOn }} {{ item.createdAt | ptDate }}</span>
             <span class="badge" [class.badge--ok]="item.status === 'Accepted'" [class.badge--warn]="item.status === 'Priced'">{{ statuses.quote[item.status] ?? item.status }}</span>
           </header>
+          <app-delivery-to [snapshot]="item.deliveryAddressSnapshot" />
           <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'history-item-' + item.number">
 <table class="table">
             <thead>
@@ -112,7 +113,7 @@
             <span class="muted">{{ refs.order }} {{ item.number | documentNumber: 'order' }} · {{ t.placedOn }} {{ item.placedAt | ptDate }}</span>
             <span class="badge badge--ok">{{ statuses.order[item.status] ?? item.status }}</span>
           </header>
-          <p class="muted">{{ item.deliveryAddress || t.noAddress }}</p>
+          <app-delivery-to [snapshot]="item.deliveryAddressSnapshot" [text]="item.deliveryAddress" />
           <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'history-item-' + item.number">
 <table class="table">
             <thead>

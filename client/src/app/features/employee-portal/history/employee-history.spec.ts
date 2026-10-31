@@ -18,6 +18,11 @@ const order = (id: string, company: string, status = 'Placed') => ({
 });
 const page = (items: object[], totalCount = items.length, pageNumber = 1) => ({ items, page: pageNumber, pageSize: 20, totalCount });
 
+const snapshot = {
+  label: 'Filial Campinas', postalCode: '13010000', street: 'Rua Barão de Jaguara', number: '200', complement: 'Sala 3', district: 'Centro', city: 'Campinas', state: 'SP',
+  notes: 'Entregar de manhã', line: 'Rua Barão de Jaguara, 200 - Sala 3, Centro, Campinas/SP, CEP 13010-000',
+};
+
 describe('EmployeeHistory', () => {
   function setup() {
     TestBed.configureTestingModule({ imports: [EmployeeHistory], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
@@ -93,6 +98,27 @@ describe('EmployeeHistory', () => {
     expect(card.textContent).toContain('22,50');
     expect(card.textContent).toContain('15/10/2026');
     expect(card.textContent).toContain('Realizado');
+  });
+
+  it('shows the delivery address of each order as it was chosen, and of each quote (MRV-9.6)', async () => {
+    const { root, settle, button, quotes, orders } = setup();
+    quotes().flush(page([{ ...quote('q1', 'Bar do Zé', 'Priced'), deliveryAddressSnapshot: snapshot }, quote('q2', 'Mercado Sol', 'Rejected')]));
+    await settle();
+
+    const quoteBlocks = Array.from(root.querySelectorAll('[data-testid="history-item"] [data-testid="delivery-to"]'));
+    expect(quoteBlocks.length).toBe(2);
+    expect(quoteBlocks[0].textContent).toContain('Filial Campinas');
+    expect(quoteBlocks[0].textContent).toContain('Rua Barão de Jaguara, 200 - Sala 3');
+    expect(quoteBlocks[1].textContent).toContain('Endereço a confirmar'); // a quote from before addresses were structured
+
+    button('Pedidos').click();
+    orders().flush(page([{ ...order('o1', 'Bar do Zé'), deliveryAddress: snapshot.line, deliveryAddressSnapshot: snapshot }, order('o2', 'Mercado Sol')]));
+    await settle();
+
+    const orderBlocks = Array.from(root.querySelectorAll('[data-testid="history-item"] [data-testid="delivery-to"]')).map((b) => b.textContent!.replace(/\s+/g, ' '));
+    expect(orderBlocks[0]).toContain('Filial Campinas');
+    expect(orderBlocks[0]).toContain('Entregar de manhã');
+    expect(orderBlocks[1]).toContain('Rua Entrega, 10'); // the old text of an order without a snapshot
   });
 
   it('filters by customer, status and date range, always from the first page', async () => {

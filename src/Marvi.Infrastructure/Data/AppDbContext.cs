@@ -3,6 +3,7 @@ using Marvi.Domain.Auditing;
 using Marvi.Domain.Catalog;
 using Marvi.Domain.Contact;
 using Marvi.Domain.Coverage;
+using Marvi.Domain.Delivery;
 using Marvi.Domain.Identity;
 using Marvi.Domain.Inventory;
 using Marvi.Domain.Orders;
@@ -143,6 +144,17 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasIndex(a => a.ClientAccountId, "default").HasDatabaseName("ix_client_addresses_one_default").IsUnique().HasFilter("is_default = true");
         });
 
+        // The delivery address snapshot of a quote and an order (MRV-9.6): the fields are copied from the customer's address when it is chosen, so
+        // editing the address later changes nothing here. The link to the address row is only a convenience: the database clears it (SET NULL)
+        // when the address is removed.
+        ConfigureDeliveryAddress<Quote>(builder);
+        // The quote's status and delivery address are concurrency tokens: accepting a quote copies its address to the order, so an accept and a change of
+        // address that race cannot both succeed (the loser gets a 409 and no order is built from an address the quote no longer has).
+        builder.Entity<Quote>().Property(q => q.Status).IsConcurrencyToken();
+        builder.Entity<Quote>().Property(q => q.DeliveryAddressId).IsConcurrencyToken();
+        ConfigureDeliveryAddress<Order>(builder);
+        builder.Entity<Order>().Property(o => o.DeliveryAddress).HasMaxLength(Order.MaxDeliveryAddressLength);
+
         // Contact messages (MRV-2.8): length limits mirror the form rules. HandledAt is a concurrency token so two admins handling the
         // same message at once cannot both succeed (the second save is refused and answers 409).
         builder.Entity<ContactMessage>(e =>
@@ -175,6 +187,24 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<InventoryRecord>()
             .HasIndex(i => new { i.ProductId, i.WarehouseId })
             .IsUnique();
+    }
+
+    private static void ConfigureDeliveryAddress<TEntity>(ModelBuilder builder)
+        where TEntity : class, IHasDeliveryAddress
+    {
+        builder.Entity<TEntity>(e =>
+        {
+            e.HasOne<ClientAddress>().WithMany().HasForeignKey(d => d.DeliveryAddressId).OnDelete(DeleteBehavior.SetNull);
+            e.Property(d => d.DeliveryAddressLabel).HasMaxLength(ClientAddressRules.MaxLabelLength);
+            e.Property(d => d.DeliveryAddressStreet).HasMaxLength(500);
+            e.Property(d => d.DeliveryAddressNumber).HasMaxLength(ClientAddressRules.MaxNumberLength);
+            e.Property(d => d.DeliveryAddressComplement).HasMaxLength(ClientAddressRules.MaxComplementLength);
+            e.Property(d => d.DeliveryAddressDistrict).HasMaxLength(ClientAddressRules.MaxDistrictLength);
+            e.Property(d => d.DeliveryAddressCity).HasMaxLength(ClientAddressRules.MaxCityLength);
+            e.Property(d => d.DeliveryAddressState).HasMaxLength(2);
+            e.Property(d => d.DeliveryAddressPostalCode).HasMaxLength(8);
+            e.Property(d => d.DeliveryAddressNotes).HasMaxLength(ClientAddressRules.MaxNotesLength);
+        });
     }
 
     private void ConfigureNumber<TEntity>(ModelBuilder builder, string sequence)

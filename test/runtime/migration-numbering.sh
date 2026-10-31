@@ -9,14 +9,14 @@ cd "$(dirname "$0")/../.."
 NAME=marvi-migration-check
 PORT=55432
 PW=migration-check-only
-CONN="Host=localhost;Port=$PORT;Database=marvi;Username=marvi;Password=$PW"
+CONN="Host=127.0.0.1;Port=$PORT;Database=marvi;Username=marvi;Password=$PW"
 fail=0
 check() { if [ "$2" = "$3" ]; then echo "PASS  $1"; else echo "FAIL  $1  -> expected '$3' got '$2'"; fail=1; fi; }
 psqlc() { docker exec -i "$NAME" psql -U marvi -d marvi -Atq -c "$1"; }
 
 docker rm -f "$NAME" >/dev/null 2>&1
-docker run -d --name "$NAME" -e POSTGRES_DB=marvi -e POSTGRES_USER=marvi -e POSTGRES_PASSWORD="$PW" -p "$PORT":5432 postgres:16 >/dev/null || exit 2
-trap 'docker rm -f "$NAME" >/dev/null 2>&1' EXIT
+trap 'docker rm -f "$NAME" >/dev/null 2>&1' EXIT   # set before the container exists, so an interrupted start cannot leave it behind
+docker run -d --name "$NAME" -e POSTGRES_DB=marvi -e POSTGRES_USER=marvi -e POSTGRES_PASSWORD="$PW" -p 127.0.0.1:"$PORT":5432 postgres:16 >/dev/null || exit 2
 for i in $(seq 1 30); do docker exec "$NAME" pg_isready -U marvi -d marvi >/dev/null 2>&1 && break; sleep 1; done
 sleep 2
 

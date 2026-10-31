@@ -8,6 +8,8 @@ import { BrlPipe } from '../../shared/format/brl.pipe';
 import { CustomerNumberPipe, DocumentNumberPipe, parseCustomerNumber } from '../../shared/format/number.pipes';
 import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import type { ProductListItem } from '../../shared/models/catalog.model';
+import { DeliveryPicker } from '../../shared/ui/delivery-picker/delivery-picker';
+import { DeliveryTo } from '../../shared/ui/delivery-to/delivery-to';
 import type { Order } from '../../shared/models/order.model';
 import type { Quote } from '../../shared/models/quote.model';
 import { CustomerLookup } from '../../shared/ui/customer-lookup/customer-lookup';
@@ -25,12 +27,13 @@ interface OrderLine {
 
 @Component({
   selector: 'app-employee-portal',
-  imports: [FormsModule, RouterLink, CustomerLookup, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
+  imports: [FormsModule, RouterLink, CustomerLookup, ErrorAlert, LoadState, ProductPicker, DeliveryPicker, DeliveryTo, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
   templateUrl: './employee-portal.html',
 })
 export class EmployeePortal implements OnInit {
   protected readonly t = PT.employeePortal;
   protected readonly refs = PT.numbers;
+  protected readonly d = PT.delivery;
   private readonly employeeService = inject(EmployeeService);
   private readonly route = inject(ActivatedRoute);
 
@@ -51,7 +54,8 @@ export class EmployeePortal implements OnInit {
   protected readonly searchAction = action({ latestOnly: true });
   protected readonly clientProfile = signal<ClientProfile | null>(null);
   protected readonly lookupAction = action();
-  protected readonly deliveryAddress = signal('');
+  /** The key of the customer's address the order is delivered to (MRV-9.6); null until one is chosen. */
+  protected readonly deliveryKey = signal<string | null>(null);
   protected readonly orderLines = signal<OrderLine[]>([]);
   protected readonly orderAction = action();
   protected readonly placedOrder = signal<Order | null>(null);
@@ -117,6 +121,7 @@ export class EmployeePortal implements OnInit {
     if (this.clientProfile()?.customerNumber !== profile.customerNumber) {
       this.placedOrder.set(null);
       this.orderLines.set([]);
+      this.deliveryKey.set(null); // the other customer's default is chosen again by the selector
     }
     this.clientProfile.set(profile);
   }
@@ -140,7 +145,7 @@ export class EmployeePortal implements OnInit {
   }
 
   canPlaceOrder(): boolean {
-    return this.orderLines().length > 0 && this.deliveryAddress().trim().length > 0 && !this.orderAction.busy();
+    return this.orderLines().length > 0 && this.deliveryKey() !== null && !this.orderAction.busy();
   }
 
   placeOrder(): void {
@@ -151,13 +156,13 @@ export class EmployeePortal implements OnInit {
     this.orderAction.run(
       this.employeeService.createOrder({
         clientId: profile.id,
-        deliveryAddress: this.deliveryAddress().trim(),
+        deliveryAddressKey: this.deliveryKey(),
         lineItems: this.orderLines().map((l) => ({ productId: l.productId, qty: l.qty })),
       }),
       (order) => {
         this.placedOrder.set(order);
         this.orderLines.set([]);
-        this.deliveryAddress.set('');
+        this.deliveryKey.set(null);
       },
     );
   }

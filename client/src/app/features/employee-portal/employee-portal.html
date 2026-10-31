@@ -17,6 +17,7 @@
           <span class="muted">{{ refs.quote }} {{ quote.number | documentNumber: 'quote' }} · {{ t.sentOn }} {{ quote.createdAt | ptDate }}</span>
           <app-customer-lookup [number]="quote.customerNumber" [label]="t.useCustomer" (shown)="useCustomer($event)" />
         </header>
+        <app-delivery-to [snapshot]="quote.deliveryAddressSnapshot" />
         <form class="stack" (ngSubmit)="sendPrices(quote)">
         <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'queue-quote-' + quote.number">
 <table class="table">
@@ -150,9 +151,8 @@
 </div>
           }
 
-          <div class="field">
-            <label for="deliveryAddress">{{ t.deliveryAddress }}</label>
-            <input id="deliveryAddress" name="deliveryAddress" type="text" [(ngModel)]="deliveryAddress" />
+          <div data-testid="order-delivery">
+            <app-delivery-picker [addresses]="profile.addresses" [defaultKey]="profile.defaultDeliveryKey" [noneText]="d.noneStaff" [(selectedKey)]="deliveryKey" />
           </div>
           <button type="button" class="btn btn--primary" [disabled]="!canPlaceOrder()" (click)="placeOrder()">{{ t.placeOrder }}</button>
           <app-error-alert [error]="orderAction.error()" />
@@ -162,6 +162,7 @@
       @if (placedOrder(); as order) {
         <article class="card" data-testid="placed-order">
           <p id="placed-order-title" class="alert alert--success" role="status">{{ t.orderPlaced }} {{ order.number | documentNumber: 'order' }}</p>
+          <app-delivery-to [snapshot]="order.deliveryAddressSnapshot" [text]="order.deliveryAddress" />
           <div class="table-wrap" tabindex="0" role="group" aria-labelledby="placed-order-title">
 <table class="table">
             <thead>

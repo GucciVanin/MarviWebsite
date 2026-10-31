@@ -45,12 +45,12 @@ const GROUPS = [
   { name: 'public-register', account: null, notice: false, routes: ['/register#business', '/register#personal'] },
   { name: 'public-notice', account: null, notice: true, routes: ['/', '/storefront', '/contato', '/register'] },
   { name: 'public-as-employee', account: 'employee', notice: false, routes: ['/', '/storefront', '/contato'] },
-  { name: 'client-portal', account: 'cliente', notice: false, routes: ['/portal', '/portal#address-add', '/portal#address-edit'] },
+  { name: 'client-portal', account: 'cliente', notice: false, routes: ['/portal', '/portal#address-add', '/portal#address-edit', '/portal#delivery-coverage', '/portal#delivery-change'] },
   { name: 'client-portal-wholesale', account: 'mercado', notice: false, routes: ['/portal'] },
   { name: 'client-portal-pending', account: 'pendente', notice: false, routes: ['/portal'] },
   { name: 'client-portal-suspended', account: 'suspenso', notice: false, routes: ['/portal'] },
   { name: 'client-portal-personal', account: 'pessoa', notice: false, routes: ['/portal'] },
-  { name: 'employee-portal', account: 'employee', notice: false, routes: ['/employee', '/employee#widget', '/employee/historico', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
+  { name: 'employee-portal', account: 'employee', notice: false, routes: ['/employee', '/employee#widget', '/employee#order', '/employee/historico', '/employee/historico#history-orders', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
   { name: 'admin-portal', account: 'admin', notice: false, routes: ADMIN },
 ];
 
@@ -112,6 +112,10 @@ async function openWidget(page) {
 //   address-add  the customer's "Adicionar endereço" form on /portal
 //   address-edit the first address card's edit form on /portal
 //   address-fix  the admin customers editor with its first address's fix form
+//   delivery-coverage  /portal with the "Entregar em" selector's coverage answer (or its failure note) showing (MRV-9.6)
+//   delivery-change    /portal with the first quote's change-of-address picker open (MRV-9.6)
+//   order              /employee with a customer loaded through the widget (closed again), so the order form's "Entregar em" selector shows (MRV-9.6)
+//   history-orders     /employee/historico on the orders list, each with its delivery address (MRV-9.6)
 //   business     the registration page with the business account chosen and an alphanumeric CNPJ typed (MRV-9.4)
 //   personal     the registration page with the personal account chosen, a CPF and a birth date under 18 typed (the longest message)
 //   registration / registration-personal   the admin customers editor of the first company / person, with the registration form
@@ -127,6 +131,20 @@ async function openStep(page, step) {
     await page.waitForSelector('[data-testid="customer-addresses"] li', { timeout: 8000 });
     await page.locator('[data-testid="customer-addresses"] li').first().getByRole('button', { name: 'Corrigir endereço' }).click();
     await page.waitForSelector('#admin-address-cep', { timeout: 8000 });
+  } else if (step === 'delivery-coverage') {
+    await page.getByRole('button', { name: 'Verificar cobertura' }).first().click();
+    await page.waitForSelector('[data-testid="delivery-coverage-failed"], [data-testid="delivery-coverage-result"]:not(:empty)', { timeout: 15000 });
+  } else if (step === 'delivery-change') {
+    await page.getByRole('button', { name: 'Alterar endereço de entrega' }).first().click();
+    await page.waitForSelector('[data-testid="quote-change-address"] [data-testid="delivery-select"]', { timeout: 8000 });
+  } else if (step === 'order') {
+    await page.locator('button[aria-haspopup="dialog"]').first().click();
+    await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="order-delivery"] [data-testid="delivery-select"]', { timeout: 8000 });
+  } else if (step === 'history-orders') {
+    await page.getByRole('button', { name: 'Pedidos', exact: true }).click();
+    await page.waitForSelector('[data-testid="history-item"] [data-testid="delivery-to"]', { timeout: 8000 });
   } else if (step === 'business') {
     await page.locator('#register-type-business').click();
     await page.locator('#register-cnpj').fill('12abc34501de35');

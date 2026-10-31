@@ -45,8 +45,12 @@ The one Address of a Customer that invoices go to (`Endereço principal`, shown 
 _Avoid_: Main address, invoice address
 
 **Delivery address**:
-An Address goods are delivered to (kind Delivery or Both). One of them is the Customer's default delivery address (`Entrega padrão`). Choosing one per quote or order is a later story (MRV-9.6).
+An Address goods are delivered to (kind Delivery or Both). One of them is the Customer's default delivery address (`Entrega padrão`). A Customer picks one for each Quote ("Entregar em", defaulting to the default one) until the Quote is accepted; staff placing an Order for a Customer pick from that Customer's own. Coverage ("Verificar cobertura") is only informational and never blocks.
 _Avoid_: Shipping address
+
+**Delivery address snapshot**:
+The copy of a Delivery address (label, street, number, complement, district, city, UF, CEP, notes) that a Quote or an Order keeps from the moment it was chosen, plus a link to the Address that is cleared if the Address is later removed. Editing or removing the Address never changes a Quote or an Order that already copied it; accepting a Quote gives the Order the Quote's snapshot as it was. Staff may amend an Order's snapshot until the Order is shipped (audited with before and after). The text in it is the Customer's own: any PDF, e-mail or CSV made from it must escape it. An Order made before this has only its old free text.
+_Avoid_: Live address, address reference
 
 **Quote number / Order number**:
 The same kind of reference for a Quote (`Q-000123`) and an Order (`P-000045`), each from its own sequence. Pages that show a document name it by its number, never by its id.

@@ -1,3 +1,4 @@
+using Marvi.Api.Features.Common;
 using Marvi.Domain.Quotes;
 
 namespace Marvi.Api.Features.Quotes.Contracts;
@@ -12,12 +13,13 @@ public record QuoteHistoryItemDto(
     QuoteStatus Status,
     DateTime CreatedAt,
     Guid? PricedByEmployeeId,
-    List<QuoteLineItemDto> LineItems)
+    List<QuoteLineItemDto> LineItems,
+    DeliveryAddressSnapshotDto? DeliveryAddressSnapshot = null)
 {
     public static QuoteHistoryItemDto From(Quote quote)
     {
         var dto = QuoteDto.From(quote);
         return new QuoteHistoryItemDto(
-            dto.Id, dto.Number, dto.ClientAccountId, dto.CustomerNumber, dto.CompanyName, dto.Status, dto.CreatedAt, dto.PricedByEmployeeId, dto.LineItems);
+            dto.Id, dto.Number, dto.ClientAccountId, dto.CustomerNumber, dto.CompanyName, dto.Status, dto.CreatedAt, dto.PricedByEmployeeId, dto.LineItems, dto.DeliveryAddressSnapshot);
     }
 }

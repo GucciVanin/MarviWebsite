@@ -95,6 +95,7 @@ public class AuthorizationMatrixTests : IClassFixture<MarviApiFactory>
         yield return (HttpMethod.Get, "/api/employee/quotes/queue", Staff);
         yield return (HttpMethod.Get, "/api/employee/quotes/history", Staff);
         yield return (HttpMethod.Put, $"/api/employee/quotes/{Id}/price", Staff);
+        yield return (HttpMethod.Put, "/api/employee/orders/42/delivery-address", Staff);
 
         // Client
         yield return (HttpMethod.Get, "/api/client/profile", ClientOnly);
@@ -107,6 +108,7 @@ public class AuthorizationMatrixTests : IClassFixture<MarviApiFactory>
         yield return (HttpMethod.Get, "/api/quotes/mine", ClientOnly);
         yield return (HttpMethod.Post, $"/api/quotes/{Id}/accept", ClientOnly);
         yield return (HttpMethod.Post, $"/api/quotes/{Id}/reject", ClientOnly);
+        yield return (HttpMethod.Put, "/api/quotes/42/delivery-address", ClientOnly);
     }
 
     private static HttpRequestMessage Request(HttpMethod method, string url) => new(method, url)

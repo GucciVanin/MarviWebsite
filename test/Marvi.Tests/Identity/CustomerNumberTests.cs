@@ -186,7 +186,7 @@ public class CustomerNumberTests : IClassFixture<MarviApiFactory>
 
         var accepted = await OkAsync<OrderDto>(await customer.PostAsync($"/api/quotes/{first.Id}/accept", null));
         var placed = await OkAsync<OrderDto>(await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientId, "1 Main St", [new EmployeeOrderLineItemRequest(product, 1)])));
+            new CreateEmployeeOrderRequest(clientId, null, [new EmployeeOrderLineItemRequest(product, 1)])));
         Assert.True(accepted.Number > 0);
         Assert.True(placed.Number > accepted.Number);
         Assert.All(new[] { accepted, placed }, o => Assert.Equal((customerNumber, "Acme Co"), (o.CustomerNumber, o.CompanyName)));
@@ -226,7 +226,7 @@ public class CustomerNumberTests : IClassFixture<MarviApiFactory>
         (await admin.PutAsJsonAsync($"/api/admin/clients/{clientId}/approve", new ApproveClientRequest(tiers[0].Id))).EnsureSuccessStatusCode();
         var quote = await OkAsync<QuoteDto>(await customer.PostAsJsonAsync("/api/quotes", new CreateQuoteRequest([new QuoteLineItemRequest(product, 1)])));
         var order = await OkAsync<OrderDto>(await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientId, "1 Main St", [new EmployeeOrderLineItemRequest(product, 1)])));
+            new CreateEmployeeOrderRequest(clientId, null, [new EmployeeOrderLineItemRequest(product, 1)])));
         var missing = Guid.NewGuid();
         using (var scope = _factory.Services.CreateScope())
         {

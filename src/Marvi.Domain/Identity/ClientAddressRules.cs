@@ -133,6 +133,9 @@ public static class ClientAddressRules
         return builder.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
     }
 
+    /// <summary>True when the text has a control character, a line or paragraph separator or an invisible format character (the rule of every address text).</summary>
+    public static bool HasForbiddenCharacters(string? text) => text is not null && text.Any(IsForbidden);
+
     /// <summary>Control characters, line and paragraph separators and invisible format characters (zero-width, bidi) have no place in an address.</summary>
     private static bool IsForbidden(char c) =>
         char.IsControl(c) || CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator or UnicodeCategory.Format;

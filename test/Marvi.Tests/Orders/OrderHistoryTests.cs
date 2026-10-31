@@ -33,7 +33,7 @@ public class OrderHistoryTests : IClassFixture<MarviApiFactory>
     private static async Task<OrderDto> PlaceOrderAsync(HttpClient admin, Guid clientId, Guid productId)
     {
         var response = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientId, "1 Main St", [new EmployeeOrderLineItemRequest(productId, 2)]));
+            new CreateEmployeeOrderRequest(clientId, null, [new EmployeeOrderLineItemRequest(productId, 2)]));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<OrderDto>())!;
     }

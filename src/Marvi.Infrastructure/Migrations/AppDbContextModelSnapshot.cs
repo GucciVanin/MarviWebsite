@@ -701,8 +701,58 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.Property<string>("DeliveryAddress")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("delivery_address");
+
+                    b.Property<string>("DeliveryAddressCity")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_city");
+
+                    b.Property<string>("DeliveryAddressComplement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_complement");
+
+                    b.Property<string>("DeliveryAddressDistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_district");
+
+                    b.Property<Guid?>("DeliveryAddressId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delivery_address_id");
+
+                    b.Property<string>("DeliveryAddressLabel")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("delivery_address_label");
+
+                    b.Property<string>("DeliveryAddressNotes")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delivery_address_notes");
+
+                    b.Property<string>("DeliveryAddressNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("delivery_address_number");
+
+                    b.Property<string>("DeliveryAddressPostalCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("delivery_address_postal_code");
+
+                    b.Property<string>("DeliveryAddressState")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("delivery_address_state");
+
+                    b.Property<string>("DeliveryAddressStreet")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_address_street");
 
                     b.Property<int>("Number")
                         .ValueGeneratedOnAdd()
@@ -739,6 +789,9 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasIndex("ClientAccountId")
                         .HasDatabaseName("ix_orders_client_account_id");
+
+                    b.HasIndex("DeliveryAddressId")
+                        .HasDatabaseName("ix_orders_delivery_address_id");
 
                     b.HasIndex("Number")
                         .IsUnique()
@@ -806,6 +859,56 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DeliveryAddressCity")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_city");
+
+                    b.Property<string>("DeliveryAddressComplement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_complement");
+
+                    b.Property<string>("DeliveryAddressDistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_district");
+
+                    b.Property<Guid?>("DeliveryAddressId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("delivery_address_id");
+
+                    b.Property<string>("DeliveryAddressLabel")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("delivery_address_label");
+
+                    b.Property<string>("DeliveryAddressNotes")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delivery_address_notes");
+
+                    b.Property<string>("DeliveryAddressNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("delivery_address_number");
+
+                    b.Property<string>("DeliveryAddressPostalCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("delivery_address_postal_code");
+
+                    b.Property<string>("DeliveryAddressState")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("delivery_address_state");
+
+                    b.Property<string>("DeliveryAddressStreet")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_address_street");
+
                     b.Property<int>("Number")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -817,6 +920,7 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnName("priced_by_employee_id");
 
                     b.Property<int>("Status")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer")
                         .HasColumnName("status");
 
@@ -825,6 +929,9 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasIndex("ClientAccountId")
                         .HasDatabaseName("ix_quotes_client_account_id");
+
+                    b.HasIndex("DeliveryAddressId")
+                        .HasDatabaseName("ix_quotes_delivery_address_id");
 
                     b.HasIndex("Number")
                         .IsUnique()
@@ -1231,6 +1338,12 @@ namespace Marvi.Infrastructure.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_orders_client_accounts_client_account_id");
 
+                    b.HasOne("Marvi.Domain.Identity.ClientAddress", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryAddressId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_orders_client_addresses_delivery_address_id");
+
                     b.HasOne("Marvi.Domain.Identity.EmployeeAccount", "PlacedByEmployee")
                         .WithMany()
                         .HasForeignKey("PlacedByEmployeeId")
@@ -1284,6 +1397,12 @@ namespace Marvi.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_quotes_client_accounts_client_account_id");
+
+                    b.HasOne("Marvi.Domain.Identity.ClientAddress", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryAddressId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_quotes_client_addresses_delivery_address_id");
 
                     b.HasOne("Marvi.Domain.Identity.EmployeeAccount", "PricedByEmployee")
                         .WithMany()

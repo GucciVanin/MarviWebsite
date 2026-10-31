@@ -128,7 +128,15 @@ public class EmployeeQuotesController : ControllerBase
             return BadRequest(ex.Message);
         }
 
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The customer accepted, rejected or re-addressed the quote after it was read: nothing is saved.
+            return Conflict("The quote was just changed. Reload and try again.");
+        }
 
         return Ok(ToDto(quote));
     }

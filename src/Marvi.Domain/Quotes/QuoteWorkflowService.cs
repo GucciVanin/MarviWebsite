@@ -1,10 +1,13 @@
+using Marvi.Domain.Identity;
+using Marvi.Domain.Delivery;
 using Marvi.Domain.Orders;
 
 namespace Marvi.Domain.Quotes;
 
 public class QuoteWorkflowService
 {
-    public Quote CreateQuote(Guid clientAccountId, IEnumerable<QuoteLineItem> lineItems)
+    /// <param name="deliveryTo">The customer's address the quote is delivered to; its fields are copied onto the quote (MRV-9.6).</param>
+    public Quote CreateQuote(Guid clientAccountId, IEnumerable<QuoteLineItem> lineItems, ClientAddress? deliveryTo = null)
     {
         var quote = new Quote
         {
@@ -20,7 +23,26 @@ public class QuoteWorkflowService
             lineItem.QuoteId = quote.Id;
         }
 
+        if (deliveryTo is not null)
+        {
+            quote.CopyFrom(deliveryTo);
+        }
+
         return quote;
+    }
+
+    /// <summary>
+    /// The customer picks another address for a quote that is not accepted yet (MRV-9.6). Only a Submitted or Priced quote can change it: once
+    /// the quote is accepted, rejected or otherwise closed its address is part of what was agreed.
+    /// </summary>
+    public void ChangeDeliveryAddress(Quote quote, ClientAddress address)
+    {
+        if (quote.Status is not (QuoteStatus.Submitted or QuoteStatus.Priced))
+        {
+            throw new InvalidOperationException($"The delivery address can only change while the quote is '{QuoteStatus.Submitted}' or '{QuoteStatus.Priced}', but it was '{quote.Status}'.");
+        }
+
+        quote.CopyFrom(address);
     }
 
     /// <param name="employeeId">The pricing employee, or null when an admin without an employee account prices the quote.</param>
@@ -74,6 +96,12 @@ public class QuoteWorkflowService
             throw new InvalidOperationException($"Quote must be in '{QuoteStatus.Priced}' status to be accepted, but was '{quote.Status}'.");
         }
 
+        // An order never has an empty address: a quote from before MRV-9.6 must be given one first (the change-address call is allowed while Priced).
+        if (!quote.Has())
+        {
+            throw new QuoteWithoutDeliveryAddressException();
+        }
+
         // A missing final price is not a free product: refuse before touching the quote.
         if (quote.LineItems.Any(li => li.FinalUnitPrice is null))
         {
@@ -85,6 +113,7 @@ public class QuoteWorkflowService
         return OrderFactory.Place(
             quote.ClientAccountId,
             quote.LineItems.Select(li => new OrderLineInput(li.ProductId, li.Qty, li.FinalUnitPrice!.Value)),
-            quoteId: quote.Id);
+            quoteId: quote.Id,
+            deliveryTo: quote);
     }
 }
