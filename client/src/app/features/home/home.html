@@ -147,7 +147,7 @@
             [class]="'tile tile--' + i"
             data-testid="category-tile"
             routerLink="/storefront"
-            [queryParams]="tile.categoryId ? { category: tile.categoryId } : null"
+            [queryParams]="tile.categoryId ? { category: tile.name } : null"
           >
             <span class="tile__art" aria-hidden="true"></span>
             <span class="tile__name">{{ tile.name }}</span>

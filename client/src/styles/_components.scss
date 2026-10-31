@@ -143,7 +143,7 @@
 
   // Hints and messages under a control add no margin of their own, and an empty live region reserves no row (so it cannot shift
   // the next field), yet stays in the page for assistive technology.
-  > p { margin: 0; }
+  > p { margin: 0; overflow-wrap: anywhere; } // a long word in a hint ("Estabelecimento:") must wrap at 200% text, not widen the page
   > p:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
   input:focus-visible,
@@ -274,6 +274,9 @@
   background: #eaeefb;
   color: var(--color-navy-900);
   line-height: 1.5;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 
   > app-icon { font-size: 1.1em; }
 
@@ -486,4 +489,150 @@
   h1 { margin-bottom: var(--space-1); color: var(--color-text-inverse); overflow-wrap: break-word; }
   &__lead { max-width: 40rem; margin-bottom: var(--space-3); font-size: var(--text-lg); color: #dfe3f2; }
   &__cta { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: 0; }
+}
+
+// Read-only facts (a customer's registration data): label above value, as many columns as fit (MRV-9.2).
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+
+  > div { min-width: 0; }
+  dt { color: var(--color-text-muted, #5a6275); font-size: 0.85rem; }
+  dd { margin: 0; overflow-wrap: anywhere; }
+}
+
+// An address form (MRV-9.3): one labelled field per part on a grid of equal columns, so fields on different rows line up on shared edges
+// at every width (the last row keeps the same columns); every field is one column wide, so fields that stack are one width (MRV-8.3).
+.address-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-2);
+  align-items: start;
+  margin-bottom: var(--space-2);
+
+  .field { min-width: 0; margin-bottom: 0; }
+}
+
+// The account type choice (MRV-9.4): two equal boxes, each a radio with its title and one line of explanation. The boxes share the grid of the
+// fields below them, so they are one width where they stack and line up where they sit side by side.
+.choice-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: 0;
+
+  legend { padding: 0; margin-bottom: var(--space-1); font-size: var(--text-sm); font-weight: 600; }
+  legend { grid-column: 1 / -1; }
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  cursor: pointer;
+
+  input { flex: none; width: auto; margin-top: 0.2rem; }
+  > span { display: grid; gap: 0.15rem; min-width: 0; overflow-wrap: anywhere; }
+  &--on { border-color: var(--color-gold-500); box-shadow: inset 0 0 0 1px var(--color-gold-500); }
+}
+
+// A customer's addresses as a list of bordered boxes inside a card (MRV-9.3).
+.address-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.address-card {
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+
+  strong { min-width: 0; overflow-wrap: anywhere; }
+  p { margin: 0; overflow-wrap: anywhere; }
+  .toolbar { margin-bottom: 0; }
+  > * + * { margin-top: var(--space-1); }
+}
+
+// Where a quote or an order is delivered (MRV-9.6): the read-only block, and the "Entregar em" picker with its coverage answer.
+.delivery-to {
+  min-width: 0;
+  p { margin: 0; overflow-wrap: anywhere; }
+}
+
+.delivery-picker {
+  min-width: 0;
+  select { max-width: 100%; text-overflow: ellipsis; }
+  &__result { margin: 0; overflow-wrap: anywhere; }
+  // An empty live region reserves no row, yet stays in the page for assistive technology (as under a .field).
+  &__result:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+
+// The guided product form (MRV-9.5): a panel on the Catálogo page. Its fields share the address-fields grid (equal columns, shared edges at every
+// width); its tables sit in .table-wrap; everything breaks long words instead of widening the page at 200% text.
+.product-panel {
+  min-width: 0;
+  margin-bottom: var(--space-3);
+  padding: min(var(--space-3), 5vw);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+
+  h3 { margin-top: 0; overflow-wrap: anywhere; }
+  p { overflow-wrap: anywhere; }
+  .field { margin-bottom: var(--space-2); }
+  // Code, name and category fill one row whenever three columns of 11rem fit (and one column when not), so none is left alone beside wider fields.
+  .address-fields { grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+  .address-fields .field { margin-bottom: 0; }
+
+  // The code and its "Sugerir código" button share a row while there is room and stack when there is not.
+  &__inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    align-items: center;
+    input { flex: 1 1 8rem; min-width: 0; }
+  }
+
+  // The address and its preview side by side on equal columns, one above the other on a narrow screen.
+  &__image {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: var(--space-2);
+    align-items: start;
+    margin-bottom: var(--space-2);
+    .field { margin-bottom: 0; }
+  }
+  &__preview {
+    min-width: 0;
+    p { margin: 0; }
+    img { display: block; max-width: 100%; max-height: 10rem; object-fit: contain; border-radius: var(--radius-sm); }
+  }
+
+  &__group {
+    min-width: 0;
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    border: 0;
+    legend { padding: 0; margin-bottom: var(--space-1); font-weight: 700; }
+    > p { margin: 0 0 var(--space-1); }
+  }
+  .table th[scope='row'] { font-size: inherit; text-transform: none; letter-spacing: normal; font-weight: 600; }
+  .table td input { min-width: 6rem; }
+  &__cell-hint { margin: 0.25rem 0 0; }
+  &__cell-hint:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+  &__actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
 }

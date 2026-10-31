@@ -1,12 +1,18 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
+import type { ClientAddressRequest } from '../../shared/models/client-address.model';
+import type { AccountType, RegistrationRequest } from '../../shared/models/registration.model';
 
 export interface RegisterRequest {
   email: string;
   password: string;
   companyName: string;
-  billingAddress: string;
+  /** The structured billing address (MRV-9.3): it becomes the customer's first address. */
+  billingAddress: ClientAddressRequest;
+  /** The account type chosen at registration and the data of that type (MRV-9.4). */
+  accountType: AccountType;
+  registration: RegistrationRequest;
 }
 
 export interface LoginRequest {

@@ -13,6 +13,9 @@ RUN dotnet publish src/Marvi.Api/Marvi.Api.csproj -c Release -o /app --no-restor
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
+# The Data Protection keys (MRV-9.4: they encrypt the stored CPFs) live in /keys, which compose mounts as a named volume. Created here and
+# owned by the app user, because a new named volume copies the ownership of the folder it covers.
+RUN mkdir /keys && chown $APP_UID /keys
 USER $APP_UID
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "Marvi.Api.dll"]

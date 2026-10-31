@@ -34,20 +34,23 @@ const ACCOUNTS = {
   mercado: { email: 'mercado@demo.marvi.test', password: 'Demo-Cliente-1!' },
   pendente: { email: 'pendente@demo.marvi.test', password: 'Demo-Cliente-1!' },
   suspenso: { email: 'suspenso@demo.marvi.test', password: 'Demo-Cliente-1!' },
+  pessoa: { email: 'pessoa@demo.marvi.test', password: 'Demo-Cliente-1!' },
 };
 
 const PUBLIC = ['/', '/login', '/register', '/privacidade', '/contato', '/storefront'];
-const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/importacao', '/admin/auditoria'];
+const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/catalogo#product-new', '/admin/catalogo#product-errors', '/admin/catalogo#product-edit', '/admin/importacao', '/admin/auditoria'];
 // group = who is signed in and how the page is opened. `notice` leaves the privacy notice visible (fixed layer, AC-3/AC-9).
 const GROUPS = [
   { name: 'public', account: null, notice: false, routes: PUBLIC },
+  { name: 'public-register', account: null, notice: false, routes: ['/register#business', '/register#personal'] },
   { name: 'public-notice', account: null, notice: true, routes: ['/', '/storefront', '/contato', '/register'] },
   { name: 'public-as-employee', account: 'employee', notice: false, routes: ['/', '/storefront', '/contato'] },
-  { name: 'client-portal', account: 'cliente', notice: false, routes: ['/portal'] },
+  { name: 'client-portal', account: 'cliente', notice: false, routes: ['/portal', '/portal#address-add', '/portal#address-edit', '/portal#delivery-coverage', '/portal#delivery-change'] },
   { name: 'client-portal-wholesale', account: 'mercado', notice: false, routes: ['/portal'] },
   { name: 'client-portal-pending', account: 'pendente', notice: false, routes: ['/portal'] },
   { name: 'client-portal-suspended', account: 'suspenso', notice: false, routes: ['/portal'] },
-  { name: 'employee-portal', account: 'employee', notice: false, routes: ['/employee', '/employee/historico'] },
+  { name: 'client-portal-personal', account: 'pessoa', notice: false, routes: ['/portal'] },
+  { name: 'employee-portal', account: 'employee', notice: false, routes: ['/employee', '/employee#widget', '/employee#order', '/employee/historico', '/employee/historico#history-orders', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
   { name: 'admin-portal', account: 'admin', notice: false, routes: ADMIN },
 ];
 
@@ -95,10 +98,121 @@ async function settle(page) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
+// A route written `/path#widget` is audited with the customer lookup widget open (MRV-9.2): the first "Consultar cliente" button is
+// clicked and the page is audited once the dialog shows the customer. The part after # is never sent to the server.
+async function openWidget(page) {
+  await page.locator('button[aria-haspopup="dialog"]').first().click();
+  await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
+// The admin's product panel (MRV-9.5) in its fullest state; nothing is ever sent (with `errors`, the empty code stops the save in the browser).
+async function openProductPanel(page, errors) {
+  await page.getByRole('button', { name: 'Novo produto' }).click();
+  await page.waitForSelector('[data-testid="product-panel"] [data-testid="prices"] tbody tr', { timeout: 8000 });
+  const long = 'Valor de atributo bem longo para testar a quebra de linha em telas estreitas e com texto ampliado';
+  for (const i of [0, 1]) {
+    await page.locator('[data-testid="add-attribute"]').click();
+    await page.locator(`#attr-key-${i}`).fill(i ? 'Quantidade por caixa' : 'Certificação');
+    await page.locator(`#attr-value-${i}`).fill(long);
+  }
+  await page.locator('#productImage').fill('https://exemplo.com.br/imagens/produtos/refrigerante-cola-2-litros-garrafa-pet-grande.png');
+  await page.locator('#productName').fill('Refrigerante sabor cola 2 litros garrafa PET caixa com seis unidades');
+  if (errors) {
+    await page.locator('#price-0').fill('1,234');
+    await page.locator('#qty-0').fill('-3');
+    await page.locator('#productImage').fill('http://exemplo.com.br/imagem.png');
+    await page.locator('[data-testid="add-attribute"]').click();
+    await page.locator('#attr-key-2').fill('certificação');
+    await page.locator('#attr-value-2').fill('x');
+    await page.locator('#attr-key-0').fill('Certificação');
+    await page.locator('[data-testid="save-product"]').click();
+    await page.waitForSelector('[data-testid="fix-fields"]', { timeout: 8000 });
+  }
+}
+
+// A route written `/path#step` is audited with a form or popup open (MRV-9.2, MRV-9.3); the part after # is never sent to the server. Nothing is submitted.
+//   widget       the customer lookup widget (first "Consultar cliente" button)
+//   address-add  the customer's "Adicionar endereço" form on /portal
+//   address-edit the first address card's edit form on /portal
+//   address-fix  the admin customers editor with its first address's fix form
+//   delivery-coverage  /portal with the "Entregar em" selector's coverage answer (or its failure note) showing (MRV-9.6)
+//   delivery-change    /portal with the first quote's change-of-address picker open (MRV-9.6)
+//   order              /employee with a customer loaded through the widget (closed again), so the order form's "Entregar em" selector shows (MRV-9.6)
+//   history-orders     /employee/historico on the orders list, each with its delivery address (MRV-9.6)
+//   business     the registration page with the business account chosen and an alphanumeric CNPJ typed (MRV-9.4)
+//   personal     the registration page with the personal account chosen, a CPF and a birth date under 18 typed (the longest message)
+//   registration / registration-personal   the admin customers editor of the first company / person, with the registration form
+//   product-new     /admin/catalogo with the "Novo produto" panel open, two attribute rows with long text, a long https image address (MRV-9.5)
+//   product-errors  the same panel after "Salvar produto" with an empty code and bad price, quantity and image (every message showing); nothing is sent
+//   product-edit    the same panel opened to edit the first product (its attributes as rows)
+async function openStep(page, step) {
+  if (step === 'address-add') {
+    await page.getByRole('button', { name: 'Adicionar endereço' }).click();
+    await page.waitForSelector('#address-new-cep', { timeout: 8000 });
+  } else if (step === 'address-edit') {
+    await page.locator('[data-testid="address"]').first().getByRole('button', { name: 'Editar' }).click();
+    await page.waitForSelector('#address-edit-cep', { timeout: 8000 });
+  } else if (step === 'address-fix') {
+    await page.locator('[data-testid="customer"]').first().getByRole('button', { name: 'Editar' }).click();
+    await page.waitForSelector('[data-testid="customer-addresses"] li', { timeout: 8000 });
+    await page.locator('[data-testid="customer-addresses"] li').first().getByRole('button', { name: 'Corrigir endereço' }).click();
+    await page.waitForSelector('#admin-address-cep', { timeout: 8000 });
+  } else if (step === 'delivery-coverage') {
+    await page.getByRole('button', { name: 'Verificar cobertura' }).first().click();
+    await page.waitForSelector('[data-testid="delivery-coverage-failed"], [data-testid="delivery-coverage-result"]:not(:empty)', { timeout: 15000 });
+  } else if (step === 'delivery-change') {
+    await page.getByRole('button', { name: 'Alterar endereço de entrega' }).first().click();
+    await page.waitForSelector('[data-testid="quote-change-address"] [data-testid="delivery-select"]', { timeout: 8000 });
+  } else if (step === 'order') {
+    await page.locator('button[aria-haspopup="dialog"]').first().click();
+    await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="order-delivery"] [data-testid="delivery-select"]', { timeout: 8000 });
+  } else if (step === 'history-orders') {
+    await page.getByRole('button', { name: 'Pedidos', exact: true }).click();
+    await page.waitForSelector('[data-testid="history-item"] [data-testid="delivery-to"]', { timeout: 8000 });
+  } else if (step === 'business') {
+    await page.locator('#register-type-business').click();
+    await page.locator('#register-cnpj').fill('12abc34501de35');
+    await page.waitForSelector('#register-cnpj-hint', { timeout: 8000 });
+  } else if (step === 'personal') {
+    await page.locator('#register-type-personal').click();
+    await page.locator('#register-cpf').fill('11144477735');
+    await page.locator('#register-birth').fill('2020-01-01');
+    await page.waitForSelector('#register-birth-hint', { timeout: 8000 });
+  } else if (step === 'registration' || step === 'registration-personal' || step === 'reveal') {
+    const type = step === 'registration' ? 'Empresa' : 'Pessoa física';
+    await page.locator('[data-testid="customer"]', { hasText: type }).first().getByRole('button', { name: 'Editar' }).click();
+    await page.waitForSelector('#admin-registration-name', { timeout: 8000 });
+    if (step === 'reveal') {
+      // Only the question is opened; nothing is sent, so nothing is audited.
+      await page.getByRole('button', { name: 'Mostrar CPF' }).click();
+      await page.waitForSelector('#admin-reveal-reason', { timeout: 8000 });
+    }
+  } else if (step === 'product-new' || step === 'product-errors') {
+    await openProductPanel(page, step === 'product-errors');
+  } else if (step === 'product-edit') {
+    await page.locator('[data-testid="products"] tbody tr').first().getByRole('button', { name: 'Editar' }).click();
+    await page.waitForSelector('[data-testid="product-panel"] #productSku', { timeout: 8000 });
+  } else {
+    return false;
+  }
+  await page.waitForLoadState('networkidle');
+  // Clicking scrolled the page to the control; back at the top the sticky header covers nothing, so only real overlaps remain.
+  await page.evaluate(() => { window.scrollTo(0, 0); });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  return true;
+}
+
 async function auditUrl(page, url) {
-  await page.goto(url, { waitUntil: 'networkidle' });
+  const [address, step] = url.split('#');
+  await page.goto(address, { waitUntil: 'networkidle' });
   await page.addStyleTag({ content: NO_MOTION });
   await settle(page);
+  if (step === 'widget') await openWidget(page);
+  else if (step) await openStep(page, step);
   const landed = new URL(page.url());
   const violations = await page.evaluate(auditDom);
   return { landed: landed.pathname, violations };
@@ -155,7 +269,7 @@ async function runSite() {
           pages++;
           try {
             const { landed, violations: found } = await auditUrl(page, BASE + route);
-            if (landed !== route && !(route === '/admin' && landed.startsWith('/admin'))) {
+            if (landed !== route.split('#')[0] && !(route === '/admin' && landed.startsWith('/admin'))) {
               skipped.push({ group: group.name, route, width, reason: `landed on ${landed}` });
             }
             for (const v of found) violations.push({ group: group.name, route, width, ...v });

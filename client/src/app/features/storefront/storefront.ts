@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -17,8 +17,6 @@ import { Reveal } from '../../shared/ui/reveal/reveal';
 import { Deal, DealsService } from './api/deals.service';
 import { CoverageCheckResult, CoverageService } from './api/coverage.service';
 
-const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const validCategory = (value: string | null): string => (value && GUID.test(value) ? value : '');
 
 @Component({
   selector: 'app-storefront',
@@ -33,16 +31,20 @@ export class Storefront implements OnInit {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
 
-  // The filters live in the URL (?category=<id>&q=<text>) so a link can point at a filtered catalog.
+  // The filters live in the URL (?category=<name>&q=<text>) so a link can point at a filtered catalog. The category is named, never
+  // identified by its id: no id is ever put in a URL (MRV-9.1). Category names are unique ignoring case.
   private readonly route = inject(ActivatedRoute);
   private readonly query = this.route.snapshot.queryParamMap;
 
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after HTTP callbacks.
   protected readonly searchText = signal(this.query.get('q') ?? '');
-  // A category that is not an id (a mistyped or stale link) is ignored rather than sent to the API.
-  protected readonly categoryId = signal(validCategory(this.query.get('category')));
+  // The category is the id the API filters by; it is known once the categories have arrived (a category named in the URL waits for them).
+  // A name that matches no category (a mistyped or stale link) is ignored.
+  protected readonly categoryId = signal('');
   private readonly appliedSearch = signal(this.searchText());
-  private readonly appliedCategory = signal(this.categoryId());
+  private readonly appliedCategory = signal('');
+  private categoryFromUrl = (this.query.get('category') ?? '').trim();
+  private awaitingCategories = this.categoryFromUrl !== '';
 
   protected readonly products = loadable(
     () => this.catalogService.getProducts(this.appliedCategory() || undefined, this.appliedSearch() || undefined),
@@ -66,8 +68,19 @@ export class Storefront implements OnInit {
     // The router reuses this component when only the query string changes (a header link back to the catalog clears it),
     // so follow the URL instead of reading it once.
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      const category = validCategory(params.get('category'));
       const search = (params.get('q') ?? '').trim();
+      if (this.awaitingCategories) {
+        // The categories have not settled yet, so the products have not been asked for: follow the URL as it is now, never a stale one.
+        this.categoryFromUrl = (params.get('category') ?? '').trim();
+        this.searchText.set(search);
+        this.appliedSearch.set(search);
+        if (this.categoryFromUrl === '') {
+          this.awaitingCategories = false;
+          this.products.load();
+        }
+        return;
+      }
+      const category = this.categoryIdOf(params.get('category'));
       if (category === this.appliedCategory() && search === this.appliedSearch()) {
         return;
       }
@@ -77,12 +90,34 @@ export class Storefront implements OnInit {
       this.appliedSearch.set(search);
       this.products.load();
     });
+
+    // A category named in the URL is turned into its id as soon as the categories are known, and only then are the products asked for.
+    effect(() => {
+      const settled = this.categories.loaded() || this.categories.error() !== null;
+      if (settled && this.awaitingCategories) {
+        untracked(() => {
+          this.awaitingCategories = false;
+          const id = this.categoryIdOf(this.categoryFromUrl);
+          this.categoryId.set(id);
+          this.appliedCategory.set(id);
+          this.products.load();
+        });
+      }
+    });
   }
 
   ngOnInit(): void {
-    this.products.load();
+    if (!this.awaitingCategories) {
+      this.products.load();
+    }
     this.categories.load();
     this.deals.load();
+  }
+
+  /** The id of the category called `name` (ignoring case), or '' when there is none. */
+  private categoryIdOf(name: string | null): string {
+    const wanted = (name ?? '').trim().toLowerCase();
+    return wanted === '' ? '' : (this.categories.data().find((c) => c.name.trim().toLowerCase() === wanted)?.id ?? '');
   }
 
   applyFilters(): void {
@@ -91,8 +126,9 @@ export class Storefront implements OnInit {
     this.appliedSearch.set(search);
     this.appliedCategory.set(this.categoryId());
     const queryParams: Record<string, string> = {};
-    if (this.categoryId()) {
-      queryParams['category'] = this.categoryId();
+    const name = this.categories.data().find((c) => c.id === this.categoryId())?.name;
+    if (name) {
+      queryParams['category'] = name;
     }
     if (search) {
       queryParams['q'] = search;

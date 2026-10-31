@@ -57,6 +57,7 @@ public class AuthorizationMatrixTests : IClassFixture<MarviApiFactory>
         yield return (HttpMethod.Get, "/api/admin/products", AdminOnly);
         yield return (HttpMethod.Get, $"/api/admin/products/{Id}", AdminOnly);
         yield return (HttpMethod.Post, "/api/admin/products", AdminOnly);
+        yield return (HttpMethod.Post, "/api/admin/products/with-setup", AdminOnly);
         yield return (HttpMethod.Put, $"/api/admin/products/{Id}", AdminOnly);
         yield return (HttpMethod.Delete, $"/api/admin/products/{Id}", AdminOnly);
         yield return (HttpMethod.Post, "/api/admin/products/import", AdminOnly);
@@ -76,29 +77,39 @@ public class AuthorizationMatrixTests : IClassFixture<MarviApiFactory>
         yield return (HttpMethod.Put, "/api/admin/inventory", AdminOnly);
         yield return (HttpMethod.Post, "/api/admin/employees", AdminOnly);
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/approve", AdminOnly);
+        yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/registration", AdminOnly);
+        yield return (HttpMethod.Post, $"/api/admin/clients/{Id}/cpf/reveal", AdminOnly);
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/suspend", AdminOnly);
         yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/pricing-tier", AdminOnly);
+        yield return (HttpMethod.Put, $"/api/admin/clients/{Id}/addresses/{OtherId}", AdminOnly);
+        yield return (HttpMethod.Get, "/api/admin/customers/by-number/42", AdminOnly);
         yield return (HttpMethod.Get, "/api/admin/contact-messages", AdminOnly);
         yield return (HttpMethod.Post, $"/api/admin/contact-messages/{Id}/handle", AdminOnly);
 
         // Employee and Admin
         yield return (HttpMethod.Get, "/api/employee/clients", Staff);
         yield return (HttpMethod.Get, $"/api/employee/clients/{Id}", Staff);
+        yield return (HttpMethod.Get, "/api/employee/clients/by-number/42", Staff);
         yield return (HttpMethod.Get, "/api/employee/inventory", Staff);
         yield return (HttpMethod.Post, "/api/employee/orders", Staff);
         yield return (HttpMethod.Get, "/api/employee/orders/history", Staff);
         yield return (HttpMethod.Get, "/api/employee/quotes/queue", Staff);
         yield return (HttpMethod.Get, "/api/employee/quotes/history", Staff);
         yield return (HttpMethod.Put, $"/api/employee/quotes/{Id}/price", Staff);
+        yield return (HttpMethod.Put, "/api/employee/orders/42/delivery-address", Staff);
 
         // Client
         yield return (HttpMethod.Get, "/api/client/profile", ClientOnly);
         yield return (HttpMethod.Put, "/api/client/profile", ClientOnly);
+        yield return (HttpMethod.Post, "/api/client/addresses", ClientOnly);
+        yield return (HttpMethod.Put, $"/api/client/addresses/{Id}", ClientOnly);
+        yield return (HttpMethod.Delete, $"/api/client/addresses/{Id}", ClientOnly);
         yield return (HttpMethod.Get, "/api/orders/mine", ClientOnly);
         yield return (HttpMethod.Post, "/api/quotes", ClientOnly);
         yield return (HttpMethod.Get, "/api/quotes/mine", ClientOnly);
         yield return (HttpMethod.Post, $"/api/quotes/{Id}/accept", ClientOnly);
         yield return (HttpMethod.Post, $"/api/quotes/{Id}/reject", ClientOnly);
+        yield return (HttpMethod.Put, "/api/quotes/42/delivery-address", ClientOnly);
     }
 
     private static HttpRequestMessage Request(HttpMethod method, string url) => new(method, url)

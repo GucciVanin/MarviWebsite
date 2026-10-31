@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { ActivatedRouteSnapshot, CanActivateFn, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
-import { adminGuard, clientGuard, employeeGuard, guestGuard } from './role.guard';
+import { adminGuard, clientGuard, employeeGuard, guestGuard, staffPageGuard } from './role.guard';
 import { fakeToken } from './testing/fake-token';
 
 type Visitor = 'Anonymous' | 'Client' | 'Employee' | 'Admin' | 'Expired Admin' | 'Unknown role';
@@ -52,6 +52,27 @@ describe('route guards, every visitor against every guard', () => {
         expect(result).toBe(true);
       } else {
         expectRedirect(result, '/');
+      }
+    });
+  });
+
+  describe('staffPageGuard (the customer page, MRV-9.2)', () => {
+    it.each([
+      ['Anonymous', true, '/login'],
+      ['Client', false, '/portal'],
+      ['Expired Admin', false, '/login'],
+      ['Employee', true, ''],
+      ['Admin', true, ''],
+      ['Unknown role', false, '/'],
+    ] as [Visitor, boolean, string][])('for %s', (visitor, passes, redirect) => {
+      signInAs(visitor);
+
+      const result = run(staffPageGuard);
+
+      if (['Employee', 'Admin'].includes(visitor)) {
+        expect(result).toBe(true);
+      } else {
+        expectRedirect(result, redirect);
       }
     });
   });

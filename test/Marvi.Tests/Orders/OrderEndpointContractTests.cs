@@ -23,11 +23,11 @@ public class OrderEndpointContractTests : IClassFixture<MarviApiFactory>
         var product = await admin.CreatePricedProductAsync(10m);
         var line = new EmployeeOrderLineItemRequest(product, 1);
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, "Rua A, 1", []))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, "Rua A, 1", [new EmployeeOrderLineItemRequest(product, 0)]))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, "  ", [line]))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(Guid.NewGuid(), "Rua A, 1", [line]))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, "Rua A, 1", [new EmployeeOrderLineItemRequest(Guid.NewGuid(), 1)]))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, null, []))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, null, [new EmployeeOrderLineItemRequest(product, 0)]))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, "Rua Inventada, 1", [line]))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(Guid.NewGuid(), null, [line]))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, null, [new EmployeeOrderLineItemRequest(Guid.NewGuid(), 1)]))).StatusCode);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class OrderEndpointContractTests : IClassFixture<MarviApiFactory>
         var (client, clientId) = await _factory.RegisterClientAsync();
         var product = await admin.CreatePricedProductAsync(10m);
 
-        var placed = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, "Rua A, 1", [new EmployeeOrderLineItemRequest(product, 3)]));
+        var placed = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(clientId, null, [new EmployeeOrderLineItemRequest(product, 3)]));
 
         Assert.Equal(HttpStatusCode.Created, placed.StatusCode);
         var order = (await placed.Content.ReadFromJsonAsync<OrderDto>())!;

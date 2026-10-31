@@ -53,14 +53,15 @@ describe('AdminInbox', () => {
 
   it('lists quotes awaiting a price, stock to reorder and products with no price, each with the screen that resolves it', async () => {
     const { root, settle } = setup(inbox({
-      quotes: group([{ id: 'q1', clientAccountId: 'c1', companyName: 'Bar do Zé', createdAt: '2026-10-15T10:00:00Z', lineCount: 3 }]),
+      quotes: group([{ id: 'q1', number: 123, clientAccountId: 'c1', customerNumber: 42, companyName: 'Bar do Zé', createdAt: '2026-10-15T10:00:00Z', lineCount: 3 }]),
       lowStock: group([{ productId: 'p1', sku: 'COLA-2L', productName: 'Refrigerante Cola 2L', warehouseId: 'w1', warehouseName: 'CD São Paulo', available: 4, reorderPoint: 20 }]),
       unpricedProducts: group([{ productId: 'p2', sku: 'TONICA', name: 'Água Tônica' }]),
     }));
     await settle();
 
     const quote = root.querySelector('[data-testid="pending-quote"]')!;
-    expect(quote.textContent).toContain('Bar do Zé');
+    expect(quote.textContent).toContain('Bar do Zé (C-000042)');
+    expect(quote.textContent).toContain('Q-000123');
     expect(quote.textContent).toContain('3 itens');
     expect(quote.querySelector('a')!.getAttribute('href')).toBe('/employee');
     const stock = root.querySelector('[data-testid="pending-stock"]')!;

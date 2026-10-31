@@ -23,7 +23,7 @@
               <tr data-testid="audit-entry">
                 <td>{{ entry.timestamp | ptDate }}</td>
                 <td>{{ t.actions[entry.action] ?? entry.action }}</td>
-                <td>{{ entry.entityName }}</td>
+                <td>{{ entityOf(entry) }}</td>
                 <td class="muted" [attr.title]="detailsOf(entry.details)">{{ detailsOf(entry.details) }}</td>
               </tr>
             }

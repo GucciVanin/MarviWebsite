@@ -33,6 +33,7 @@
           <table class="table">
             <thead>
               <tr>
+                <th>{{ refs.customer }}</th>
                 <th>{{ t.company }}</th>
                 <th>{{ t.waitingSince }}</th>
                 <th>{{ t.actions }}</th>
@@ -41,6 +42,7 @@
             <tbody>
               @for (customer of waitingCustomers(); track customer.id) {
                 <tr data-testid="pending-customer">
+                  <td>{{ customer.customerNumber | customerNumber }}</td>
                   <td>{{ customer.companyName }}</td>
                   <td>{{ customer.createdAt | ptDate }}</td>
                   <td>
@@ -80,6 +82,7 @@
           <table class="table">
             <thead>
               <tr>
+                <th>{{ refs.quote }}</th>
                 <th>{{ t.company }}</th>
                 <th>{{ t.requestedOn }}</th>
                 <th>{{ t.lines }}</th>
@@ -89,7 +92,8 @@
             <tbody>
               @for (quote of inbox.quotes.items; track quote.id) {
                 <tr data-testid="pending-quote">
-                  <td>{{ quote.companyName }}</td>
+                  <td>{{ quote.number | documentNumber: 'quote' }}</td>
+                  <td>{{ quote.companyName }} ({{ quote.customerNumber | customerNumber }})</td>
                   <td>{{ quote.createdAt | ptDate }}</td>
                   <td>{{ itemsText(quote.lineCount) }}</td>
                   <td><a class="btn btn--outline btn--small" routerLink="/employee">{{ t.priceQuote }}</a></td>

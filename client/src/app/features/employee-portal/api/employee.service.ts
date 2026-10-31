@@ -3,7 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import type { Quote, QuoteStatus } from '../../../shared/models/quote.model';
 import type { Order } from '../../../shared/models/order.model';
+import type { ClientAddress } from '../../../shared/models/client-address.model';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
+import type { Registration } from '../../../shared/models/registration.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 
 export type { ClientSummary } from '../../../shared/models/client-summary.model';
@@ -24,7 +26,8 @@ export interface EmployeeOrderLineItemRequest {
 
 export interface CreateEmployeeOrderRequest {
   clientId: string;
-  deliveryAddress: string;
+  /** The key of one of THAT customer's delivery addresses (MRV-9.6); omitted means their default. Staff do not type an address any more. */
+  deliveryAddressKey?: string | null;
   lineItems: EmployeeOrderLineItemRequest[];
 }
 
@@ -43,15 +46,11 @@ export type ClientAccountStatus = 'Pending' | 'Approved' | 'Suspended';
 
 export const CLIENT_SEARCH_PAGE_SIZE = 10;
 
-/** A quote in the history: the quote plus the company it is for. */
-export interface QuoteHistoryItem extends Quote {
-  companyName: string;
-}
+/** A quote in the history (it already names the company and the customer number). */
+export type QuoteHistoryItem = Quote;
 
-/** An order in the history: the order plus the company it is for. */
-export interface OrderHistoryItem extends Order {
-  companyName: string;
-}
+/** An order in the history (it already names the company and the customer number). */
+export type OrderHistoryItem = Order;
 
 /** The filters and page of a history request; `from` is inclusive, `to` exclusive, both ISO instants. */
 export interface HistoryQuery {
@@ -76,14 +75,20 @@ function historyParams(query: HistoryQuery): Record<string, string> {
 
 export interface ClientProfile {
   id: string;
+  customerNumber: number;
   companyName: string;
   createdAt: string;
-  billingAddress: string;
-  shippingAddresses: string[];
+  addresses: ClientAddress[];
+  billingAddressKey: string | null;
+  defaultDeliveryKey: string | null;
   pricingTierName: string | null;
   status: ClientAccountStatus;
   quotes: Quote[];
   orders: Order[];
+  /** The customer's login e-mail, for staff only (MRV-9.2). */
+  contactEmail: string | null;
+  /** The account type and registration data (MRV-9.4): the CPF only masked. */
+  registration: Registration;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -129,5 +134,10 @@ export class EmployeeService {
 
   getClient(id: string): Observable<ClientProfile> {
     return this.http.get<ClientProfile>(`/api/employee/clients/${id}`);
+  }
+
+  /** The same customer found by the number staff read out (MRV-9.1), so a screen never needs the id. */
+  getClientByNumber(number: number): Observable<ClientProfile> {
+    return this.http.get<ClientProfile>(`/api/employee/clients/by-number/${number}`);
   }
 }

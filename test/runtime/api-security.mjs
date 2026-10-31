@@ -111,9 +111,11 @@ const empResp = await call('POST', '/api/admin/employees', { token: admin, body:
 ok('admin creates employee (201)', empResp.status === 201, String(empResp.status));
 const emp = await login(emp1Email, emp1Pw);
 
+// MRV-9.3: addresses are structured. `addr(n)` is a valid address that differs per n; the registration sends it as the billing address.
+const addr = (n = 1, extra = {}) => ({ postalCode: '01001-000', street: `Rua Teste ${n}`, number: String(n), district: 'Sé', city: 'São Paulo', state: 'SP', ...extra });
 // A new customer is Pending (least privilege); the runtime fixtures approve the ones that need to transact.
 const registerClient = async (name, email, { approve = true } = {}) => {
-  const r = await call('POST', '/api/auth/register', { body: { email, password: 'Client-1234!', companyName: name, billingAddress: `Rua ${name}, 1` } });
+  const r = await call('POST', '/api/auth/register', { body: { email, password: 'Client-1234!', companyName: name, billingAddress: addr(1) } });
   const id = r.json?.id;
   if (approve) await call('PUT', `/api/admin/clients/${id}/approve`, { token: admin, body: { pricingTierId: standard.id } });
   return { id, token: await login(email, 'Client-1234!'), email };
@@ -200,7 +202,8 @@ ok('order lines carry the employee final prices', accepted.json?.lineItems?.some
 ok('accepting twice is refused', [400, 409].includes((await call('POST', `/api/quotes/${q1.id}/accept`, { token: clientA.token })).status));
 ok('client A sees exactly its own order', (await call('GET', '/api/orders/mine', { token: clientA.token })).json?.length === 1);
 ok('client B sees none of A\'s orders', (await call('GET', '/api/orders/mine', { token: clientB.token })).json?.length === 0);
-const eo = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddress: 'Rua Entrega 10', lineItems: [{ productId: prod.cola.id, qty: 12 }, { productId: prod.lager.id, qty: 1 }] } });
+const bAddress = (await call('GET', '/api/client/profile', { token: clientB.token })).json.addresses[0];
+const eo = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddressKey: bAddress.key, lineItems: [{ productId: prod.cola.id, qty: 12 }, { productId: prod.lager.id, qty: 1 }] } });
 ok('employee order for client B: 12 cola at qty-break 3.50 + lager 7.20 = 49.20', eo.status === 201 && near(eo.json?.totalAmount, 49.2), `${eo.status} ${eo.json?.totalAmount}`);
 ok('employee order records the placing employee', !!eo.json?.placedByEmployeeId);
 ok('employee order for unpriced product is refused (400)', (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddress: 'x', lineItems: [{ productId: prod.nopr.id, qty: 1 }] } })).status === 400);
@@ -274,7 +277,7 @@ const newcomerProfile = (await call('GET', '/api/client/profile', { token: newco
 ok('registration leaves the customer Pending', newcomerProfile.status === 'Pending', JSON.stringify(newcomerProfile.status));
 ok('a Pending customer is refused quotes (403) and cannot be given an order (403)', (await call('POST', '/api/quotes', { token: newcomer.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403
   && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: newcomer.id, deliveryAddress: 'x', lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 403);
-ok('...but can read and edit their own details', (await call('PUT', '/api/client/profile', { token: newcomer.token, body: { companyName: 'Recém Chegado Ltda', billingAddress: 'Rua Nova, 1', shippingAddresses: [] } })).status === 200);
+ok('...but can read and edit their own details', (await call('PUT', '/api/client/profile', { token: newcomer.token, body: { companyName: 'Recém Chegado Ltda' } })).status === 200);
 ok('...and sees the same prices as an anonymous visitor', JSON.stringify((await call('GET', '/api/products', { token: newcomer.token })).json.map((p) => [p.id, p.price])) === JSON.stringify((await call('GET', '/api/products')).json.map((p) => [p.id, p.price])));
 ok('approving without a tier is refused (400): nobody is approved by default', (await call('PUT', `/api/admin/clients/${newcomer.id}/approve`, { token: admin, body: {} })).status === 400
   && (await call('GET', '/api/client/profile', { token: newcomer.token })).json.status === 'Pending');
@@ -303,9 +306,9 @@ ok('...and the suspension is audited exactly once, with the previous status', sq
 const profileRace = await registerClient('Perfil e Decisão Ltda', 'perfil@corrida.test', { approve: false });
 const raceResults = await Promise.all([
   call('PUT', `/api/admin/clients/${profileRace.id}/approve`, { token: admin, body: { pricingTierId: standard.id } }),
-  ...[1, 2, 3, 4, 5, 6].map((n) => call('PUT', '/api/client/profile', { token: profileRace.token, body: { companyName: `Perfil ${n}`, billingAddress: `Rua ${n}`, shippingAddresses: [] } })),
+  ...[1, 2, 3, 4, 5, 6].map((n) => call('PUT', '/api/client/profile', { token: profileRace.token, body: { companyName: `Perfil ${n}` } })),
 ]);
-ok('a customer saving their profile while an admin decides them never gets a 500 (200, or 409 at worst), and the decision still wins', raceResults.every((r) => r.status < 500) && raceResults[0].status === 204
+ok('a customer saving their profile while an admin decides them never gets a 500 (200, 403 once approved, or 409 at worst), and the decision still wins', raceResults.every((r) => r.status < 500) && raceResults[0].status === 204
   && (await call('GET', '/api/client/profile', { token: profileRace.token })).json.status === 'Approved', raceResults.map((r) => r.status).join(','));
 ok('a suspended customer can be approved again (204)', (await call('PUT', `/api/admin/clients/${racer.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204);
 
@@ -340,23 +343,69 @@ ok('the old update-credit endpoint is gone (404)', (await call('PUT', `/api/admi
 
 section('CLIENT PROFILE: a customer edits their own company details (on real Postgres)');
 const ownProfile = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
-ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.shippingAddresses.length === 0);
-const putProfile = await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: '  Adega do Dedé Ltda ', billingAddress: 'Rua Nova, 10', shippingAddresses: ['Av. Brasil, 100', ' ', 'av. brasil, 100', 'Rua do Porto, 5 — loja 2'] } });
+ok('a customer reads their own details', ownProfile.id === clientD.id && ownProfile.companyName === 'Adega do Dedé' && ownProfile.addresses.length === 1 && ownProfile.billingAddressKey === ownProfile.addresses[0].key);
+// MRV-9.4: the verified record is locked once approved, so the name edits below use a customer who is still Pending.
+const editor = await registerClient('Adega do Dedé Provisória', 'dede2@adega.test', { approve: false });
+const putProfile = await call('PUT', '/api/client/profile', { token: editor.token, body: { companyName: '  Adega do Dedé Ltda ' } });
 ok('...and sees since when they have been registered', registeredRecently(ownProfile.createdAt));
-ok('...edits them: trimmed, blank and repeated shipping lines dropped (200)', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda'
-  && JSON.stringify(putProfile.json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
-ok('...the shipping list is stored as a list in the database and staff see the same', sql(`select cardinality(shipping_addresses) from client_accounts where id='${clientD.id}'`) === '2'
-  && JSON.stringify((await call('GET', `/api/employee/clients/${clientD.id}`, { token: emp })).json.shippingAddresses) === JSON.stringify(['Av. Brasil, 100', 'Rua do Porto, 5 — loja 2']));
-ok('...the list is replaced as a whole (an empty list clears it)', (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: [] } })).json.shippingAddresses.length === 0);
-ok('a missing company name, too many addresses and an over-long address are refused (400) and change nothing',
-  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: ' ', billingAddress: 'x', shippingAddresses: [] } })).status === 400
-  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: Array.from({ length: 11 }, (_, i) => `Rua ${i}`) } })).status === 400
-  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'X', billingAddress: 'x', shippingAddresses: ['y'.repeat(501)] } })).status === 400
-  && (await call('GET', '/api/client/profile', { token: clientD.token })).json.companyName === 'Adega');
-ok('leaving the shipping list out is refused (400), not treated as clearing it; a NUL character is a 400, not a 500',
-  (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10' } })).status === 400
-  && (await call('PUT', '/api/client/profile', { token: clientD.token, body: { companyName: 'Adega', billingAddress: 'Rua Nova, 10', shippingAddresses: ['x\u0000y'] } })).status === 400);
+ok('...a Pending customer edits the company name: trimmed (200), the address untouched', putProfile.status === 200 && putProfile.json.companyName === 'Adega do Dedé Ltda' && putProfile.json.addresses.length === 1);
+ok('a missing company name and a NUL character are refused (400) and change nothing',
+  (await call('PUT', '/api/client/profile', { token: editor.token, body: { companyName: ' ' } })).status === 400
+  && (await call('PUT', '/api/client/profile', { token: editor.token, body: { companyName: 'A\u0000dega' } })).status === 400
+  && (await call('GET', '/api/client/profile', { token: editor.token })).json.companyName === 'Adega do Dedé Ltda');
 ok('it is always the caller\'s own account: another customer\'s details are untouched', (await call('GET', '/api/client/profile', { token: clientA.token })).json.companyName === 'Bar do Zé');
+
+section('CLIENT ADDRESSES (MRV-9.3): several named, structured addresses per customer (on real Postgres)');
+const created = await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(200, { label: 'Filial Campinas', kind: 'Delivery', postalCode: '13010000', city: 'Campinas', complement: 'Sala 3', deliveryNotes: 'Entregar de manhã' }) });
+ok('a customer adds a delivery address (201): CEP stored as 8 digits, UF upper-case, no internal id in the answer', created.status === 201 && created.json.postalCode === '13010000' && created.json.state === 'SP' && created.json.id === undefined && created.json.key.length > 20);
+const listed = (await call('GET', '/api/client/profile', { token: clientD.token })).json;
+ok('...the profile lists both addresses, billing first, with the two chosen keys', listed.addresses.length === 2 && listed.addresses[0].isBilling && listed.billingAddressKey === listed.addresses[0].key && listed.defaultDeliveryKey === listed.addresses[0].key);
+ok('...the database holds one billing and one default row per customer, stored on real Postgres', sql(`select count(*) filter (where is_billing)||'/'||count(*) filter (where is_default)||'/'||count(*) from client_addresses where client_account_id='${clientD.id}'`) === '1/1/2');
+const second = await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(300, { label: 'Armazém', kind: 'Both', isBilling: true, isDefaultDelivery: true }) });
+ok('making a new address billing and default moves both flags in one change (201), still one of each',
+  second.status === 201 && sql(`select count(*) filter (where is_billing)||'/'||count(*) filter (where is_default)||'/'||count(*) from client_addresses where client_account_id='${clientD.id}'`) === '1/1/3'
+  && sql(`select label from client_addresses where client_account_id='${clientD.id}' and is_billing`) === 'Armazém');
+ok('the same CEP, number and complement is refused (409); an invalid CEP, UF or a line break is refused (400)',
+  (await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(300, { label: 'Outra', kind: 'Delivery' }) })).status === 409
+  && (await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(4, { label: 'x', kind: 'Delivery', postalCode: '123' }) })).status === 400
+  && (await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(5, { label: 'x', kind: 'Delivery', state: 'ZZ' }) })).status === 400
+  && (await call('POST', '/api/client/addresses', { token: clientD.token, body: addr(6, { label: 'x', kind: 'Delivery', street: 'Rua\nA' }) })).status === 400);
+ok('the billing address cannot be removed (409) until another is chosen; a non-flagged one can (204)',
+  (await call('DELETE', `/api/client/addresses/${second.json.key}`, { token: clientD.token })).status === 409
+  && (await call('DELETE', `/api/client/addresses/${created.json.key}`, { token: clientD.token })).status === 204);
+ok('another customer\'s key is a 404 for change and removal, and nothing of theirs changed',
+  (await call('PUT', `/api/client/addresses/${second.json.key}`, { token: clientA.token, body: addr(9, { label: 'x', kind: 'Both' }) })).status === 404
+  && (await call('DELETE', `/api/client/addresses/${second.json.key}`, { token: clientA.token })).status === 404
+  && sql(`select count(*) from client_addresses where client_account_id='${clientD.id}'`) === '2');
+const adminFix = await call('PUT', `/api/admin/clients/${clientD.id}/addresses/${second.json.key}`, { token: admin, body: addr(300, { label: 'Armazém', kind: 'Both', street: 'Rua Corrigida pelo Admin' }) });
+ok('an admin fixes an address (200); every address change is in the audit log (create, update by admin, delete)',
+  adminFix.status === 200 && adminFix.json.street === 'Rua Corrigida pelo Admin'
+  && sql(`select count(*) from audit_log_entries where entity_name='ClientAddress' and action='Create'`) !== '0'
+  && sql(`select count(*) from audit_log_entries where entity_name='ClientAddress' and action='Update' and details::text like '%Admin%'`) !== '0'
+  && sql(`select count(*) from audit_log_entries where entity_name='ClientAddress' and action='Delete'`) !== '0');
+ok('staff see the addresses with their keys', (await call('GET', `/api/employee/clients/${clientD.id}`, { token: emp })).json.addresses.length === 2);
+// Parallel writes on one customer take turns (the customer's row is locked in the transaction), so the limit and the duplicate rule hold.
+const racerA = await registerClient('Corrida de Endereços', 'enderecos@corrida.test');
+const flood = await Promise.all(Array.from({ length: 30 }, (_, i) => call('POST', '/api/client/addresses', { token: racerA.token, body: addr(500 + i, { label: `Ponto ${i}`, kind: 'Delivery' }) })));
+ok('30 parallel creates: exactly 19 are created (registration made the first), the other 11 are 409 "At most 20", none is a 500, and the table holds exactly 20',
+  flood.filter((r) => r.status === 201).length === 19 && flood.filter((r) => r.status === 409).length === 11 && sql(`select count(*) from client_addresses where client_account_id='${racerA.id}'`) === '20',
+  flood.map((r) => r.status).join(','));
+const racerB = await registerClient('Corrida de Duplicados', 'duplicados@corrida.test');
+const same = await Promise.all(Array.from({ length: 6 }, (_, i) => call('POST', '/api/client/addresses', { token: racerB.token, body: addr(900, { label: `Mesmo ${i}`, kind: 'Delivery' }) })));
+ok('6 parallel creates of the same place: exactly one wins (201), the rest are 409, and one row exists',
+  same.filter((r) => r.status === 201).length === 1 && same.filter((r) => r.status === 409).length === 5 && sql(`select count(*) from client_addresses where client_account_id='${racerB.id}' and number='900'`) === '1',
+  same.map((r) => r.status).join(','));
+const moves = await Promise.all(Array.from({ length: 6 }, (_, i) => call('POST', '/api/client/addresses', { token: racerB.token, body: addr(950 + i, { label: `Principal ${i}`, kind: 'Both', isBilling: true, isDefaultDelivery: true }) })));
+ok('6 parallel "make this the billing and default address" creates: all succeed (201), never a 500, and exactly one billing and one default remain',
+  moves.every((r) => r.status === 201) && sql(`select count(*) filter (where is_billing)||'/'||count(*) filter (where is_default) from client_addresses where client_account_id='${racerB.id}'`) === '1/1',
+  moves.map((r) => r.status).join(','));
+const removals = await Promise.all([1, 2, 3].map(() => call('DELETE', `/api/client/addresses/${flood.find((r) => r.status === 201).json.key}`, { token: racerA.token })));
+ok('parallel deletes of one address: one 204, the rest 404, never a 500', removals.filter((r) => r.status === 204).length === 1 && removals.filter((r) => r.status === 404).length === 2, removals.map((r) => r.status).join(','));
+ok('the audit entry of a removed address names the customer (details carry the customer number)', sql(`select count(*) from audit_log_entries where entity_name='ClientAddress' and action='Delete' and details::text like '%CustomerNumber%'`) !== '0');
+
+ok('a registration without a billing address, or with an invalid CEP, is refused (400)',
+  (await call('POST', '/api/auth/register', { body: { email: 'semendereco@x.test', password: 'Client-1234!', companyName: 'Sem' } })).status === 400
+  && (await call('POST', '/api/auth/register', { body: { email: 'cepruim@x.test', password: 'Client-1234!', companyName: 'Sem', billingAddress: addr(1, { postalCode: '12' }) } })).status === 400);
 
 section('CLIENT DIRECTORY: staff find a customer by company name (on real Postgres)');
 const dirSearch = (q, token = emp) => call('GET', `/api/employee/clients${q}`, { token });
@@ -371,6 +420,38 @@ const dirAll = (await dirSearch('?pageSize=200')).json;
 ok('without a search everyone is listed A to Z, with the total', dirAll.totalCount >= 5 && dirAll.items.every((c, i) => i === 0 || dirAll.items[i - 1].companyName.toLowerCase() <= c.companyName.toLowerCase()));
 ok('...paged', (await dirSearch('?page=2&pageSize=2')).json.items.length === 2 && (await dirSearch('?page=0')).status === 400);
 ok('admins may use it too; customers may not (403)', (await dirSearch('', admin)).status === 200 && (await dirSearch('', clientA.token)).status === 403);
+
+section('CUSTOMER NUMBER: a short business reference instead of an id on screen (MRV-9.1, on real Postgres)');
+const numberOf = async (id) => (await call('GET', `/api/employee/clients/${id}`, { token: emp })).json.customerNumber;
+const numA = await numberOf(clientA.id);
+ok('every customer has a positive customer number, and no two share one', Number.isInteger(numA) && numA > 0
+  && dirAll.items.every((c) => Number.isInteger(c.customerNumber) && c.customerNumber > 0)
+  && new Set(dirAll.items.map((c) => c.customerNumber)).size === dirAll.items.length
+  && sql('select count(distinct number) = count(*) from client_accounts') === 't');
+ok('...numbers follow registration order, and the customer sees their own number', (await numberOf(clientB.id)) > numA
+  && (await call('GET', '/api/client/profile', { token: clientA.token })).json.customerNumber === numA);
+const byNumber = await call('GET', `/api/employee/clients/by-number/${numA}`, { token: emp });
+ok('GET /api/employee/clients/by-number/{n} returns the same body as GET by id', byNumber.status === 200
+  && byNumber.text === (await call('GET', `/api/employee/clients/${clientA.id}`, { token: emp })).text);
+const adminByNumber = await call('GET', `/api/admin/customers/by-number/${numA}`, { token: admin });
+ok('...it carries the login e-mail of the customer for staff (MRV-9.2), and the own profile of the customer does not', byNumber.json.contactEmail === 'ze@bar.test'
+  && !JSON.stringify((await call('GET', '/api/client/profile', { token: clientA.token })).json).includes('ze@bar.test'));
+ok('...and the admin endpoint returns the customers-tab line', adminByNumber.status === 200 && adminByNumber.json.id === clientA.id && adminByNumber.json.customerNumber === numA);
+ok('...an unknown number is a 404, a non-numeric one a 400, a customer a 403, a visitor a 401',
+  (await call('GET', '/api/employee/clients/by-number/999999999', { token: emp })).status === 404
+  && (await call('GET', '/api/employee/clients/by-number/abc', { token: emp })).status === 400
+  && (await call('GET', `/api/employee/clients/by-number/${numA}`, { token: clientA.token })).status === 403
+  && (await call('GET', `/api/employee/clients/by-number/${numA}`)).status === 401
+  && (await call('GET', `/api/admin/customers/by-number/${numA}`, { token: emp })).status === 403);
+ok('the database backs the numbers up: sequences and unique indexes exist for customers, quotes and orders',
+  sql("select count(*) from pg_class where relkind = 'S' and relname in ('client_number_seq','quote_number_seq','order_number_seq')") === '3'
+  && sql("select count(*) from pg_indexes where indexname in ('ix_client_accounts_number','ix_quotes_number','ix_orders_number') and indexdef like 'CREATE UNIQUE%'") === '3');
+const numberedQuotes = sql("select count(*) from quotes where number is null or number <= 0") === '0'
+  && sql('select count(distinct number) = count(*) from quotes') === 't' && sql('select count(distinct number) = count(*) from orders') === 't';
+ok('quotes and orders are numbered too, uniquely', numberedQuotes);
+ok('the audit log gives the customer number for a customer entry, so the screen needs no id',
+  (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.entityName === 'ClientAccount' && e.entityId === clientD.id
+    && e.entityNumber === Number(sql(`select number from client_accounts where id='${clientD.id}'`))));
 
 section('CSV IMPORT: an admin imports products from a file (on real Postgres)');
 const importCsv = (csv, query = '', token = admin) => {
@@ -620,6 +701,41 @@ ok('...and exactly one default tier exists', sql(`select count(*) from pricing_t
 ok('the Standard tier is made the default again (200/204)', [200, 204].includes((await call('PUT', `/api/admin/pricing-tiers/${standard.id}`, { token: admin, body: { name: standard.name, isDefault: true } })).status));
 ok('...and exactly one default tier exists', sql(`select count(*) from pricing_tiers where is_default`) === '1');
 
+section('PRODUCT WITH SETUP (MRV-9.5): one request writes the product, its prices and its stock, or nothing');
+const setupSku = `SET-${crypto.randomUUID().slice(0, 8)}`;
+const setupBody = (sku, extra = {}) => ({ sku, name: 'Produto guiado', description: 'Criado pelo formulario guiado', categoryId: cat.soft.id, imageUrl: 'https://exemplo.com/cola.png', isActive: true, attributes: { Marca: 'Cola', 'Quantidade por caixa': '12' }, prices: [{ pricingTierId: standard.id, unitPrice: 7.5 }, { pricingTierId: wholesale.id, unitPrice: 6 }], stock: [{ warehouseId: wh1.id, qtyOnHand: 12 }, { warehouseId: wh2.id, qtyOnHand: null }], ...extra });
+const countOf = (table) => Number(sql(`select count(*) from ${table}`));
+const setupBefore = { products: countOf('products'), prices: countOf('product_pricings'), stock: countOf('inventory_records'), audit: countOf('audit_log_entries') };
+const setupCreated = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`  ${setupSku}  `) });
+ok('the guided create answers 201 with the trimmed SKU', setupCreated.status === 201 && setupCreated.json?.sku === setupSku, String(setupCreated.status));
+const setupId = setupCreated.json?.id;
+ok('...one product row, two price rows (minimum quantity 1) and one stock row (the empty quantity made none)', countOf('products') === setupBefore.products + 1 && Number(sql(`select count(*) from product_pricings where product_id='${setupId}' and min_qty=1`)) === 2 && Number(sql(`select count(*) from inventory_records where product_id='${setupId}'`)) === 1);
+ok('...the stock row holds the quantity typed and nothing reserved', sql(`select qty_on_hand || '/' || qty_reserved from inventory_records where product_id='${setupId}'`) === '12/0');
+ok('...the attributes round-trip through jsonb unchanged', JSON.stringify((await call('GET', `/api/admin/products/${setupId}`, { token: admin })).json?.attributes) === JSON.stringify({ Marca: 'Cola', 'Quantidade por caixa': '12' }));
+ok('...every row has its own audit entry (4 more entries: product, two prices, one stock)', countOf('audit_log_entries') === setupBefore.audit + 4);
+const shopItem = (await call('GET', '/api/products')).json.find((p) => p.id === setupId);
+ok('...the storefront shows it with the list price (default tier) and in stock', near(shopItem?.price, 7.5) && shopItem?.inStock === true, JSON.stringify(shopItem));
+
+const afterFirst = { products: countOf('products'), prices: countOf('product_pricings'), stock: countOf('inventory_records'), audit: countOf('audit_log_entries') };
+const dupCase = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(setupSku.toLowerCase()) });
+ok('the same SKU in another case is refused (409) on the sku field', dupCase.status === 409 && dupCase.json?.[0]?.field === 'sku', String(dupCase.status));
+const badPrice = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`BAD-${crypto.randomUUID().slice(0, 8)}`, { prices: [{ pricingTierId: standard.id, unitPrice: 9 }, { pricingTierId: wholesale.id, unitPrice: 0 }] }) });
+ok('a bad price on the second tier is refused (400) naming prices[1]', badPrice.status === 400 && badPrice.json?.some((p) => p.field === 'prices[1]'), String(badPrice.status));
+const unknownWarehouse = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`UNK-${crypto.randomUUID().slice(0, 8)}`, { stock: [{ warehouseId: crypto.randomUUID(), qtyOnHand: 3 }] }) });
+ok('an unknown warehouse is refused (400) naming stock[0]', unknownWarehouse.status === 400 && unknownWarehouse.json?.some((p) => p.field === 'stock[0]'), String(unknownWarehouse.status));
+ok('an http image address is refused (400)', (await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`IMG-${crypto.randomUUID().slice(0, 8)}`, { imageUrl: 'http://exemplo.com/a.png' }) })).status === 400);
+ok('none of the refusals left a product, a price, a stock row or an audit entry', countOf('products') === afterFirst.products && countOf('product_pricings') === afterFirst.prices && countOf('inventory_records') === afterFirst.stock && countOf('audit_log_entries') === afterFirst.audit);
+
+const burstSku = `BURST-${crypto.randomUUID().slice(0, 8)}`;
+const doubleClick = await burst(10, () => call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(burstSku) }));
+ok(`10 simultaneous submits of one SKU: exactly one 201, the rest 409, no 500 (statuses ${[...new Set(doubleClick.map((r) => r.status))].sort().join(',')})`, doubleClick.filter((r) => r.status === 201).length === 1 && doubleClick.every((r) => r.status === 201 || r.status === 409));
+const burstId = sql(`select id from products where lower(sku)=lower('${burstSku}')`);
+ok('...and only the winner\'s rows exist: one product, two prices, one stock row, four audit entries (the losers rolled back whole)', sql(`select count(*) from products where lower(sku)=lower('${burstSku}')`) === '1' && sql(`select count(*) from product_pricings where product_id='${burstId}'`) === '2' && sql(`select count(*) from inventory_records where product_id='${burstId}'`) === '1' && countOf('audit_log_entries') === afterFirst.audit + 4);
+ok('...and no orphan price or stock row points at a missing product', sql(`select count(*) from product_pricings pp left join products p on p.id=pp.product_id where p.id is null`) === '0' && sql(`select count(*) from inventory_records ir left join products p on p.id=ir.product_id where p.id is null`) === '0');
+const withoutSetup = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`ALONE-${crypto.randomUUID().slice(0, 8)}`, { prices: [], stock: [] }) });
+const aloneItem = (await call('GET', '/api/products')).json.find((p) => p.id === withoutSetup.json?.id);
+ok('a product with no prices and no stock is created and shows "on request" (price null) and out of stock', withoutSetup.status === 201 && aloneItem && aloneItem.price === null && aloneItem.inStock === false, JSON.stringify(aloneItem));
+
 section('SECURITY: authorization matrix (every endpoint x every role)');
 const ID = crypto.randomUUID();
 const tokens = { anon: undefined, client: clientA.token, employee: emp, admin };
@@ -633,6 +749,7 @@ const endpoints = [
   ['GET', '/api/admin/pricing-tiers', undefined, ['admin']], ['POST', '/api/admin/pricing-tiers', { name: 'Q', isDefault: false }, ['admin']], ['PUT', `/api/admin/pricing-tiers/${ID}`, { name: 'Q', isDefault: false }, ['admin']],
   ['GET', `/api/admin/products/${ID}/pricing`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}/pricing`, { pricingTierId: ID, unitPrice: 1, minQty: 1 }, ['admin']], ['DELETE', `/api/admin/products/${ID}/pricing/${ID}/1`, undefined, ['admin']],
   ['GET', '/api/admin/products', undefined, ['admin']], ['POST', '/api/admin/products', { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} }, ['admin']],
+  ['POST', '/api/admin/products/with-setup', { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {}, prices: [], stock: [] }, ['admin']],
   ['GET', `/api/admin/products/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}`, { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} }, ['admin']], ['DELETE', `/api/admin/products/${ID}`, undefined, ['admin']],
   ['GET', '/api/admin/coverage-areas', undefined, ['admin']], ['POST', '/api/admin/coverage-areas', { warehouseId: ID, type: 'Radius', radiusMiles: 1, polygonGeoJson: null }, ['admin']],
   ['GET', `/api/admin/coverage-areas/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/coverage-areas/${ID}`, { warehouseId: ID, type: 'Radius', radiusMiles: 1, polygonGeoJson: null }, ['admin']], ['DELETE', `/api/admin/coverage-areas/${ID}`, undefined, ['admin']],
@@ -643,6 +760,8 @@ const endpoints = [
   ['PUT', '/api/admin/inventory', { productId: ID, warehouseId: ID, qtyOnHand: 1, reorderPoint: 1 }, ['admin']],
   ['GET', `/api/employee/clients/${ID}`, undefined, ['employee', 'admin']], ['GET', '/api/employee/inventory', undefined, ['employee', 'admin']],
   ['POST', '/api/employee/orders', { clientId: ID, deliveryAddress: 'x', lineItems: [{ productId: ID, qty: 1 }] }, ['employee', 'admin']],
+  ['PUT', '/api/employee/orders/999999/delivery-address', { deliveryAddressKey: ID }, ['employee', 'admin']],
+  ['PUT', '/api/quotes/999999/delivery-address', { deliveryAddressKey: ID }, ['client']],
   ['GET', '/api/employee/quotes/queue', undefined, ['employee', 'admin']], ['PUT', `/api/employee/quotes/${ID}/price`, { lineItems: [{ lineItemId: ID, finalUnitPrice: 1 }] }, ['employee', 'admin']],
   ['GET', '/api/orders/mine', undefined, ['client']], ['GET', '/api/quotes/mine', undefined, ['client']],
   ['POST', '/api/quotes', { lineItems: [{ productId: ID, qty: 1 }] }, ['client']], ['POST', `/api/quotes/${ID}/accept`, undefined, ['client']],
@@ -652,9 +771,13 @@ const endpoints = [
   ['PUT', `/api/admin/clients/${ID}/pricing-tier`, { pricingTierId: ID }, ['admin']],
   ['POST', '/api/admin/products/import', undefined, ['admin']],
   ['GET', '/api/employee/clients', undefined, ['employee', 'admin']],
+  ['GET', '/api/employee/clients/by-number/1', undefined, ['employee', 'admin']], ['GET', '/api/admin/customers/by-number/1', undefined, ['admin']],
   ['GET', '/api/admin/pending-actions', undefined, ['admin']],
   ['GET', '/api/admin/contact-messages', undefined, ['admin']], ['POST', `/api/admin/contact-messages/${ID}/handle`, undefined, ['admin']],
-  ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'X', billingAddress: 'Y', shippingAddresses: [] }, ['client']],
+  ['GET', '/api/client/profile', undefined, ['client']], ['PUT', '/api/client/profile', { companyName: 'Bar do Zé' }, ['client']], // the client's own, unchanged name: an approved customer's record is locked (403 for a change)
+  ['POST', '/api/client/addresses', addr(1), ['client']], ['PUT', `/api/client/addresses/${ID}`, addr(1), ['client']], ['DELETE', `/api/client/addresses/${ID}`, undefined, ['client']],
+  ['PUT', `/api/admin/clients/${ID}/addresses/${ID}`, addr(1), ['admin']],
+  ['PUT', `/api/admin/clients/${ID}/registration`, { companyName: 'X', accountType: 'Business' }, ['admin']], ['POST', `/api/admin/clients/${ID}/cpf/reveal`, { reason: 'Conferir cadastro' }, ['admin']],
 ];
 let matrixBad = [];
 for (const [method, path, body, allowed] of endpoints) {
@@ -694,17 +817,17 @@ ok('a client token works only for client endpoints', (await call('GET', '/api/or
 
 section('SECURITY: registration cannot be abused');
 const evilEmail = 'evil@x.test';
-const evil = await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x', role: 'Admin', roles: ['Admin'], status: 'Approved', creditLimit: 1000000, pricingTierId: vip.id, isAdmin: true } });
+const evil = await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: addr(1), role: 'Admin', roles: ['Admin'], status: 'Approved', creditLimit: 1000000, pricingTierId: vip.id, isAdmin: true } });
 const evilTok = await login(evilEmail, 'Evil-1234!');
 const evilClaims = JSON.parse(Buffer.from(evilTok.split('.')[1], 'base64url').toString());
 ok('mass assignment: extra fields cannot make a registrant an Admin', evilClaims[ROLE] === 'Client', JSON.stringify(evilClaims[ROLE]));
 const evilProfile = (await call('GET', `/api/employee/clients/${evil.json?.id}`, { token: emp })).json;
 ok('mass assignment: the tier stays the default and the status stays Pending (an extra status: Approved in the body is ignored)', evilProfile?.pricingTierName === standard.name && evilProfile?.status === 'Pending', JSON.stringify({ t: evilProfile?.pricingTierName, s: evilProfile?.status }));
 ok('registered client cannot reach admin API', (await call('GET', '/api/admin/categories', { token: evilTok })).status === 403);
-ok('duplicate email refused (400)', (await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x' } })).status === 400);
-ok('duplicate email differing only by case refused', (await call('POST', '/api/auth/register', { body: { email: evilEmail.toUpperCase(), password: 'Evil-1234!', companyName: 'Evil', billingAddress: 'x' } })).status === 400);
-ok('weak password refused (400)', (await call('POST', '/api/auth/register', { body: { email: 'weak@x.test', password: 'abc', companyName: 'W', billingAddress: 'x' } })).status === 400);
-ok('invalid email refused (400)', (await call('POST', '/api/auth/register', { body: { email: 'not-an-email', password: 'Weak-1234!', companyName: 'W', billingAddress: 'x' } })).status === 400);
+ok('duplicate email refused (400)', (await call('POST', '/api/auth/register', { body: { email: evilEmail, password: 'Evil-1234!', companyName: 'Evil', billingAddress: addr(1) } })).status === 400);
+ok('duplicate email differing only by case refused', (await call('POST', '/api/auth/register', { body: { email: evilEmail.toUpperCase(), password: 'Evil-1234!', companyName: 'Evil', billingAddress: addr(1) } })).status === 400);
+ok('weak password refused (400)', (await call('POST', '/api/auth/register', { body: { email: 'weak@x.test', password: 'abc', companyName: 'W', billingAddress: addr(1) } })).status === 400);
+ok('invalid email refused (400)', (await call('POST', '/api/auth/register', { body: { email: 'not-an-email', password: 'Weak-1234!', companyName: 'W', billingAddress: addr(1) } })).status === 400);
 ok('login with wrong password is 401', (await call('POST', '/api/auth/login', { body: { email: ADMIN.email, password: 'wrong' } })).status === 401);
 const unknownUser = await call('POST', '/api/auth/login', { body: { email: 'nobody@x.test', password: 'wrong' } });
 const wrongPw = await call('POST', '/api/auth/login', { body: { email: ADMIN.email, password: 'wrong' } });
@@ -745,6 +868,9 @@ await expectNot500('wrong content type', 'POST', '/api/auth/login', { raw: 'emai
 await expectNot500('json array instead of object', 'POST', '/api/auth/login', { raw: '[1,2,3]', headers: { 'Content-Type': 'application/json' } });
 await expectNot500('null body', 'POST', '/api/admin/products', { token: admin, raw: 'null', headers: { 'Content-Type': 'application/json' } });
 await expectNot500('empty object product', 'POST', '/api/admin/products', { token: admin, body: {} });
+await expectNot500('null body (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, raw: 'null', headers: { 'Content-Type': 'application/json' } });
+await expectNot500('wrong types (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, body: { sku: 5, name: [], prices: 'x', stock: [{ warehouseId: 'nope', qtyOnHand: 1.5 }], attributes: { a: null } } });
+await expectNot500('empty object (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, body: {} });
 await expectNot500('wrong types', 'POST', '/api/admin/products', { token: admin, body: { sku: 5, name: [], isActive: 'yes', attributes: 'x' } });
 await expectNot500('enum garbage', 'POST', '/api/admin/deals', { token: admin, body: { name: 'x', discountType: 'Bogus', discountValue: 1, startDate: iso(0), endDate: iso(1), productIds: [], categoryIds: [], minQty: 1 } });
 await expectNot500('negative quantity', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: -1 }] } });
@@ -754,7 +880,7 @@ await expectNot500('max int quantity', 'POST', '/api/quotes', { token: clientA.t
 await expectNot500('unknown product in quote', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: crypto.randomUUID(), qty: 1 }] } });
 await expectNot500('duplicate product lines in quote', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }, { productId: prod.cola.id, qty: 1 }] } });
 await expectNot500('huge line item list', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: Array.from({ length: 2000 }, () => ({ productId: prod.cola.id, qty: 1 })) } });
-await expectNot500('5 MB body', 'POST', '/api/auth/register', { raw: JSON.stringify({ email: 'big@x.test', password: 'Big-1234!', companyName: 'x'.repeat(5_000_000), billingAddress: 'x' }), headers: { 'Content-Type': 'application/json' } });
+await expectNot500('5 MB body', 'POST', '/api/auth/register', { raw: JSON.stringify({ email: 'big@x.test', password: 'Big-1234!', companyName: 'x'.repeat(5_000_000), billingAddress: addr(1) }), headers: { 'Content-Type': 'application/json' } });
 await expectNot500('unicode and emoji', 'POST', '/api/admin/categories', { token: admin, body: { name: 'Café ☕ 🍺 日本', sortOrder: 0, isActive: false } });
 await expectNot500('deal dates without a time zone', 'POST', '/api/admin/deals', { token: admin, body: { name: 'naive', discountType: 'Percent', discountValue: 5, startDate: '2026-10-01T00:00:00', endDate: '2026-12-31T00:00:00', productIds: [], categoryIds: [], minQty: 1 } });
 await expectNot500('deal dates date-only', 'POST', '/api/admin/deals', { token: admin, body: { name: 'dateonly', discountType: 'Percent', discountValue: 5, startDate: '2026-10-01', endDate: '2026-12-31', productIds: [], categoryIds: [], minQty: 1 } });
@@ -791,7 +917,7 @@ await mustBe400('product with a duplicate SKU', 'POST', '/api/admin/products', {
 await mustBe400('negative unit price', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: standard.id, unitPrice: -1, minQty: 1 } });
 await mustBe400('pricing with min quantity 0', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: standard.id, unitPrice: 1, minQty: 0 } });
 await mustBe400('pricing for an unknown tier', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: crypto.randomUUID(), unitPrice: 1, minQty: 1 } });
-await mustBe400('employee order with blank address', 'POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddress: ' ', lineItems: [{ productId: prod.cola.id, qty: 1 }] } });
+await mustBe400('employee order with a made-up address for a customer who has saved ones (MRV-9.6)', 'POST', '/api/employee/orders', { token: emp, body: { clientId: clientB.id, deliveryAddress: 'Rua Inventada 1', lineItems: [{ productId: prod.cola.id, qty: 1 }] } });
 await mustBe400('employee with weak password', 'POST', '/api/admin/employees', { token: admin, body: { email: 'weak.emp@marvi.test', password: 'abc', employeeCode: 'E-9', department: null, hireDate: iso(0) } });
 ok('every invalid business input is rejected with a 4xx', val.length === 0, val.join(' | '));
 
@@ -863,13 +989,177 @@ ok('unicode survived the round trip', q(`select count(*) from categories where n
 ok('timestamps are stored in UTC (timestamptz)', q(`select data_type from information_schema.columns where table_name='deals' and column_name='start_date'`) === 'timestamp with time zone');
 ok('money columns are numeric, not floating point', q(`select string_agg(data_type, ',') from information_schema.columns where table_name='orders' and column_name='total_amount'`) === 'numeric');
 
+
+section('REGISTRATION DATA (MRV-9.4): account types, CNPJ/CPF, lock after approval, encrypted CPF (on real Postgres)');
+// Distinct valid numbers per run: CNPJ = root + 0001 + check digits (módulo 11, ASCII-48); CPF = 9 digits + two check digits.
+const cnpjDigits = (first12) => {
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const dv = (s, w) => { const r = [...s].reduce((a, c, i) => a + (c.charCodeAt(0) - 48) * w[i], 0) % 11; return r < 2 ? 0 : 11 - r; };
+  const d1 = dv(first12, w1);
+  return `${d1}${dv(first12 + d1, w2)}`;
+};
+const mkCnpj = (root8) => { const f = root8 + '0001'; return f + cnpjDigits(f); };
+const mkCpf = (nine) => {
+  const dv = (s, from) => { const r = [...s].reduce((a, c, i) => a + Number(c) * (from - i), 0) % 11; return r < 2 ? 0 : 11 - r; };
+  const d1 = dv(nine, 10);
+  return nine + d1 + dv(nine + d1, 11);
+};
+const fmtCpf = (c) => `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`;
+const regOf = (extra = {}) => ({ phone: '(11) 91234-5678', invoiceEmail: 'nfe@empresa.test', legalName: 'Empresa Teste Ltda', tradeName: 'Empresa', stateRegistrationStatus: 'Contributor', stateRegistration: '110.042.490.114', municipalRegistration: '123', mainCnae: '4634-6/01', taxRegime: 'SimplesNacional', openingDate: '2010-05-04', contactName: 'Ana', ...extra });
+const registerRaw = (name, email, accountType, registration) => call('POST', '/api/auth/register', { body: { email, password: 'Client-1234!', companyName: name, billingAddress: addr(1), accountType, registration } });
+
+const cnpjAlpha = '12ABC34501DE35';
+const biz = await registerRaw('Empresa Alfanumérica', 'alfa@empresa.test', 'Business', regOf({ cnpj: '12.abc.345/01de-35' }));
+ok('a business account registers with an alphanumeric CNPJ from the Receita example (201), stored normalised', biz.status === 201 && sql(`select cnpj||'|'||account_type||'|'||phone||'|'||main_cnae||'|'||state_registration from client_accounts where id='${biz.json.id}'`) === `${cnpjAlpha}|0|11912345678|4634601|110042490114`);
+const bizBad = await registerRaw('Empresa Errada', 'errada@empresa.test', 'Business', regOf({ cnpj: '11222333000182' }));
+ok('a wrong CNPJ check digit is refused (400) naming the CNPJ, and no login is left behind', bizBad.status === 400 && bizBad.text.includes('CNPJ') && sql(`select count(*) from "AspNetUsers" where email='errada@empresa.test'`) === '0');
+const dupCnpj = await registerRaw('Outra Empresa', 'outra@empresa.test', 'Business', regOf({ cnpj: cnpjAlpha }));
+ok('a CNPJ already registered answers 409 with the one generic text (no CNPJ, no CPF, no name)', dupCnpj.status === 409 && dupCnpj.text.includes('Não foi possível concluir o cadastro') && !dupCnpj.text.includes('CNPJ') && !dupCnpj.text.includes('Alfanumérica'));
+const cnpjRace = mkCnpj('77000001');
+const cnpjRaceResults = await Promise.all([1, 2, 3, 4, 5, 6].map((n) => registerRaw(`Corrida ${n}`, `corrida${n}@cnpj.test`, 'Business', { cnpj: cnpjRace })));
+ok('6 simultaneous registrations of one CNPJ: exactly one 201, the rest 409, none a 500, one account and no orphan login',
+  cnpjRaceResults.filter((r) => r.status === 201).length === 1 && cnpjRaceResults.filter((r) => r.status === 409).length === 5
+  && sql(`select count(*) from client_accounts where cnpj='${cnpjRace}'`) === '1' && sql(`select count(*) from "AspNetUsers" where email like 'corrida%@cnpj.test'`) === '1', cnpjRaceResults.map((r) => r.status).join(','));
+
+const cpfRace = mkCpf('555666777');
+const cpfRaceResults = await Promise.all([1, 2, 3, 4, 5, 6].map((n) => registerRaw(`Pessoa ${n}`, `corrida${n}@cpf.test`, 'Personal', { cpf: cpfRace, birthDate: '1990-01-01' })));
+ok('6 simultaneous registrations of one CPF: exactly one 201, the rest 409, none a 500, no orphan login (the keyed hash is unique on Postgres)',
+  cpfRaceResults.filter((r) => r.status === 201).length === 1 && cpfRaceResults.filter((r) => r.status === 409).length === 5
+  && sql(`select count(*) from "AspNetUsers" where email like 'corrida%@cpf.test'`) === '1', cpfRaceResults.map((r) => r.status).join(','));
+
+const cpfA = mkCpf('123456789');
+const person = await registerRaw('João da Silva', 'joao@pessoa.test', 'Personal', { cpf: cpfA, birthDate: '1990-03-02', phone: '11 3333-4444', invoiceEmail: 'joao@pessoa.test' });
+const personToken = await login('joao@pessoa.test', 'Client-1234!');
+ok('a personal account registers with CPF and birth date (201)', person.status === 201);
+const stored = sql(`select cpf_protected||'|'||cpf_hash from client_accounts where id='${person.json.id}'`);
+ok('the CPF is stored encrypted: the column is not the number, holds none of its digits in a row, and the hash is a 64-character keyed digest',
+  !stored.includes(cpfA) && !stored.includes(cpfA.slice(0, 6)) && /^[^|]{40,}\|[0-9a-f]{64}$/.test(stored));
+ok('...no column of the database holds the plain CPF anywhere (client_accounts as text)', sql(`select count(*) from client_accounts c where c::text like '%${cpfA}%'`) === '0');
+const personOwn = (await call('GET', '/api/client/profile', { token: personToken })).json;
+ok('the customer sees their CPF masked only, with the birth date', personOwn.registration.cpfMasked === `***.${cpfA.slice(3, 6)}.${cpfA.slice(6, 9)}-**` && personOwn.registration.birthDate === '1990-03-02' && !JSON.stringify(personOwn).includes(cpfA));
+const staffView = await call('GET', `/api/employee/clients/${person.json.id}`, { token: emp });
+ok('staff (employee) see the type and the masked CPF, never the number', staffView.json.registration.accountType === 'Personal' && staffView.json.registration.cpfMasked === personOwn.registration.cpfMasked && !staffView.text.includes(cpfA));
+ok('the same CPF cannot register twice: 409 with exactly the same text as a duplicate CNPJ', await (async () => { const r = await registerRaw('Cópia', 'copia@pessoa.test', 'Personal', { cpf: cpfA, birthDate: '1990-03-02' }); return r.status === 409 && r.text === dupCnpj.text; })());
+const young = await registerRaw('Menor', 'menor@pessoa.test', 'Personal', { cpf: mkCpf('222333444'), birthDate: new Date(Date.now() - 17 * 365 * 86400000).toISOString().slice(0, 10) });
+ok('a person under 18 is refused (400) with the age rule explained', young.status === 400 && young.text.includes('18 anos') && young.text.includes('bebidas alcoólicas'));
+ok('the personal account cannot carry company fields, nor the business one a CPF (400)',
+  (await registerRaw('X', 'x1@pessoa.test', 'Personal', { cpf: mkCpf('333444555'), birthDate: '1990-01-01', cnpj: mkCnpj('88000001') })).status === 400
+  && (await registerRaw('X', 'x2@empresa.test', 'Business', { cpf: mkCpf('444555666') })).status === 400);
+
+// Lock after approval.
+await call('PUT', `/api/admin/clients/${person.json.id}/approve`, { token: admin, body: { pricingTierId: standard.id } });
+ok('after approval the customer cannot change a locked field (403 telling them to contact the company)', (await call('PUT', '/api/client/profile', { token: personToken, body: { companyName: 'Outro Nome', registration: { birthDate: '1990-03-02' } } })).status === 403);
+const phoneEdit = await call('PUT', '/api/client/profile', { token: personToken, body: { companyName: 'João da Silva', registration: { birthDate: '1990-03-02', phone: '21 98888-7777', invoiceEmail: 'novo@pessoa.test' } } });
+ok('...but can still change phone and invoice e-mail (200); the stored CPF is kept when left out', phoneEdit.status === 200 && phoneEdit.json.registration.phone === '21988887777' && phoneEdit.json.registration.hasCpf === true && phoneEdit.json.registrationLocked === true);
+
+// Admin full control, audited; reveal audited; keys survive a restart.
+const adminEdit = await call('PUT', `/api/admin/clients/${person.json.id}/registration`, { token: admin, body: { companyName: 'João Pedro da Silva', accountType: 'Personal', registration: { birthDate: '1990-03-02' } } });
+ok('an admin changes the verified record (200)', adminEdit.status === 200 && sql(`select company_name from client_accounts where id='${person.json.id}'`) === 'João Pedro da Silva');
+ok('...it is audited with before and after, and the audit trail holds no full CPF', sql(`select count(*) from audit_log_entries where entity_id='${person.json.id}' and action='Update' and details::text like '%Before%' and details::text like '%After%'`) === '1'
+  && sql(`select count(*) from audit_log_entries where details::text like '%${cpfA}%' or details::text like '%${fmtCpf(cpfA)}%'`) === '0');
+ok('changing the account type needs a confirmation (409)', (await call('PUT', `/api/admin/clients/${person.json.id}/registration`, { token: admin, body: { companyName: 'Empresa', accountType: 'Business', registration: { cnpj: mkCnpj('99000001') } } })).status === 409);
+const noReason = await call('POST', `/api/admin/clients/${person.json.id}/cpf/reveal`, { token: admin, body: { reason: 'x' } });
+ok('"Mostrar CPF" without a reason of 3 to 200 characters is refused (400) naming the field', noReason.status === 400 && noReason.json[0].field === 'reason');
+const reveal = await call('POST', `/api/admin/clients/${person.json.id}/cpf/reveal`, { token: admin, body: { reason: 'Conferir cadastro' } });
+ok('"Mostrar CPF" is admin-only, answers the full formatted CPF with no-store, and is audited with the masked CPF only',
+  reveal.status === 200 && reveal.json.cpf === fmtCpf(cpfA) && (reveal.headers.get('cache-control') ?? '').includes('no-store')
+  && (await call('POST', `/api/admin/clients/${person.json.id}/cpf/reveal`, { token: emp, body: { reason: 'Conferir cadastro' } })).status === 403
+  && sql(`select count(*) from audit_log_entries where entity_id='${person.json.id}' and action='Reveal' and details::text like '%***.%' and details::text like '%Conferir cadastro%'`) === '1');
+execSync('docker compose -f deploy/docker-compose.yml restart api', { cwd: ROOT, stdio: 'ignore' });
+for (let i = 0; i < 60; i++) { try { if ((await fetch(API + '/health')).status === 200) break; } catch { /* still starting */ } await new Promise((r) => setTimeout(r, 2000)); }
+const adminAfter = await login(ADMIN.email, ADMIN.password);
+const revealAfter = await call('POST', `/api/admin/clients/${person.json.id}/cpf/reveal`, { token: adminAfter, body: { reason: 'Depois do reinício' } });
+ok('the Data Protection keys survive an API restart: the stored CPF still decrypts afterwards', revealAfter.status === 200 && revealAfter.json.cpf.replace(/\D/g, '') === cpfA);
+ok('the profile responses carry no-store (they hold the birth date and the CPF mask)', (await call('GET', '/api/client/profile', { token: personToken })).headers.get('cache-control')?.includes('no-store') === true);
+ok('the CPF hash key canary is stored once as a 64-character fingerprint, not the key', sql(`select count(*) from app_settings where key='cpf_hash_key_fingerprint' and value ~ '^[0-9a-f]{64}$'`) === '1');
+ok('...and the keys live on the mounted volume, not in the repository', execSync('docker compose -f deploy/docker-compose.yml exec -T api ls /keys', { cwd: ROOT, encoding: 'utf8' }).includes('key-'));
+
+section('DELIVERY ADDRESS (MRV-9.6): the customer chooses where a quote and an order are delivered; the document keeps a copy (on real Postgres)');
+const newAddress = async (token, label, over = {}) => (await call('POST', '/api/client/addresses', { token, body: {
+  label, kind: 'Delivery', postalCode: '13010-111', street: 'Rua ' + label, number: '200', complement: 'Sala 3', district: 'Centro', city: 'Campinas', state: 'SP', deliveryNotes: 'Entregar de manhã', ...over } })).json;
+const aMain = (await call('GET', '/api/client/profile', { token: clientA.token })).json.addresses[0];
+const aFilial = await newAddress(clientA.token, 'Filial 96');
+const aDepot = await newAddress(clientA.token, 'Deposito 96', { number: '300', postalCode: '07190-100' });
+const aBillingOnly = await newAddress(clientA.token, 'Só cobrança 96', { kind: 'Billing', number: '400' });
+const dline = [{ productId: prod.cola.id, qty: 2 }];
+const dq = await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: aFilial.key } });
+ok('a quote asked for a chosen address (201) carries a copy of it', dq.status === 201 && dq.json.deliveryAddressSnapshot?.label === 'Filial 96' && dq.json.deliveryAddressSnapshot?.city === 'Campinas', JSON.stringify(dq.json?.deliveryAddressSnapshot));
+ok('...with no address key or id in the answer', !JSON.stringify(dq.json.deliveryAddressSnapshot).includes(aFilial.key));
+const dqDefault = await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline } });
+ok('without a key the quote goes to the default delivery address', dqDefault.status === 201 && dqDefault.json.deliveryAddressSnapshot?.label === aMain.label, JSON.stringify(dqDefault.json?.deliveryAddressSnapshot?.label));
+ok('the database holds the copy and the link on the quote', q(`select delivery_address_label || '|' || delivery_address_city || '|' || (delivery_address_id is not null) from quotes where number = ${dq.json.number}`) === 'Filial 96|Campinas|true');
+const bKey = bAddress.key;
+ok('another customer\'s address key is 404, an unknown key is 404, a billing-only address is 400 (nothing created)',
+  (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: bKey } })).status === 404
+  && (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: crypto.randomUUID() } })).status === 404
+  && (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: aBillingOnly.key } })).status === 400);
+const noDelivery = await registerClient('Sem Endereço de Entrega', 'sem.entrega@test.test');
+q(`delete from client_addresses where client_account_id = '${noDelivery.id}'`);
+const noDeliveryQuote = await call('POST', '/api/quotes', { token: noDelivery.token, body: { lineItems: dline } });
+ok('a customer migrated without any address is told to register one (400), not an error', noDeliveryQuote.status === 400 && noDeliveryQuote.text === 'Cadastre um endereço de entrega.', `${noDeliveryQuote.status} ${noDeliveryQuote.text}`);
+const dChange = await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aDepot.key } });
+ok('the customer changes the address while the quote waits for its price (200)', dChange.status === 200 && dChange.json.deliveryAddressSnapshot?.label === 'Deposito 96', String(dChange.status));
+ok('someone else\'s quote, or someone else\'s address, is 404', (await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientB.token, body: { deliveryAddressKey: bKey } })).status === 404
+  && (await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: bKey } })).status === 404);
+const dPriced = await call('PUT', `/api/employee/quotes/${dq.json.id}/price`, { token: emp, body: { lineItems: dq.json.lineItems.map((l) => ({ lineItemId: l.id, finalUnitPrice: 4.5 })) } });
+ok('the employee prices it (200)', dPriced.status === 200, String(dPriced.status));
+ok('the customer can still change the address while it is priced (200)', (await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aFilial.key } })).status === 200);
+const dAccepted = await call('POST', `/api/quotes/${dq.json.id}/accept`, { token: clientA.token });
+ok('accepting copies the quote\'s address to the order, with the link to the quote', dAccepted.status === 201 && dAccepted.json.deliveryAddressSnapshot?.label === 'Filial 96' && dAccepted.json.quoteId === dq.json.id && dAccepted.json.deliveryAddress.includes('Rua Filial 96'), JSON.stringify(dAccepted.json?.deliveryAddressSnapshot));
+ok('after accepting, the address can no longer be changed (409)', (await call('PUT', `/api/quotes/${dq.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aDepot.key } })).status === 409);
+// Editing an address and removing one change nothing already made.
+await call('PUT', `/api/client/addresses/${aFilial.key}`, { token: clientA.token, body: { label: 'Filial 96 (nova)', kind: 'Delivery', postalCode: '13010-111', street: 'Rua Mudada', number: '200', complement: 'Sala 3', district: 'Centro', city: 'Campinas', state: 'SP' } });
+const afterEdit = (await call('GET', '/api/orders/mine', { token: clientA.token })).json.find((o) => o.id === dAccepted.json.id);
+ok('editing the address afterwards leaves the order as it was', afterEdit.deliveryAddressSnapshot?.label === 'Filial 96' && afterEdit.deliveryAddressSnapshot?.street === 'Rua Filial 96' && afterEdit.deliveryAddress === dAccepted.json.deliveryAddress);
+const depotQuote = await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline, deliveryAddressKey: aDepot.key } });
+const depotOrder = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientA.id, deliveryAddressKey: aDepot.key, lineItems: dline } });
+ok('staff place an order for the chosen address of that customer (201) with the copy', depotOrder.status === 201 && depotOrder.json.deliveryAddressSnapshot?.label === 'Deposito 96', String(depotOrder.status));
+ok('removing the address clears the link on the quote and the order but keeps the copy (ON DELETE SET NULL)',
+  (await call('DELETE', `/api/client/addresses/${aDepot.key}`, { token: clientA.token })).status === 204
+  && q(`select (delivery_address_id is null) || '|' || delivery_address_label from orders where number = ${depotOrder.json.number}`) === 'true|Deposito 96'
+  && q(`select (delivery_address_id is null) || '|' || delivery_address_label from quotes where number = ${depotQuote.json.number}`) === 'true|Deposito 96');
+// Staff: choose from the customer's own addresses, amend before shipping, audited.
+ok('staff cannot use another customer\'s address (404) or make one up for a customer who has saved ones (400)',
+  (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientA.id, deliveryAddressKey: bKey, lineItems: dline } })).status === 404
+  && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientA.id, deliveryAddress: 'Rua Inventada', lineItems: dline } })).status === 400);
+const legacyOrder = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'Rua Antiga 5, Campinas', lineItems: dline } });
+ok('a customer with no saved address still gets an order with the old free text (legacy fallback), without a copy', legacyOrder.status === 201 && legacyOrder.json.deliveryAddress === 'Rua Antiga 5, Campinas' && legacyOrder.json.deliveryAddressSnapshot === null, JSON.stringify(legacyOrder.json?.deliveryAddress));
+const amend = await call('PUT', `/api/employee/orders/${depotOrder.json.number}/delivery-address`, { token: emp, body: { deliveryAddressKey: aMain.key } });
+ok('staff amend the address of an order that is not shipped yet (200)', amend.status === 200 && amend.json.deliveryAddressSnapshot?.label === aMain.label && q(`select delivery_address_label from orders where number = ${depotOrder.json.number}`) === aMain.label, String(amend.status));
+ok('an amend with another customer\'s address is 404', (await call('PUT', `/api/employee/orders/${depotOrder.json.number}/delivery-address`, { token: emp, body: { deliveryAddressKey: bKey } })).status === 404);
+q(`update orders set status = 2 where number = ${depotOrder.json.number}`);
+ok('once the order is shipped or delivered the address cannot be amended (409)', (await call('PUT', `/api/employee/orders/${depotOrder.json.number}/delivery-address`, { token: emp, body: { deliveryAddressKey: aFilial.key } })).status === 409
+  && q(`select delivery_address_label from orders where number = ${depotOrder.json.number}`) === aMain.label);
+ok('the amend is in the audit log with the order number, before and after', q(`select count(*) from audit_log_entries where entity_name = 'Order' and details::text like '%DeliveryAddress%' and details::text like '%Deposito 96%'`) === '1');
+// A quote made before MRV-9.6 has no address: it cannot be accepted until the customer picks one (an order never has an empty address).
+const oldQuote = (await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: dline } })).json;
+q(`update quotes set delivery_address_id = null, delivery_address_label = null, delivery_address_street = null, delivery_address_number = null, delivery_address_city = null, delivery_address_state = null, delivery_address_postal_code = null, delivery_address_district = null where number = ${oldQuote.number}`);
+await call('PUT', `/api/employee/quotes/${oldQuote.id}/price`, { token: emp, body: { lineItems: oldQuote.lineItems.map((l) => ({ lineItemId: l.id, finalUnitPrice: 4.5 })) } });
+const oldRefused = await call('POST', `/api/quotes/${oldQuote.id}/accept`, { token: clientA.token });
+ok('a priced quote with no address cannot be accepted (409 with the message); no order is created', oldRefused.status === 409 && oldRefused.text === 'Escolha o endereço de entrega antes de aceitar o orçamento.' && q(`select count(*) from orders where quote_id = '${oldQuote.id}'`) === '0', `${oldRefused.status} ${oldRefused.text}`);
+ok('...the customer picks an address (200) and then accepts (201) with a non-empty address', (await call('PUT', `/api/quotes/${oldQuote.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aMain.key } })).status === 200
+  && (await call('POST', `/api/quotes/${oldQuote.id}/accept`, { token: clientA.token })).status === 201
+  && q(`select length(delivery_address) > 0 from orders where quote_id = '${oldQuote.id}'`) === 't');
+ok('the legacy free text of a staff order is capped at 500 characters and refuses control characters (400), and 500 fits on real Postgres',
+  (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'a'.repeat(501), lineItems: dline } })).status === 400
+  && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'Rua' + String.fromCharCode(10) + 'A', lineItems: dline } })).status === 400
+  && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'b'.repeat(500), lineItems: dline } })).status === 201);
+const concurrentAmend = await Promise.all([1, 2, 3].map(() => call('PUT', `/api/quotes/${depotQuote.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aMain.key } })));
+ok('parallel changes of one quote answer 200 or 409, never 500', concurrentAmend.every((r) => [200, 409].includes(r.status)), concurrentAmend.map((r) => r.status).join(','));
+
 section('AUDIT TRAIL');
 const audit = (await call('GET', '/api/admin/audit-log?pageSize=500', { token: admin })).json;
 const adminUserId = q(`select id from "AspNetUsers" where email='${ADMIN.email}'`);
 ok('audit log has entries for the seeding mutations', audit.length > 40, `entries=${audit.length}`);
-ok('every audit entry names the acting admin', audit.every((a) => a.actorUserId === adminUserId), `${audit.filter((a) => a.actorUserId !== adminUserId).length} entries with another actor`);
+// A customer's own address changes are audited too (MRV-9.3), under the customer's user id; every other entry is an admin's.
+// ...and so is a staff member's amend of an order's address (MRV-9.6), under the employee's user id.
+const amendEntries = audit.filter((a) => a.entityName === 'Order' && a.details.data?.includes('"Field":"DeliveryAddress"'));
+const others = audit.filter((a) => a.entityName !== 'ClientAddress' && !amendEntries.includes(a));
+ok('the amend of the delivery address of an order names the employee who made it', amendEntries.length === 1 && amendEntries[0].actorUserId === q(`select id from "AspNetUsers" where email='${emp1Email}'`), `entries=${amendEntries.length}`);
+ok('every admin audit entry names the acting admin', others.every((a) => a.actorUserId === adminUserId), `${others.filter((a) => a.actorUserId !== adminUserId).length} entries with another actor`);
+ok('customer address changes name the customer who made them (not an admin, never empty)', audit.filter((a) => a.entityName === 'ClientAddress' && a.details.data?.includes('"By":"Customer"')).every((a) => a.actorUserId !== adminUserId && a.actorUserId !== '00000000-0000-0000-0000-000000000000'));
 const actions = new Set(audit.map((a) => `${a.action}:${a.entityName}`));
-for (const need of ['Create:Product', 'Create:Category', 'Create:Deal', 'Create:Warehouse', 'Create:CoverageArea', 'Upsert:ProductPricing', 'Upsert:InventoryRecord', 'Approve:ClientAccount', 'Suspend:ClientAccount', 'Create:EmployeeAccount', 'Create:PricingTier']) {
+for (const need of ['Create:Product', 'Create:Category', 'Create:Deal', 'Create:Warehouse', 'Create:CoverageArea', 'Upsert:ProductPricing', 'Upsert:InventoryRecord', 'Approve:ClientAccount', 'Suspend:ClientAccount', 'Update:ClientAccount', 'Reveal:ClientAccount', 'Create:EmployeeAccount', 'Create:PricingTier']) {
   ok(`audited: ${need}`, actions.has(need));
 }
 const auditDump = JSON.stringify(audit);
@@ -878,7 +1168,8 @@ ok('audit log never contains any password', !/Vendas-1234|Client-1234|Evil-1234|
 const auditPage = await call('GET', '/api/admin/audit-log?page=1&pageSize=2', { token: admin });
 ok('the audit log reports its total size in a header, whatever the page size (for the paging screen)', auditPage.json.length === 2 && Number(auditPage.headers.get('x-total-count')) >= audit.length);
 ok('audit entries are newest-first', audit.every((a, i) => i === 0 || Date.parse(audit[i - 1].timestamp) >= Date.parse(a.timestamp)));
-ok('employee/client actions that are not admin mutations are not in the admin audit trail', !audit.some((a) => a.entityName === 'Quote' || a.entityName === 'Order'));
+// Quotes and orders are not admin mutations; the one exception is staff amending the address of an order (MRV-9.6), audited with before and after.
+ok('employee/client actions that are not admin mutations are not in the admin audit trail', !audit.some((a) => a.entityName === 'Quote' || (a.entityName === 'Order' && !a.details.data?.includes('"Field":"DeliveryAddress"'))));
 ok('audit rows exist in the database', Number(q(`select count(*) from audit_log_entries`)) >= audit.length);
 
 // ---------------------------------------------------------------- result

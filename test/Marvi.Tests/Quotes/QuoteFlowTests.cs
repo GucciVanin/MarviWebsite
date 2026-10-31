@@ -93,17 +93,17 @@ public class QuoteFlowTests : IClassFixture<MarviApiFactory>
         var unpriced = await CreateProductAsync(admin);
 
         var ok = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientAccountId, "1 Main St", [new EmployeeOrderLineItemRequest(priced, 2)]));
+            new CreateEmployeeOrderRequest(clientAccountId, null, [new EmployeeOrderLineItemRequest(priced, 2)]));
         Assert.Equal(HttpStatusCode.Created, ok.StatusCode);
         Assert.Equal(24m, (await ok.Content.ReadFromJsonAsync<OrderDto>())!.TotalAmount);
 
         var free = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientAccountId, "1 Main St", [new EmployeeOrderLineItemRequest(unpriced, 1)]));
+            new CreateEmployeeOrderRequest(clientAccountId, null, [new EmployeeOrderLineItemRequest(unpriced, 1)]));
         Assert.Equal(HttpStatusCode.BadRequest, free.StatusCode);
 
-        var noAddress = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(clientAccountId, " ", [new EmployeeOrderLineItemRequest(priced, 1)]));
-        Assert.Equal(HttpStatusCode.BadRequest, noAddress.StatusCode);
+        var inventedAddress = await admin.PostAsJsonAsync("/api/employee/orders",
+            new CreateEmployeeOrderRequest(clientAccountId, "Rua Inventada, 1", [new EmployeeOrderLineItemRequest(priced, 1)]));
+        Assert.Equal(HttpStatusCode.BadRequest, inventedAddress.StatusCode); // staff do not invent an address for a customer who has structured ones
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class QuoteFlowTests : IClassFixture<MarviApiFactory>
     {
         var email = $"{Guid.NewGuid()}@example.com";
         var anonymous = _factory.CreateClient();
-        var register = await anonymous.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        var register = await anonymous.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         register.EnsureSuccessStatusCode();
         var clientAccountId = JsonDocument.Parse(await register.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
         // A new customer is Pending: an admin approves them (with the default tier) before they can transact.

@@ -42,7 +42,7 @@ public static class TestClients
     public static async Task<(HttpClient Client, Guid AccountId)> RegisterPendingClientAsync(this MarviApiFactory factory)
     {
         var email = $"{Guid.NewGuid()}@example.com";
-        var register = await factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        var register = await factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         register.EnsureSuccessStatusCode();
         var id = (await register.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
         return (await factory.LoginAsync(email, "Test1234!"), id);

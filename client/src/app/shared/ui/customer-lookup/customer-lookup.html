@@ -1,0 +1,79 @@
+<button
+  #trigger
+  type="button"
+  class="btn btn--outline btn--small"
+  aria-haspopup="dialog"
+  [attr.aria-expanded]="open()"
+  [attr.aria-controls]="open() ? id : null"
+  (click)="toggle()"
+>{{ label() }}</button>
+@if (open()) {
+  <div
+    #panel
+    class="lookup"
+    data-popover
+    role="dialog"
+    tabindex="-1"
+    [id]="id"
+    [attr.aria-labelledby]="titleId"
+    [attr.aria-busy]="loadAction.busy()"
+    (keydown.tab)="trapTab($event)"
+    (keydown.shift.tab)="trapTab($event)"
+  >
+    <div class="lookup__head">
+      <h3 [id]="titleId">{{ title() }}</h3>
+      <button type="button" class="btn btn--outline btn--small" (click)="close()">{{ t.close }}</button>
+    </div>
+
+    @if (loadAction.busy() && !profile()) {
+      <p role="status" class="muted">{{ t.loading }}</p>
+    }
+    <app-error-alert [error]="loadAction.error()" [retryable]="true" (retry)="load()" />
+
+    @if (profile(); as customer) {
+      <dl class="lookup__facts" data-testid="lookup-facts">
+        <div><dt>{{ t.number }}</dt><dd>{{ customer.customerNumber | customerNumber }}</dd></div>
+        <div>
+          <dt>{{ t.status }}</dt>
+          <dd>
+            <span class="badge" [class.badge--ok]="customer.status === 'Approved'" [class.badge--bad]="customer.status !== 'Approved'">
+              {{ statuses[customer.status] ?? customer.status }}
+            </span>
+          </dd>
+        </div>
+        <div><dt>{{ t.since }}</dt><dd>{{ customer.createdAt | ptDate }}</dd></div>
+        <div><dt>{{ t.tier }}</dt><dd>{{ customer.pricingTierName ?? t.none }}</dd></div>
+      </dl>
+      <dl class="lookup__facts" data-testid="lookup-registration" appRegistrationFacts [registration]="customer.registration"></dl>
+      <dl class="lookup__facts">
+        <div class="lookup__wide"><dt>{{ t.billing }}</dt><dd data-testid="lookup-billing">{{ billing() ? (billing() | address) : t.none }}</dd></div>
+        <div class="lookup__wide"><dt>{{ t.defaultDelivery }}</dt><dd data-testid="lookup-default-delivery">{{ defaultDelivery() ? defaultDelivery()!.label + ': ' + (defaultDelivery() | address) : t.none }}</dd></div>
+        <div class="lookup__wide">
+          <dt>{{ t.deliveryAddresses }}</dt>
+          <dd>
+            @if (others().length === 0) {
+              {{ t.none }}
+            } @else {
+              <ul class="lookup__addresses" data-testid="lookup-others">
+                @for (other of others(); track other.key) {
+                  <li><strong>{{ other.label }}:</strong> {{ other | address }}</li>
+                }
+              </ul>
+            }
+          </dd>
+        </div>
+        <div><dt>{{ t.email }}</dt><dd>{{ customer.contactEmail || t.none }}</dd></div>
+        <div><dt>{{ t.openQuotes }}</dt><dd>{{ counts()?.quotes }}</dd></div>
+        <div><dt>{{ t.openOrders }}</dt><dd>{{ counts()?.orders }}</dd></div>
+      </dl>
+      <a
+        class="btn btn--primary btn--small"
+        data-testid="open-customer-page"
+        target="_blank"
+        rel="noopener noreferrer"
+        [attr.aria-label]="t.openPage + ' ' + t.newTab"
+        [routerLink]="['/employee/clientes', pageNumber()]"
+      >{{ t.openPage }}</a>
+    }
+  </div>
+}

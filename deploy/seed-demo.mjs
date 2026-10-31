@@ -9,6 +9,9 @@
 //     mercado@demo.marvi.test    Mercado Atacadão Demo            Approved, Atacado tier, has an order
 //     pendente@demo.marvi.test   Mercearia Aguardando Aprovação   Pending (try "Aprovar" in the admin area)
 //     suspenso@demo.marvi.test   Loja Suspensa Demo               Suspended
+//     pessoa@demo.marvi.test     João da Silva (conta pessoal)    Approved, Standard tier, a personal account with CPF and birth date
+//   Business accounts carry a CNPJ and the rest of the company data (the Pending one has only a CNPJ, so the completeness indicator shows what is missing;
+//   the wholesale market has the Receita's alphanumeric CNPJ example). The numbers are the usual public test numbers, not real people or companies.
 //
 // Catalog: 4 categories, 8 products (one without a price, one out of stock), prices in two tiers, stock in two warehouses
 // with coverage areas, and one running deal.
@@ -95,37 +98,57 @@ await call('POST', '/api/admin/deals', admin, {
 // ---- people
 await call('POST', '/api/admin/employees', admin, { email: EMPLOYEE.email, password: EMPLOYEE.password, employeeCode: 'FUNC-001', department: 'Vendas', hireDate: new Date().toISOString() });
 const customers = {};
-for (const [key, email, companyName] of [
-  ['bar', 'cliente@demo.marvi.test', 'Bar do Demo'],
-  ['mercado', 'mercado@demo.marvi.test', 'Mercado Atacadão Demo'],
-  ['pendente', 'pendente@demo.marvi.test', 'Mercearia Aguardando Aprovação'],
-  ['suspenso', 'suspenso@demo.marvi.test', 'Loja Suspensa Demo'],
+// Registration data (MRV-9.4): the account type and its fields. The CNPJs and the CPF are public test numbers with valid check digits.
+const company = (over) => ({
+  phone: '(11) 3333-4444', invoiceEmail: 'nfe@demo.marvi.test', legalName: 'Demo Comércio de Bebidas Ltda', tradeName: 'Demo', stateRegistrationStatus: 'Contributor',
+  stateRegistration: '110.042.490.114', municipalRegistration: '1.234.567-8', mainCnae: '4723-7/00', taxRegime: 'SimplesNacional', openingDate: '2012-03-15', contactName: 'Responsável Demo', ...over,
+});
+// Each customer registers with a structured billing address (MRV-9.3): [key, email, name, street, number, district, CEP, account type, registration].
+for (const [key, email, companyName, street, number, district, postalCode, accountType, registration] of [
+  ['bar', 'cliente@demo.marvi.test', 'Bar do Demo', 'Rua Augusta', '1200', 'Consolação', '01304-001', 'Business', company({ cnpj: '11.222.333/0001-81', tradeName: 'Bar do Demo', legalName: 'Bar do Demo Ltda' })],
+  ['mercado', 'mercado@demo.marvi.test', 'Mercado Atacadão Demo', 'Avenida Paulista', '900', 'Bela Vista', '01310-100', 'Business', company({ cnpj: '12.ABC.345/01DE-35', legalName: 'Mercado Atacadão Demo S.A.', tradeName: 'Atacadão Demo', taxRegime: 'LucroPresumido' })],
+  ['pendente', 'pendente@demo.marvi.test', 'Mercearia Aguardando Aprovação', 'Rua da Consolação', '45', 'Centro', '01302-000', 'Business', { cnpj: '11.444.777/0001-61' }],
+  ['suspenso', 'suspenso@demo.marvi.test', 'Loja Suspensa Demo', 'Rua Oscar Freire', '300', 'Jardins', '01426-001', 'Business', company({ stateRegistrationStatus: 'Exempt', stateRegistration: null })],
+  ['pessoa', 'pessoa@demo.marvi.test', 'João da Silva', 'Rua Haddock Lobo', '595', 'Cerqueira César', '01414-001', 'Personal', { cpf: '111.444.777-35', birthDate: '1990-03-02', phone: '(11) 98888-7777', invoiceEmail: 'joao@demo.marvi.test' }],
 ]) {
-  const { id } = await call('POST', '/api/auth/register', null, { email, password: CUSTOMER_PASSWORD, companyName, billingAddress: `Rua ${companyName.split(' ')[0]}, 1, São Paulo, SP` });
+  const { id } = await call('POST', '/api/auth/register', null, {
+    email, password: CUSTOMER_PASSWORD, companyName,
+    billingAddress: { label: 'Matriz', postalCode, street, number, district, city: 'São Paulo', state: 'SP' },
+    accountType, registration,
+  });
   customers[key] = { id, email, token: await login({ email, password: CUSTOMER_PASSWORD }) };
 }
 // Registration leaves a customer Pending: the admin approves, choosing the tier (nobody is approved by default).
 await call('PUT', `/api/admin/clients/${customers.bar.id}/approve`, admin, { pricingTierId: standard.id });
 await call('PUT', `/api/admin/clients/${customers.mercado.id}/approve`, admin, { pricingTierId: atacado.id });
+await call('PUT', `/api/admin/clients/${customers.pessoa.id}/approve`, admin, { pricingTierId: standard.id });
 await call('PUT', `/api/admin/clients/${customers.suspenso.id}/approve`, admin, { pricingTierId: standard.id });
 await call('PUT', `/api/admin/clients/${customers.suspenso.id}/suspend`, admin);
-await call('PUT', '/api/client/profile', customers.bar.token, {
-  companyName: 'Bar do Demo', billingAddress: 'Rua do Bar, 1, São Paulo, SP', shippingAddresses: ['Rua do Bar, 1, São Paulo, SP', 'Av. das Flores, 200, Campinas, SP'],
+// The bar keeps a second address of each kind besides its headquarters (Both: billing and default delivery): a delivery point and a branch.
+await call('POST', '/api/client/addresses', customers.bar.token, {
+  label: 'Filial Campinas', kind: 'Delivery', postalCode: '13010-111', street: 'Avenida das Flores', number: '200', complement: 'Loja 2', district: 'Centro', city: 'Campinas', state: 'SP',
+  deliveryNotes: 'Entregas de segunda a sexta, das 8h às 12h.',
+});
+await call('POST', '/api/client/addresses', customers.bar.token, {
+  label: 'Depósito Guarulhos', kind: 'Delivery', postalCode: '07190-100', street: 'Rua do Depósito', number: 's/n', district: 'Cumbica', city: 'Guarulhos', state: 'SP',
 });
 
 // ---- quotes and orders
 const employee = await login(EMPLOYEE);
-const quote = (token, lines) => call('POST', '/api/quotes', token, { lineItems: lines.map(([sku, qty]) => ({ productId: products[sku].id, qty })) });
+// A quote is delivered to the address the customer chooses (MRV-9.6); without a key it goes to their default delivery address.
+const quote = (token, lines, deliveryAddressKey = undefined) => call('POST', '/api/quotes', token, { lineItems: lines.map(([sku, qty]) => ({ productId: products[sku].id, qty })), deliveryAddressKey });
+const barAddresses = (await call('GET', '/api/client/profile', customers.bar.token)).addresses;
+const barAddress = (label) => barAddresses.find((a) => a.label === label).key;
 const priceQuote = (q, discount = 0) => call('PUT', `/api/employee/quotes/${q.id}/price`, employee, {
   lineItems: q.lineItems.map((line) => ({ lineItemId: line.id, finalUnitPrice: Math.round((line.suggestedUnitPrice ?? 0) * (1 - discount) * 100) / 100 })),
 });
 // A priced quote waiting for the customer to accept it, and a new one waiting in the employee's queue.
-await priceQuote(await quote(customers.bar.token, [['REFRI-COLA-2L', 12], ['AGUA-500', 24]]), 0.05);
+await priceQuote(await quote(customers.bar.token, [['REFRI-COLA-2L', 12], ['AGUA-500', 24]], barAddress('Filial Campinas')), 0.05);
 await quote(customers.bar.token, [['CERV-LAGER-600', 10]]);
 // An accepted quote (an order made by the customer) and an order the employee placed directly.
 const accepted = await priceQuote(await quote(customers.mercado.token, [['CERV-PILSEN-350', 48], ['ENERG-250', 12]]));
 await call('POST', `/api/quotes/${accepted.id}/accept`, customers.mercado.token);
-await call('POST', '/api/employee/orders', employee, { clientId: customers.bar.id, deliveryAddress: 'Rua do Bar, 1, São Paulo, SP', lineItems: [{ productId: products['AGUA-GAS-500'].id, qty: 36 }] });
+await call('POST', '/api/employee/orders', employee, { clientId: customers.bar.id, deliveryAddressKey: barAddress('Depósito Guarulhos'), lineItems: [{ productId: products['AGUA-GAS-500'].id, qty: 36 }] });
 
-console.log('Demo data created: 4 categories, 8 products, 2 warehouses, 1 deal, 1 employee, 4 customers, quotes and orders.');
-console.log(`Sign in as the admin (${ADMIN.email}), the employee (${EMPLOYEE.email}) or a customer (cliente@, mercado@, pendente@, suspenso@demo.marvi.test).`);
+console.log('Demo data created: 4 categories, 8 products, 2 warehouses, 1 deal, 1 employee, 5 customers (4 companies, 1 person), quotes and orders.');
+console.log(`Sign in as the admin (${ADMIN.email}), the employee (${EMPLOYEE.email}) or a customer (cliente@, mercado@, pendente@, suspenso@, pessoa@demo.marvi.test).`);

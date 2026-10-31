@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, map, of, throwError } from 'rxjs';
+import type { ClientAddress, ClientAddressRequest } from '../../../shared/models/client-address.model';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
+import type { AccountType, Registration, RegistrationRequest } from '../../../shared/models/registration.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 
 export interface CreateEmployeeRequest {
@@ -32,6 +34,14 @@ export interface UpdateClientTierRequest {
   pricingTierId: string;
 }
 
+/** An admin's edit of a customer's registration record (MRV-9.4); a changed account type needs `confirmTypeChange`. A CPF left out stays as stored. */
+export interface UpdateClientRegistrationRequest {
+  companyName: string;
+  accountType: AccountType;
+  registration: RegistrationRequest;
+  confirmTypeChange: boolean;
+}
+
 /** Approving is the admin's explicit choice of the customer's pricing tier: nobody is approved by default. */
 export interface ApproveClientRequest {
   pricingTierId: string;
@@ -56,6 +66,12 @@ export interface UpsertProductRequest {
   imageUrl: string | null;
   isActive: boolean;
   attributes: Record<string, string>;
+}
+
+/** The guided "Novo produto" (MRV-9.5): the product plus a price per tier and a quantity per warehouse; a row with null is skipped. */
+export interface CreateProductWithSetupRequest extends UpsertProductRequest {
+  prices: { pricingTierId: string; unitPrice: number | null }[];
+  stock: { warehouseId: string; qtyOnHand: number | null }[];
 }
 
 export interface CategoryAdmin {
@@ -176,6 +192,8 @@ export interface AuditLogEntry {
   action: string;
   entityName: string;
   entityId: string;
+  /** The customer, quote or order number when the entity is one of those, else null. */
+  entityNumber: number | null;
   timestamp: string;
   details: Record<string, string>;
 }
@@ -202,6 +220,20 @@ export class AdminService {
 
   updateClientTier(id: string, request: UpdateClientTierRequest): Observable<void> {
     return this.http.put<void>(`/api/admin/clients/${id}/pricing-tier`, request);
+  }
+
+  updateClientRegistration(id: string, request: UpdateClientRegistrationRequest): Observable<Registration> {
+    return this.http.put<Registration>(`/api/admin/clients/${id}/registration`, request);
+  }
+
+  /** Shows the full CPF of a customer. The admin says why (3 to 200 characters); the API writes an audit entry with the reason before it answers. */
+  revealClientCpf(id: string, reason: string): Observable<{ cpf: string }> {
+    return this.http.post<{ cpf: string }>(`/api/admin/clients/${id}/cpf/reveal`, { reason });
+  }
+
+  /** An admin fixes one of a customer's addresses (MRV-9.3); the same rules as the customer's own edit, audited. */
+  updateClientAddress(id: string, key: string, request: ClientAddressRequest): Observable<ClientAddress> {
+    return this.http.put<ClientAddress>(`/api/admin/clients/${id}/addresses/${key}`, request);
   }
 
   /** The customer directory (`GET /api/employee/clients`, which admins may use too), one page. */
@@ -286,6 +318,10 @@ export class AdminService {
 
   createProduct(request: UpsertProductRequest): Observable<ProductAdmin> {
     return this.http.post<ProductAdmin>('/api/admin/products', request);
+  }
+
+  createProductWithSetup(request: CreateProductWithSetupRequest): Observable<ProductAdmin> {
+    return this.http.post<ProductAdmin>('/api/admin/products/with-setup', request);
   }
 
   updateProduct(id: string, request: UpsertProductRequest): Observable<void> {

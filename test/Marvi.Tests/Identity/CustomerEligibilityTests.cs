@@ -66,7 +66,7 @@ public class CustomerEligibilityTests : IClassFixture<MarviApiFactory>
         await _factory.SetClientStatusAsync(accountId, status);
 
         var response = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(accountId, "1 Main St", [new EmployeeOrderLineItemRequest(productId, 1)]));
+            new CreateEmployeeOrderRequest(accountId, null, [new EmployeeOrderLineItemRequest(productId, 1)]));
 
         Assert.Equal(expected, response.StatusCode);
     }
@@ -84,7 +84,7 @@ public class CustomerEligibilityTests : IClassFixture<MarviApiFactory>
 
         var quote = await client.PostAsJsonAsync("/api/quotes", new CreateQuoteRequest([new QuoteLineItemRequest(productId, 1)]));
         var order = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(accountId, "1 Main St", [new EmployeeOrderLineItemRequest(productId, 1)]));
+            new CreateEmployeeOrderRequest(accountId, null, [new EmployeeOrderLineItemRequest(productId, 1)]));
 
         Assert.Equal("Client account is not active.", await quote.Content.ReadAsStringAsync());
         Assert.Equal("Client account is not approved.", await order.Content.ReadAsStringAsync());

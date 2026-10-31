@@ -19,6 +19,8 @@ public class ProductionConfigurationGuardTests
         ("Seed:AdminPassword", "Qz7!rT9vLm2#xWc4"),
         ("PGPASSWORD", "x8Vn2Qd7LpR4sTz9KwB3"),
         ("Cors:AllowedOrigin", "https://loja.marvi.example"),
+        ("Privacy:CpfHashKey", "Rj4mV8xQz2LpT6nWc9KdB3sHy7FgA1uE5oIq0Zb"),
+        ("DataProtection:KeysPath", "/keys"),
     ];
 
     private static (string, string?)[] With(string key, string? value) =>
@@ -120,17 +122,38 @@ public class ProductionConfigurationGuardTests
             ("Seed:AdminEmail", "admin@marvi.local"),
             ("Seed:AdminPassword", "Marvi-Dev-Admin-1!"),
             ("PGPASSWORD", "marvi"),
-            ("Cors:AllowedOrigin", "http://localhost:4200"));
+            ("Cors:AllowedOrigin", "http://localhost:4200"),
+            ("Privacy:CpfHashKey", "dev-only-placeholder-cpf-hash-key-CHANGE-ME-before-production-1234567890"));
 
         var problems = ProductionConfigurationGuard.Problems(bad);
 
-        Assert.Equal(5, problems.Count);
+        Assert.Equal(7, problems.Count);
         Assert.All(problems, p =>
         {
             Assert.DoesNotContain("Marvi-Dev-Admin-1!", p);
             Assert.DoesNotContain("CHANGE-ME", p);
         });
     }
+
+    [Theory]
+    [InlineData("dev-only-placeholder-cpf-hash-key-CHANGE-ME-before-production-1234567890")]
+    [InlineData("tooshort")]
+    [InlineData("")]
+    public void TheCpfHashKey_MustBeARealSecret(string key)
+    {
+        var problems = ProductionConfigurationGuard.Problems(Config(With("Privacy:CpfHashKey", key)));
+
+        Assert.Single(problems, p => p.Contains("Privacy:CpfHashKey"));
+        Assert.DoesNotContain(problems, p => p.Contains("CHANGE-ME"));
+    }
+
+    [Fact]
+    public void EphemeralDataProtectionKeys_AreRefusedInProduction() =>
+        Assert.Single(ProductionConfigurationGuard.Problems(Config(With("DataProtection:Ephemeral", "true"))), p => p.Contains("DataProtection:Ephemeral"));
+
+    [Fact]
+    public void TheDataProtectionKeysFolder_MustBeConfigured() =>
+        Assert.Single(ProductionConfigurationGuard.Problems(Config(With("DataProtection:KeysPath", ""))), p => p.Contains("DataProtection:KeysPath"));
 
     [Fact]
     public void TheDevelopmentComposeFlag_IsTheOnlyWayToRunProductionWithExampleValues()

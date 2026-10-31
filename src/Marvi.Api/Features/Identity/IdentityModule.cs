@@ -1,6 +1,7 @@
 using System.Text;
 using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 
@@ -31,6 +32,23 @@ public static class IdentityModule
 
         services.AddAuthorization();
         services.AddScoped<JwtTokenService>();
+        services.AddScoped<ClientAddressService>();
+
+        // Registration data (MRV-9.4). The CPF is stored encrypted with Data Protection, whose keys must survive restarts: a configured folder on a mounted volume
+        // (DataProtection:KeysPath). The Testing host uses throwaway keys so the suites never write outside their process.
+        var protection = services.AddDataProtection().SetApplicationName("Marvi");
+        if (configuration.GetValue<bool>("DataProtection:Ephemeral"))
+        {
+            protection.UseEphemeralDataProtectionProvider();
+        }
+        else if (configuration["DataProtection:KeysPath"] is { Length: > 0 } keysPath)
+        {
+            protection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        }
+
+        services.AddSingleton<CpfProtector>();
+        services.AddSingleton<IBrazilDate, BrazilDate>();
+        services.AddScoped<ClientRegistrationService>();
         return services;
     }
 

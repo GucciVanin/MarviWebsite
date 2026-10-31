@@ -22,7 +22,7 @@ public class ClientDirectoryTests : IClassFixture<MarviApiFactory>
     private async Task<Guid> RegisterAsync(string company)
     {
         var response = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register",
-            new RegisterRequest($"{Guid.NewGuid()}@example.com", "Test1234!", company, "Rua A, 1"));
+            new RegisterRequest($"{Guid.NewGuid()}@example.com", "Test1234!", company, TestAddresses.Main));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
     }

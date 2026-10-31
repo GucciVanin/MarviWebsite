@@ -38,6 +38,7 @@ Route groups (who is signed in): `public` (anonymous, privacy notice dismissed),
 | `container-edge` | 5 | a direct child of a `main`/`section`/`article`/`.container`-like block starts off the parent's content edge and is not centred |
 | `exceeds-parent` | 6 | an in-flow box extends outside its parent's content box and the parent is not a scroll container (`overflow: auto/scroll`); a taller child counts only when the parent has a set height and really overflows |
 | `box-sizing` | 6 | computed `box-sizing` is not `border-box` (SVG and checkbox/radio inputs excepted) |
+| `popover` | MRV-9.2 AC-5 | an open pop-up marked `[data-popover]` sticks out of the viewport sideways, is taller than the viewport, or intersects a visible fixed or sticky layer (header, privacy notice, WhatsApp button) at the scroll position the page was left in. Covered text under such a pop-up is intended and is not a `covered-text` finding; while the page is scrolled a pinned sticky box is not compared as a sibling by `overlap` |
 
 Scrollable containers are exempt from overflow inside themselves. Known limits: an overlay with `pointer-events: none` is invisible to the covered-text check (it uses `elementFromPoint`); the sample is the dev demo data, so very long real content is not exercised.
 
@@ -159,3 +160,23 @@ Text zoom 200% (`WIDTHS=320,375 bash test/layout/run.sh --text-zoom 2`, all grou
 Accessibility: `bash test/layout/axe.sh` (axe-core 4.10.2): **0 violations** on 28 route/width pairs (employee 2 routes, four customer states on `/portal`, admin 8 routes, at 375 and 1280). Before the hidden header texts: `empty-table-header` (minor) on the product picker table, `/portal` for both approved customers.
 
 Final record: audit run, `--text-zoom 2` run, axe run and fixtures were each run against the rebuilt dev stack (`docker compose -f deploy/docker-compose.yml up -d --build client`).
+
+## After MRV-9.2 (2026-10-30): the customer lookup widget and page
+
+A route written `/path#widget` is audited with the widget open: the first `button[aria-haspopup="dialog"]` is clicked and the page is audited once the dialog shows the customer (`employee-portal` group: `/employee#widget`, plus the pages `/employee/clientes/C-000001` and `/employee/clientes/C-999999`, the not-found state; the demo data has customers 1 to 4). New rule `popover` (above) and two fixtures (`popover.html` flagged, `clean-popover.html` clean: a pop-up over page text, with a sticky header and a scrolled page): 23 fixtures, 0 failed. `bash test/layout/run.sh`: **0 violations over 240 page loads** (30 group/route pairs). axe: `/employee#widget` and the two customer pages at 375 and 1280, **0 violations on 34 pairs**. Lighthouse (femtopixel/google-lighthouse): accessibility 100 and CLS 0 on home, storefront and contact, mobile and desktop.
+
+## After MRV-9.3 (2026-10-30): address forms
+
+Routes written `/path#step` now take three more steps (nothing is submitted): `address-add` (`/portal#address-add`: the customer's "Adicionar endereço" form open), `address-edit` (`/portal#address-edit`: the first address card's edit form) and `address-fix` (`/admin/clientes#address-fix`: the customers editor with its first address's fix form); the page is scrolled back to the top before it is audited so the sticky header covers nothing. `/register` always shows its address form. The address form is a CSS grid of equal columns (`.address-fields`), every field one column wide, so the `form-column-width` rule holds. New fixture `clean-address-form.html`: 24 fixtures, 0 failed. `bash test/layout/run.sh`: **0 violations over 264 page loads**; axe: **0 on 40 pairs**.
+
+### Rule change (MRV-9.3 O-6): `container-edge` is scroll-aware
+
+A child of a scroll container (`.table-wrap`, `isScroller`) is measured where it sits unscrolled: its left edge is taken as `left + parent.scrollLeft`. Moving keyboard focus into a form inside a scrolled table (the admin address fix at 320 and 375) scrolls the table sideways, and that is the user's scroll, not a layout miss. Nothing else is weakened: boxes that are not children of a scroller are measured as before. New fixture `clean-scrolled-table.html` (a wide table in a `.table-wrap` scrolled 80 px, must stay clean; with the shift removed it is flagged) and the existing `container-edge.html` is still flagged: 25 fixtures, 0 failed. The audit script no longer resets table scroll after opening a step.
+
+### MRV-9.6: the delivery address selector and the address blocks
+
+Four more steps (`/path#step`, nothing is submitted): `delivery-coverage` (`/portal`: "Verificar cobertura" pressed and the answer or the failure note showing), `delivery-change` (`/portal`: the first quote's "Alterar endereço de entrega" picker open), `order` (`/employee`: the first "Consultar cliente" opened, then closed with Escape, so the order form's "Entregar em" selector shows) and `history-orders` (`/employee/historico` on the orders list). The step waits use selectors, not `waitForFunction`, which the page's CSP blocks. The customer page, the lookup widget and the portal (selector always shown) were already audited. `bash test/layout/run.sh`: **0 violations over 344 page loads** (the first run flagged the new "Alterar endereço de entrega" button wrapping at 320; it now has `btn--wrap`); fixtures 25, 0 failed; axe **0 on 60 pairs**; text zoom 2 at 320 and 375: only `wrapped-control` and `covered-text` (138 and 94, the known categories), no `overflow-page`, `overflow-element`, `exceeds-parent` or `container-edge`. Run on the throwaway compose project `marvi-audit` seeded by `deploy/seed-demo.mjs`.
+
+### MRV-9.5: the admin's product panel
+
+Three more admin steps (`/admin/catalogo#step`, nothing is sent): `product-new` ("Novo produto" opened, two attribute rows with long text, a long https image address and a long name), `product-errors` (the same, then "Salvar produto" with an empty code and a bad price, quantity and image address, so every message shows; the browser stops the save) and `product-edit` (the first product opened for editing, its attributes as rows). The panel's tables sit in `.table-wrap`; the fields use the shared grid of equal columns. `axe.mjs` runs the same three routes.

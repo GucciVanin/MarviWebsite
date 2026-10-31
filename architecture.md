@@ -104,6 +104,8 @@ flowchart TD
 ```mermaid
 flowchart LR
     subgraph Identity
+        I6[ClientAddressesController + ClientAddressService]
+        I7[ClientRegistrationService + CpfProtector]
         I1[AuthController]
         I2[AdminClientsController]
         I3[AdminEmployeesController]
@@ -186,6 +188,7 @@ Reviews (MRV-2.5): `Features/Reviews` serves `GET /api/public/reviews` from `Rev
 | `QuoteWorkflowService` | `CreateQuote`, `PriceQuote` (Submitted → Priced; every line needs a non-negative final price; employee id nullable for admins), `AcceptQuote` (Priced → Accepted, returns the new `Order` built by `OrderFactory`; a line without a final price throws `QuoteNotFullyPricedException` -> 409), `RejectQuote` (Priced -> Rejected, MRV-1.4: the customer turns a priced quote down and it can no longer be accepted); other invalid transitions throw `InvalidOperationException` |
 | `OrderFactory.Place(customer, lines, ...)` (MRV-4.3) | The one place an `Order` is built from priced lines (ids, line items, `PlacedAt` = now in UTC (MRV-1.2b), `TotalAmount` = sum of unit price x qty); used by `AcceptQuote` and employee orders. The API shape of an order is built in one place, `OrderDto.From` |
 | `ProductCsv` / `ProductImportPlanner` / `ProductRules` (MRV-2.1, `Domain/Catalog`) | The CSV product import as pure rules: `ProductCsv.Read` parses the file (comma or semicolon, quotes, BOM); `ProductImportPlanner.Plan(csv, ImportCatalog)` checks every header and row against the schema and the existing category/tier names and returns either every error with its line or the rows ready to store (a null value = blank cell = leave unchanged). `AdminProductImportController` (`POST /api/admin/products/import`) loads the names, applies a valid plan in one save with one `Import` audit entry, and supports `dryRun`; `ProductRules` holds the SKU/name limits it shares with the admin product form |
+| `ProductSetupRules` (MRV-9.5, `Domain/Catalog`) | The rules of the guided "Novo produto" as pure functions: `Check(ProductSetupInput, problems)` returns the cleaned `ProductSetupPlan` (SKU 3 to 40 of `[A-Za-z0-9._-]`, name, description, https image, structured attributes, prices, stock) or adds `ProductSetupProblem(field, message)` entries (`sku`, `name`, `description`, `imageUrl`, `attributes`, `prices[i]`, `stock[i]`), pt-BR and never echoing the value. `AdminProductsController.CreateProductWithSetup` (`POST /api/admin/products/with-setup`, `[EnableRateLimiting("productSetup")]`) adds the database checks (category, tiers and warehouses exist; SKU free ignoring case), stages the `Product`, its `ProductPricing` rows (minimum quantity 1) and `InventoryRecord` rows and commits them with `AuditLogger.TrySaveAsync(IReadOnlyCollection<AuditedRow>)`: ONE save, one audit entry per row; a constraint violation (the SKU race) is a 409 and nothing is stored. The old product create and edit apply the same description, image and attribute rules |
 | `AdminPendingActionsController` (MRV-6.2, `Api/Features/Admin`) | The admin inbox: `GET /api/admin/pending-actions` reads its groups straight from `AppDbContext` (Pending customers, Submitted quotes, stock records at or below their reorder point, active products with no price in the default tier, active products with no stock record and, from MRV-2.8a, unhandled contact messages, newest first), each with a total count and at most 50 items, plus a grand total. The reorder rule is defined once in Domain, as an expression (`StockAvailability.NeedsReorderFilter`) that `NeedsReorder` evaluates in memory and the controller hands to the database; a product is unpriced when it has no default-tier price from quantity 1, and unstocked when it has no stock record at all |
 | `StockAvailability` (MRV-4.10) | The one definition of stock availability: a product's available units are `QtyOnHand - QtyReserved` summed over its inventory records (one per warehouse), in stock when above zero. `Available(records)`, `InStock(records)`, `AvailableByProduct(records)`. The public catalog list loads only the stock records of the products it returns and the detail loads one product's; neither computes the sum itself. Reserving stock on orders is not built yet (Release 2), so `QtyReserved` is only ever set by hand today |
 
@@ -246,11 +249,30 @@ erDiagram
 
     ClientAccount {
         guid Id
+        int Number "customer number, sequence, unique (MRV-9.1)"
         guid UserId
         string CompanyName
-        string BillingAddress
         guid PricingTierId
         enum Status
+    }
+    ClientAddress {
+        guid Id "never leaves the server"
+        guid Key "opaque API handle (MRV-9.3)"
+        guid ClientAccountId
+        string Label
+        enum Kind "Billing, Delivery, Both"
+        string PostalCode "CEP, 8 digits"
+        string Street
+        string Number
+        string Complement
+        string Country "BR"
+        string DeliveryNotes
+        string District
+        string City
+        string State "UF"
+        bool IsBilling "one per customer"
+        bool IsDefault "default delivery, one per customer"
+        bool NeedsReview "migrated from free text"
     }
     EmployeeAccount {
         guid Id
@@ -310,15 +332,19 @@ erDiagram
     }
     Quote {
         guid Id
-        enum Status
+        enum Status "concurrency token"
         datetime CreatedAt
         guid PricedByEmployeeId
+        guid DeliveryAddressId "nullable link, ON DELETE SET NULL; concurrency token (MRV-9.6)"
+        string DeliveryAddressLabel "snapshot: label, street, number, complement, district, city, state, postal code, notes (all nullable)"
     }
     Order {
         guid Id
         guid QuoteId
         enum Status
-        string DeliveryAddress
+        string DeliveryAddress "the address on one line; the old free text on an order from before MRV-9.6"
+        guid DeliveryAddressId "nullable link, ON DELETE SET NULL (MRV-9.6)"
+        string DeliveryAddressLabel "snapshot copied from the quote or the customer's address; the other columns as on Quote"
         guid WarehouseId
         guid PlacedByEmployeeId
         decimal TotalAmount
@@ -344,8 +370,7 @@ erDiagram
 
 `Product.CategoryId` is a real foreign key to `Category` (restrict delete; nullable). Not drawn as
 relationships because they are plain id lists: `Deal.ProductIds` and `Deal.CategoryIds` (no foreign key, so
-`AdminCategoriesController` checks deals itself before deleting). `ClientAccount.ShippingAddresses`
-is a string list column. `AuditLogEntry.ActorUserId` is not a foreign key. `ContactMessage` (MRV-2.8) stands alone: no relationships; `HandledAt` is a concurrency token.
+`AdminCategoriesController` checks deals itself before deleting). `ClientAccount` carries the registration data (MRV-9.4): `AccountType`, the company fields or the personal ones, and the CPF only as `CpfProtected` (Data Protection) and `CpfHash` (HMAC); `Cnpj` and `CpfHash` have unique indexes (NULLs never collide). `ClientAccount` has many `ClientAddress` (MRV-9.3, cascade; filtered unique indexes `ix_client_addresses_one_billing` and `ix_client_addresses_one_default`). `AuditLogEntry.ActorUserId` is not a foreign key. `ContactMessage` (MRV-2.8) stands alone: no relationships; `HandledAt` is a concurrency token.
 
 ## 6. Authentication and authorization
 
@@ -380,7 +405,7 @@ sequenceDiagram
   (`ClaimTypes.Role` on .NET 10; older frameworks used `xmlsoap.org/2005/...`), not `"role"`. The SPA's `AuthService` decodes it; any new JWT consumer must too.
   The SPA once used the old URI, so `role()` was always null and every portal bounced the user home; `auth.service.spec.ts` now pins a payload copied from a real login.
 - Settings: `Jwt:Key`, `Jwt:Issuer` (`Marvi.Api`), `Jwt:Audience` (`Marvi.Client`). No refresh tokens.
-- `ClientAccountStatus`: registration yields `Pending` (least privilege, MRV-5.3): nobody is approved by default, and "Aprovar" always needs an explicit pricing tier. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly. **Decisions are taken once** (`CustomerDecisions`, MRV-6.1): Pending or Suspended can be approved, Pending or Approved can be suspended, anything else is a 409 "already decided"; `ClientAccount.Status` is an EF concurrency token and `AuditLogger.TrySaveAsync` answers false (so 409) on a `DbUpdateConcurrencyException`; the customer's own profile save (which is not an audited admin mutation) reloads the row and retries, answering 409 only if it still collides, so two admins deciding at once cannot overwrite each other (on Postgres the losing save rolls back, audit entry included). There is no credit anywhere (MRV-5.1): customers pay directly. A customer edits their own company name, billing address and shipping addresses through `GET/PUT /api/client/profile` (MRV-2.2); `ClientProfileRules` (Domain/Identity) is the one definition of what those may be, used by registration and by the profile, and the account always comes from the token. An admin moves a customer to another pricing tier with `PUT /api/admin/clients/{id}/pricing-tier` (MRV-1.3, MRV-5.1): the status is untouched and the change is audited with the previous tier. Only an `Approved` customer gets their own tier's prices from the public catalog; anonymous visitors, `Pending` and `Suspended` customers get the default tier.
+- `ClientAccountStatus`: registration yields `Pending` (least privilege, MRV-5.3): nobody is approved by default, and "Aprovar" always needs an explicit pricing tier. **Customer eligibility** (`Marvi.Domain.Identity.CustomerEligibility`, MRV-4.2) is the single rule for who may transact: only `Approved` customers may request a quote, accept one, or have an order placed for them; `Pending` and `Suspended` get 403. `QuotesController` and `EmployeeOrdersController` both call it; do not compare the status directly. **Decisions are taken once** (`CustomerDecisions`, MRV-6.1): Pending or Suspended can be approved, Pending or Approved can be suspended, anything else is a 409 "already decided"; `ClientAccount.Status` is an EF concurrency token and `AuditLogger.TrySaveAsync` answers false (so 409) on a `DbUpdateConcurrencyException`; the customer's own profile save (which is not an audited admin mutation) reloads the row and retries, answering 409 only if it still collides, so two admins deciding at once cannot overwrite each other (on Postgres the losing save rolls back, audit entry included). There is no credit anywhere (MRV-5.1): customers pay directly. A customer edits their own company name through `GET/PUT /api/client/profile` (MRV-2.2; `ClientProfileRules` is the one definition, used by registration and the profile) and their addresses through `POST/PUT/DELETE /api/client/addresses[/{key}]` (MRV-9.3); the account always comes from the token. **Addresses (MRV-9.3):** `ClientAddressRules` (Domain/Identity) is the one definition of a valid address (registration, profile and the admin fix all use it); `ClientAddressService` (Api/Identity) is the one place addresses are created, changed and removed, for the customer and for `PUT /api/admin/clients/{id}/addresses/{key}`. An address is always looked up by its opaque `Key` AND its owning account (another customer's key is 404), the database id is never in a DTO, exactly one address is the billing address and one the default delivery address (two flags with filtered unique indexes; moving a flag is two saves in one transaction, the second carrying the audit entry), the billing/default address cannot be removed or made unable to serve (409), and every change writes a `ClientAddress` audit entry (`By`: Customer or Admin; `CustomerNumber`, so a removed address is still named by its owner). Every operation locks the owning `client_accounts` row (`SELECT ... FOR UPDATE`) in its transaction, so parallel requests take turns (`FOR NO KEY UPDATE`, so quote/order inserts for the same customer are not blocked; the limit of 20 is a 409). The customer's address writes and the admin's fix use the `addresses` rate-limit policy (`RateLimiting:Addresses`: `PermitLimit` default 60 and `WindowSeconds` default 60 per client address; 100000 in the test factory and the dev compose). The first capable address becomes billing/default by itself; registration creates the first address (`Both`, billing and default). Migration `ClientAddresses` converted the old free text (rows flagged `NeedsReview`); `test/runtime/migration-addresses.sh` proves it and `Down` on a throwaway Postgres. An admin moves a customer to another pricing tier with `PUT /api/admin/clients/{id}/pricing-tier` (MRV-1.3, MRV-5.1): the status is untouched and the change is audited with the previous tier. Only an `Approved` customer gets their own tier's prices from the public catalog; anonymous visitors, `Pending` and `Suspended` customers get the default tier.
 - **Admins have no employee account**, so no `employee_id` claim. Employee-area endpoints accept Admin and record a null employee (`Quote.PricedByEmployeeId`, `Order.PlacedByEmployeeId`).
 - **First admin:** created at startup from `Seed:AdminEmail` / `Seed:AdminPassword` (dev values in `appsettings.Development.json` and `deploy/docker-compose.yml`; set your own elsewhere). Without them no Admin exists.
 
@@ -436,25 +461,29 @@ sequenceDiagram
     participant QS as QuoteWorkflowService
     participant DB as AppDbContext
 
-    Client->>QC: POST /api/quotes { lineItems: productId, qty }
-    QC->>QS: CreateQuote (prices suggested via PricingService)
+    Client->>QC: POST /api/quotes { lineItems, deliveryAddressKey? }
+    QC->>QC: DeliveryAddressChoice (own address by key, else the default delivery address)
+    QC->>QS: CreateQuote (prices suggested via PricingService, address copied onto the quote)
     QC->>DB: save quote (Submitted)
+    Client->>QC: PUT /api/quotes/{number}/delivery-address (Submitted or Priced only)
     EQ->>DB: GET queue (Submitted)
     EQ->>QS: PriceQuote(employeeId, final prices)
     EQ->>DB: save (Priced)
     Client->>QC: POST /api/quotes/{id}/accept
     QC->>QS: AcceptQuote(quote)
-    QS-->>QC: new Order (final prices copied)
+    QS-->>QC: new Order (final prices and the quote's address snapshot copied)
     QC->>DB: save quote (Accepted) + order
     QC-->>Client: OrderDto
 ```
 
 ### 7.4 Employee order and admin audit
 
-`EmployeeOrdersController.Create` loads the client, requires Customer eligibility (`Approved`), prices each line with
-`BasketPricingService` using that client's tier, builds the `Order` through `OrderFactory.Place` (also used by `AcceptQuote`, so a total is always the sum of its lines) with `PlacedByEmployeeId`, and saves it. `AcceptQuote` refuses a quote that has a line without a final price (`QuoteNotFullyPricedException`, 409): a missing price is never a free order.
+`EmployeeOrdersController.Create` loads the client, requires Customer eligibility (`Approved`), takes the delivery address from one of THAT client's own (`DeliveryAddressChoice`: the chosen `deliveryAddressKey`, else their default; another customer's or an unknown key is 404; the old free text is accepted only when the client has no structured address at all, logged, and refused otherwise), prices each line with
+`BasketPricingService` using that client's tier, builds the `Order` through `OrderFactory.Place` (also used by `AcceptQuote`, so a total is always the sum of its lines) with `PlacedByEmployeeId` and the address snapshot, and saves it. `AcceptQuote` refuses a quote that has a line without a final price (`QuoteNotFullyPricedException`, 409): a missing price is never a free order.
 Admin controllers commit through `AuditLogger.TrySaveAsync(action, entityName, entityId, details)` (one save of the change and its audit entry; false on a constraint rejection, answered with 409),
 which writes an `AuditLogEntry` with the actor taken from the JWT `sub` claim.
+
+**Delivery address (MRV-9.6).** `Quote` and `Order` implement `IHasDeliveryAddress` (Domain/Delivery): ten nullable columns, `delivery_address_id` (a foreign key to `client_addresses`, `ON DELETE SET NULL`) and a copy of the label, street, number, complement, district, city, UF, CEP and notes, written by `CopyFrom(ClientAddress)` when the address is chosen. A document is a snapshot, not a live reference, so editing or removing the customer's address changes nothing already made; `Line()` writes the snapshot as one line (the DTO's `deliveryAddressSnapshot.line` and an order's `deliveryAddress` text, which for a legacy order stays its free text). `DeliveryAddressChoice.ResolveAsync(db, accountId, key?)` is the one place an address is chosen: it looks the address up by key AND owner (404 otherwise), refuses a billing-only one (400), and without a key uses the default delivery address, else the only deliverable one, else 400 ("Cadastre um endereço de entrega." when there is none, "Escolha o endereço de entrega." when there are several and no default) so a customer migrated without a default or billing address gets a message, not an error. `QuoteWorkflowService.CreateQuote` copies the address onto the quote, `ChangeDeliveryAddress` (`PUT /api/quotes/{number}/delivery-address`, own quote, Submitted or Priced; 409 otherwise) replaces it, and `AcceptQuote` passes the quote itself to `OrderFactory.Place` so the order carries the quote's address; a quote without a snapshot (made before MRV-9.6) is refused with `QuoteWithoutDeliveryAddressException` (409, "Escolha o endereço de entrega antes de aceitar o orçamento."), so an order is never created with an empty address (the customer picks one with the change call, allowed while Priced). `orders.delivery_address` is `varchar(500)` (`Order.MaxDeliveryAddressLength`, migration `OrderDeliveryAddressMaxLength`): a snapshot written out as one line is cut to it and the legacy free text of a staff order is refused above it, or with control or invisible format characters (`ClientAddressRules.HasForbiddenCharacters`). A quote's `Status` and `DeliveryAddressId` are concurrency tokens: an accept racing a change of address, or two accepts, end in a 409 and no order built from an address the quote no longer has (accept, reject, price and change all answer 409 on `DbUpdateConcurrencyException`). Staff amend an order's address with `PUT /api/employee/orders/{number}/delivery-address` (a Placed or Backordered order; Fulfilled or Cancelled is 409), written together with an `Order` / `Update` audit entry holding the order and customer numbers and the label and line before and after. Both PUTs use the `addresses` rate-limit policy. The snapshot text is the customer's free text: the SPA shows it as text, and any future PDF, e-mail or CSV made from it must escape it.
 
 ## 8. Frontend (`client/`)
 
@@ -468,7 +497,7 @@ src/app/
   core/http/                loadable, action, describeApiError (loading and error state, see below)
   core/catalog/             CatalogService: the public product list (search, category) and categories, shared by every screen that picks products
   core/i18n/                pt-br.ts (all copy), identity-errors.ts
-  shared/ui/                app-header, app-footer, load-state, error-alert, count-up (a number that counts up once when first seen; shows the real number from the start and with reduced motion), product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form)
+  shared/ui/                app-header, app-footer, load-state, error-alert, count-up (a number that counts up once when first seen; shows the real number from the start and with reduced motion), product-picker (search, filter and pick catalog products; used by the client quote basket and the employee order form), delivery-picker (MRV-9.6: "Entregar em", a select of the customer's delivery addresses by label and one-line summary with the default chosen, the chosen address written out, an optional informational "Verificar cobertura" through the existing `CoverageService`, and a message (plus a link to add an address, for the customer) when none can receive goods; the key is only an option value and is never shown), delivery-to (the address a quote or order carries, read-only: snapshot or the old text or "Endereço a confirmar"; text escaped by Angular)
   shared/crud/              admin-crud: `formFeedback()` (problem, "saved" notice, request in flight for an admin form) and `confirmedDelete()` (the two-step delete) used by the admin catalog, pricing and operations screens (MRV-2.4b.7)
   shared/format/            brl (R$ 1.234,50) and ptDate (dd/mm/aaaa hh:mm) pipes
   shared/models/            types used by more than one feature (quote, order, catalog)
@@ -477,8 +506,8 @@ src/app/
     auth/login/             login page
     storefront/             public catalog (search and category filter kept in the URL: ?category=<id>&q=<text>), deals, delivery check  + api/ (deals, coverage); products and categories come from core/catalog
     client-portal/          pick products from the catalog into a quote, send it, see quotes and prices, accept or reject (reject asks for a confirming click), see orders, edit own company details (profile/, MRV-2.2)  + api/ (quotes, orders, profile)
-    employee-portal/        price queued quotes, find a customer by company name (directory search, MRV-2.4b.1), quotes and orders history at `/employee/historico` (history/, MRV-2.4b.2), place an order for an approved customer, stock  + api/ (employee)
-    admin-portal/           admin shell with sub-pages: **inbox "Pendências" (the landing page: customers awaiting approval with inline Aprovar/Suspender, quotes awaiting a price, stock at its reorder point, products with no price, contact-form messages with Marcar como atendida (MRV-2.8c); the count shows on its tab; MRV-6.3)**, overview at /admin/visao-geral (people, deals, audit), catalog (categories, products), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock), customers (directory search, pricing tier, suspend and approve with an explicit tier; MRV-2.4b.4, MRV-5.3), import (product CSV upload, dry run, error list; MRV-2.4b.5), audit (the paged audit log; MRV-2.4b.6)  + api/ (admin)
+    employee-portal/        price queued quotes, find a customer by company name (directory search, MRV-2.4b.1), quotes and orders history at `/employee/historico` (history/, MRV-2.4b.2), place an order for an approved customer, stock; **"Consultar cliente" is the `shared/ui/customer-lookup` widget (non-modal dialog, session cache by customer number) and the customer page lives at `/employee/clientes/:number` (customer/, MRV-9.2; `staffPageGuard`: Employee and Admin only, signed-out to /login, customers to /portal). `ClientProfileDto` carries `contactEmail` (the customer's login e-mail) for the staff routes only**  + api/ (employee)
+    admin-portal/           admin shell with sub-pages: **inbox "Pendências" (the landing page: customers awaiting approval with inline Aprovar/Suspender, quotes awaiting a price, stock at its reorder point, products with no price, contact-form messages with Marcar como atendida (MRV-2.8c); the count shows on its tab; MRV-6.3)**, overview at /admin/visao-geral (people, deals, audit), catalog (categories; products with the guided "Novo produto" panel `catalog/product-panel` for create and edit, MRV-9.5), prices (pricing tiers, per-product tier prices with quantity breaks), operations (warehouses, coverage areas, stock), customers (directory search, pricing tier, suspend and approve with an explicit tier; MRV-2.4b.4, MRV-5.3), import (product CSV upload, dry run, error list; MRV-2.4b.5), audit (the paged audit log; MRV-2.4b.6)  + api/ (admin)
 ```
 
 ```mermaid
@@ -566,13 +595,14 @@ flowchart LR
 
 ## 11. Gotchas and deliberate decisions
 
+- **No id on screen; numbers instead (MRV-9.1).** `ClientAccount.Number`, `Quote.Number` and `Order.Number` are database-assigned (`nextval` of `client_number_seq`, `quote_number_seq`, `order_number_seq` as the column default, plus a unique index; the InMemory test provider uses a counter), never set by code and never edited; migration `CustomerQuoteOrderNumbers` numbers existing rows by creation time, then id. The API keeps ids in JSON bodies and `/api` routes (the SPA needs them to call the backend), and adds `customerNumber`/`number` (and `companyName` on quotes and orders, `entityNumber` on audit entries) so no screen has to show an id. `QuoteDto.From` and `OrderDto.From` are the one mapping each; they read `ClientAccount`, so a query that builds them must `Include(ClientAccount)`. `GET /api/employee/clients/by-number/{number}` and `GET /api/admin/customers/by-number/{number}` find a customer by number (`CustomerNumbers.TryParse`: digits only, else 400; digits that match nobody, 404). The SPA formats numbers in `shared/format/number.pipes.ts` (`customerNumber` C-, `documentNumber` Q-/P-, at least six digits) and `no-ids-on-screen.spec.ts` renders every routed page with GUID ids and fails on a GUID in text or in any attribute but an `<option>`/`<input>` `value` and `data-testid`; element ids that used a GUID (`quote-…`, `history-item-…`) use the number, audit details drop id values, and the storefront category link carries the category name (`?category=Bebidas`, resolved against `/api/categories`; products wait for the categories only when the URL names one). Public routes and links never carry a database id.
 - **No repository layer.** `AppDbContext` is used directly by controllers; domain services stay pure. One deliberate helper: `PricingDataLoader` (Api/Features/Catalog) loads the products, tier prices and running Deals that `BasketPricingService` needs, because quotes and employee orders needed the identical load; it holds no rules and is not a repository for other data.
 - **`Marvi.Api` shows `Microsoft.EntityFrameworkCore.Design` but gets EF Core APIs
   transitively** from `Marvi.Infrastructure`; do not remove that reference chain.
 - **Polygon coverage is unimplemented** and throws; only `Radius` works.
 - **Geocoding providers are untested against live keys** (their parsing and failure handling are tested with stubbed responses).
-- **Orders do not touch inventory:** no reservation, decrement or stock check yet (Release 2); `Order.WarehouseId` and
-  quote-to-order delivery address are not populated by the quote flow.
+- **Orders do not touch inventory:** no reservation, decrement or stock check yet (Release 2); `Order.WarehouseId` is
+  not populated by the quote flow (the delivery address is, since MRV-9.6). Coverage stays informational: it is not tied to an order and never blocks one.
 - **`Quote.Draft`/`Expired` and `Order.Backordered/Fulfilled/Cancelled`** exist as enum values with
   no workflow yet.
 - **`Marvi.Shared` and `Marvi.Infrastructure/Class1.cs`** are empty template leftovers.
@@ -606,3 +636,11 @@ flowchart LR
 
 **Remove `Foo`:** delete the four folders above, the `AddFooFeature` line and the lazy route, remove its
 `DbSet`s and add a migration dropping its tables, then fix any cross-feature references listed in §4.2.
+
+## Registration data and the CPF (MRV-9.4)
+
+- **Rules in the Domain, one place each:** `CnpjRules` (14 characters, first 12 digits or A-Z, módulo 11 over ASCII minus 48, repeated character refused), `CpfRules` (módulo 11, `Mask`), `RegistrationRules.Check` (what each account type may and must have, the 18+ age rule, completeness via `Missing`). `ClientRegistrationService` (Api) validates, compares with the stored record (`ChangesLockedField`), applies it and builds the audit snapshot; registration, `PUT /api/client/profile` and the admin edit all go through it.
+- **CPF:** `CpfProtector` is the only code that handles it in the clear: `Protect`/`Reveal` with an `IDataProtector` (purpose `Marvi.ClientAccount.Cpf.v1`) and `Hash` with HMAC-SHA256 keyed by `Privacy:CpfHashKey`. DTOs carry `CpfMasked` only. The Data Protection keyring is persisted to `DataProtection:KeysPath` (compose: volume `marvi-dataprotection` at `/keys`; the Testing host uses throwaway keys, `DataProtection:Ephemeral`, refused in Production by the guard).
+- **Lock:** after approval (status not Pending) a customer's `PUT /api/client/profile` that changes a locked field answers 403; a Suspended customer changes nothing; admins edit everything, audited as `Update` with `Before`/`After`, and every "Mostrar CPF" is an audited `Reveal`.
+- **SPA:** `shared/ui/registration-fields` (+ `RegistrationDraft`) is the one form for registration (compact), the profile (locked after approval) and the admin editor; `shared/ui/registration-summary` (`dl[appRegistrationFacts]`) is the staff view (badge, document, completeness); masks and the check digits live in `shared/format/registration.ts`.
+

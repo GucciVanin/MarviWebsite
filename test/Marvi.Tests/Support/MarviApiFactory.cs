@@ -22,6 +22,8 @@ public class MarviApiFactory : WebApplicationFactory<Program>
 {
     public const string AdminEmail = "admin@marvi.test";
     public const string AdminPassword = "Admin-Test-1234!";
+    /// <summary>The pinned "today" of the registration rules in the API tests.</summary>
+    public static readonly DateOnly Today = new(2026, 10, 30);
 
     private readonly string _dbName = Guid.NewGuid().ToString();
 
@@ -42,6 +44,10 @@ public class MarviApiFactory : WebApplicationFactory<Program>
                 options.UseInMemoryDatabase(_dbName);
                 ConfigureDb(options);
             });
+
+            // Today is pinned so the age and opening-date rules do not depend on the day the suite runs.
+            services.RemoveAll<IBrazilDate>();
+            services.AddSingleton<IBrazilDate>(new FixedBrazilDate(Today));
 
             services.RemoveAll<IGeocodingProvider>();
             services.AddScoped<IGeocodingProvider, FakeGeocodingProvider>();
@@ -65,7 +71,14 @@ public class MarviApiFactory : WebApplicationFactory<Program>
             // The suites share one client address and sign in constantly; rate limiting has its own tests (RateLimitingTests).
             ["RateLimiting:Auth:PermitLimit"] = "100000",
             ["RateLimiting:Coverage:PermitLimit"] = "100000",
-            ["RateLimiting:Contact:PermitLimit"] = "100000"
+            ["RateLimiting:Contact:PermitLimit"] = "100000",
+            ["RateLimiting:Addresses:PermitLimit"] = "100000",
+            ["RateLimiting:Register:PermitLimit"] = "100000",
+            ["RateLimiting:Profile:PermitLimit"] = "100000",
+            ["RateLimiting:Reveal:PermitLimit"] = "100000",
+            ["RateLimiting:ProductSetup:PermitLimit"] = "100000",
+            // Throwaway Data Protection keys: the CPF encryption works, nothing is written outside the process.
+            ["DataProtection:Ephemeral"] = "true"
         }));
 
         var host = base.CreateHost(builder);
@@ -76,4 +89,10 @@ public class MarviApiFactory : WebApplicationFactory<Program>
 
         return host;
     }
+}
+
+/// <summary>A calendar that always says the same day.</summary>
+public sealed class FixedBrazilDate(DateOnly today) : IBrazilDate
+{
+    public DateOnly Today => today;
 }

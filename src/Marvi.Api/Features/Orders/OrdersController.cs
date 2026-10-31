@@ -31,6 +31,7 @@ public class OrdersController : ControllerBase
         }
 
         var orders = await _dbContext.Orders
+            .Include(o => o.ClientAccount)
             .Include(o => o.LineItems).ThenInclude(li => li.Product)
             .Where(o => o.ClientAccountId == clientId)
             .ToListAsync();

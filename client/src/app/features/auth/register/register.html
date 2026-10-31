@@ -1,65 +1,46 @@
 <div class="auth-page">
 <div class="container">
-  <div class="card auth-card">
+  <div class="card auth-card auth-card--wide">
     <h1 class="auth-title">{{ t.registerTitle }}</h1>
 
     <form (ngSubmit)="submit()">
-      <div class="field">
-        <label for="companyName">{{ t.companyName }}</label>
-        <div class="field__control">
-          <app-icon name="building" />
-          <input
-            id="companyName"
-            type="text"
-            name="companyName"
-            [(ngModel)]="companyName"
-            autocomplete="organization"
-            required
-          />
+      <app-registration-fields idPrefix="register" [draft]="registration" [readOnly]="busy()" />
+      <div class="address-fields">
+        <div class="field">
+          <label for="email">{{ t.email }}</label>
+          <div class="field__control">
+            <app-icon name="mail" />
+            <input
+              id="email"
+              type="email"
+              name="email"
+              [(ngModel)]="email"
+              autocomplete="email"
+              required
+            />
+          </div>
         </div>
-      </div>
-      <div class="field">
-        <label for="billingAddress">{{ t.billingAddress }}</label>
-        <div class="field__control">
-          <app-icon name="map-pin" />
-          <input
-            id="billingAddress"
-            type="text"
-            name="billingAddress"
-            [(ngModel)]="billingAddress"
-            autocomplete="street-address"
-            required
-          />
+        <div class="field">
+          <label for="password">{{ t.password }}</label>
+          <div class="field__control">
+            <app-icon name="lock" />
+            <input
+              id="password"
+              type="password"
+              name="password"
+              [(ngModel)]="password"
+              autocomplete="new-password"
+              required
+            />
+          </div>
         </div>
+
       </div>
-      <div class="field">
-        <label for="email">{{ t.email }}</label>
-        <div class="field__control">
-          <app-icon name="mail" />
-          <input
-            id="email"
-            type="email"
-            name="email"
-            [(ngModel)]="email"
-            autocomplete="email"
-            required
-          />
-        </div>
-      </div>
-      <div class="field">
-        <label for="password">{{ t.password }}</label>
-        <div class="field__control">
-          <app-icon name="lock" />
-          <input
-            id="password"
-            type="password"
-            name="password"
-            [(ngModel)]="password"
-            autocomplete="new-password"
-            required
-          />
-        </div>
-      </div>
+      <fieldset class="address-group">
+        <legend><app-icon name="map-pin" />{{ t.billingAddress }}</legend>
+        <p class="muted">{{ t.billingAddressHint }}</p>
+        <app-address-fields idPrefix="register-address" [compact]="true" [draft]="address" [readOnly]="busy()" />
+      </fieldset>
 
       @if (error(); as message) {
         <p class="alert alert--error" role="alert"><app-icon name="alert-circle" />{{ message }}</p>

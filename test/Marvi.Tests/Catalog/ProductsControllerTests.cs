@@ -49,7 +49,7 @@ public class ProductsControllerTests : IClassFixture<MarviApiFactory>
         Assert.Equal(100m, anonymousProduct.Price);
 
         var email = $"{Guid.NewGuid()}@example.com";
-        var registerResponse = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        var registerResponse = await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         var registerBody = await registerResponse.Content.ReadAsStringAsync();
         var clientAccountId = JsonDocument.Parse(registerBody).RootElement.GetProperty("id").GetGuid();
 

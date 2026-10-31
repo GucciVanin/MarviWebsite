@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { PT } from '../i18n/pt-br';
-import { describeApiError, hasStatus } from './api-error';
+import { describeApiError, hasStatus, fieldProblems } from './api-error';
 
 const failure = (status: number, error: unknown = null) => new HttpErrorResponse({ status, error });
 
@@ -81,5 +81,24 @@ describe('hasStatus', () => {
     expect(hasStatus(new Error('x'), 0)).toBe(false);
     expect(hasStatus({ status: 401 }, 401)).toBe(false);
     expect(hasStatus(null, 0)).toBe(false);
+  });
+});
+
+describe('field problems (MRV-9.4)', () => {
+  it('reads a list of { field, message } and makes its messages the detail', () => {
+    const error = new HttpErrorResponse({ status: 400, error: [{ field: 'cnpj', message: 'CNPJ inválido.' }, { field: 'phone', message: 'Telefone inválido.' }] });
+
+    const described = describeApiError(error);
+
+    expect(described.fields).toEqual([{ field: 'cnpj', message: 'CNPJ inválido.' }, { field: 'phone', message: 'Telefone inválido.' }]);
+    expect(described.detail).toBe('CNPJ inválido. Telefone inválido.');
+  });
+
+  it('leaves any other body alone', () => {
+    expect(fieldProblems(['a string'])).toBeNull();
+    expect(fieldProblems([{ field: 'x' }])).toBeNull();
+    expect(fieldProblems([])).toBeNull();
+    expect(fieldProblems('text')).toBeNull();
+    expect(describeApiError(new HttpErrorResponse({ status: 400, error: 'plain' })).fields).toBeUndefined();
   });
 });

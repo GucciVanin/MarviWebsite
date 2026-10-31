@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="popover">
+<title>Broken: an open pop-up sits under a fixed button</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px;max-width:960px;margin:0 auto}
+.anchor{position:relative;display:inline-block}
+.pop{position:absolute;top:100%;left:0;width:200px;border:1px solid #ccc;background:#fff;padding:12px;z-index:5}
+.wa{position:fixed;left:40px;top:130px;width:56px;height:56px;border-radius:50%;background:#167a3e;z-index:20}
+</style></head><body><main class="page"><h1>Fila</h1><p>Texto atras do pop-up.</p>
+<span class="anchor"><button type="button">Consultar cliente</button>
+<div class="pop" data-popover role="dialog" aria-label="Cliente"><h3>Bar do Ze</h3><p>Dados do cliente</p></div></span>
+<p>Mais texto abaixo.</p></main><a class="wa" href="#" aria-label="WhatsApp"></a></body></html>

@@ -64,7 +64,7 @@ public class BasketPricingTests : IClassFixture<MarviApiFactory>
         var (admin, productId, _) = await SeedPricedProductWithDealsAsync();
         var (_, accountId) = await _factory.RegisterClientAsync();
 
-        var response = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(accountId, "1 Main St",
+        var response = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(accountId, null,
             [new EmployeeOrderLineItemRequest(productId, 1), new EmployeeOrderLineItemRequest(productId, 10)]));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -96,7 +96,7 @@ public class BasketPricingTests : IClassFixture<MarviApiFactory>
         var unpriced = await admin.CreateProductAsync(sku);
 
         var response = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(accountId, "1 Main St", [new EmployeeOrderLineItemRequest(unpriced, 1)]));
+            new CreateEmployeeOrderRequest(accountId, null, [new EmployeeOrderLineItemRequest(unpriced, 1)]));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal($"Product '{sku}' has no price configured for pricing tier 'Standard'.", await response.Content.ReadAsStringAsync());
@@ -111,7 +111,7 @@ public class BasketPricingTests : IClassFixture<MarviApiFactory>
 
         var quote = await client.PostAsJsonAsync("/api/quotes", new CreateQuoteRequest([new QuoteLineItemRequest(unknown, 1)]));
         var order = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(accountId, "1 Main St", [new EmployeeOrderLineItemRequest(unknown, 1)]));
+            new CreateEmployeeOrderRequest(accountId, null, [new EmployeeOrderLineItemRequest(unknown, 1)]));
 
         Assert.Equal(HttpStatusCode.BadRequest, quote.StatusCode);
         Assert.Equal($"Product '{unknown}' not found.", await quote.Content.ReadAsStringAsync());
@@ -120,7 +120,7 @@ public class BasketPricingTests : IClassFixture<MarviApiFactory>
 
         // The first problem in line order wins: an unpriced line before an unknown one is reported first.
         var unpriced = await admin.CreateProductAsync();
-        var mixed = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(accountId, "1 Main St",
+        var mixed = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(accountId, null,
             [new EmployeeOrderLineItemRequest(unpriced, 1), new EmployeeOrderLineItemRequest(unknown, 1)]));
         Assert.Contains("has no price configured", await mixed.Content.ReadAsStringAsync());
     }

@@ -13,6 +13,8 @@ export interface QuoteLineItemRequest {
 
 export interface CreateQuoteRequest {
   lineItems: QuoteLineItemRequest[];
+  /** The key of the customer's address to deliver to (MRV-9.6); omitted means their default delivery address. */
+  deliveryAddressKey?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -21,6 +23,11 @@ export class QuotesService {
 
   createQuote(request: CreateQuoteRequest): Observable<Quote> {
     return this.http.post<Quote>('/api/quotes', request);
+  }
+
+  /** Another delivery address for a quote that is not accepted yet; the quote is named by its number, the address by its key. */
+  changeDeliveryAddress(number: number, deliveryAddressKey: string): Observable<Quote> {
+    return this.http.put<Quote>(`/api/quotes/${number}/delivery-address`, { deliveryAddressKey });
   }
 
   getMine(): Observable<Quote[]> {

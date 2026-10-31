@@ -1,0 +1,206 @@
+<section class="product-panel" data-testid="product-panel" aria-labelledby="product-panel-title">
+  <h3 id="product-panel-title" #heading tabindex="-1">{{ creating() ? t.newProduct : t.editProduct }}</h3>
+  <p class="muted">
+    @if (creating()) {
+      {{ t.panelHint }}
+    } @else {
+      {{ t.editHint }}
+      <a routerLink="/admin/precos">{{ t.pricesLink }}</a>,
+      <a routerLink="/admin/operacao">{{ t.stockLink }}</a>.
+    }
+  </p>
+
+  <form data-testid="product-form" novalidate (submit)="$event.preventDefault(); save()">
+    <div class="address-fields">
+      <div class="field">
+        <label for="productSku">{{ t.sku }} *</label>
+        <div class="product-panel__inline">
+          <input id="productSku" name="productSku" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-required="true"
+            [maxLength]="creating() ? limits.skuMax : limits.legacySkuMax" [value]="sku()" (input)="setSku($any($event.target).value)"
+            [attr.aria-invalid]="problem('sku') ? 'true' : null" aria-describedby="productSku-hint" />
+          @if (creating()) {
+            <button type="button" class="btn btn--outline btn--small" data-testid="suggest-sku" (click)="suggest()">{{ t.suggestSku }}</button>
+          }
+        </div>
+        <p id="productSku-hint" class="muted" role="status">{{ problem('sku') || (creating() ? t.skuHint : '') }}</p>
+      </div>
+      <div class="field">
+        <label for="productName">{{ t.name }} *</label>
+        <input id="productName" name="productName" type="text" autocomplete="off" aria-required="true" [maxLength]="limits.nameMax"
+          [value]="name()" (input)="name.set($any($event.target).value)"
+          [attr.aria-invalid]="problem('name') ? 'true' : null" aria-describedby="productName-hint" />
+        <p id="productName-hint" class="muted" role="status">{{ problem('name') }}</p>
+      </div>
+      <div class="field">
+        <label for="productCategory">{{ t.category }}@if (creating()) { *}</label>
+        <select id="productCategory" name="productCategory" [attr.aria-required]="creating() ? 'true' : null"
+          [attr.aria-invalid]="problem('categoryId') ? 'true' : null" aria-describedby="productCategory-hint"
+          (change)="categoryId.set($any($event.target).value)">
+          <option value="" [selected]="categoryId() === ''">{{ creating() ? t.chooseCategory : t.noCategory }}</option>
+          @for (category of categories(); track category.id) {
+            <option [value]="category.id" [selected]="categoryId() === category.id">{{ category.name }}</option>
+          }
+        </select>
+        <p id="productCategory-hint" class="muted" role="status">{{ problem('categoryId') }}</p>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="productDescription">{{ t.description }}</label>
+      <textarea id="productDescription" name="productDescription" rows="3" [value]="description()" (input)="description.set($any($event.target).value)"
+        [attr.aria-invalid]="problem('description') ? 'true' : null" aria-describedby="productDescription-hint"></textarea>
+      <p id="productDescription-hint" class="muted" role="status">{{ problem('description') }}</p>
+    </div>
+
+    <div class="product-panel__image">
+      <div class="field">
+        <label for="productImage">{{ t.imageUrl }}</label>
+        <input id="productImage" name="productImage" type="url" inputmode="url" autocomplete="off" spellcheck="false" [value]="imageUrl()"
+          (input)="imageUrl.set($any($event.target).value); imageBroken.set(false)"
+          [attr.aria-invalid]="problem('imageUrl') ? 'true' : null" aria-describedby="productImage-hint" />
+        <p id="productImage-hint" class="muted" role="status">{{ problem('imageUrl') || t.imageHint }}</p>
+      </div>
+      @if (previewable()) {
+        <div class="product-panel__preview" data-testid="image-preview">
+          @if (imageBroken()) {
+            <p class="muted" role="status">{{ t.imageFailed }}</p>
+          } @else {
+            <img [src]="imageUrl().trim()" [alt]="t.imagePreview" referrerpolicy="no-referrer" loading="lazy" (error)="imageBroken.set(true)" />
+          }
+        </div>
+      }
+    </div>
+
+    <div class="field">
+      <label for="productActive">
+        <input id="productActive" name="productActive" type="checkbox" [checked]="active()" (change)="active.set($any($event.target).checked)" />
+        {{ t.productActive }}
+      </label>
+    </div>
+
+    <fieldset class="product-panel__group" aria-describedby="attributes-hint">
+      <legend>{{ t.attributes }}</legend>
+      <p id="attributes-hint" class="muted">{{ t.attributesHint }}</p>
+      @if (rows().length) {
+        <div class="table-wrap" tabindex="0" role="group" [attr.aria-label]="t.attributes">
+          <table class="table" data-testid="attributes">
+            <thead>
+              <tr>
+                <th scope="col">{{ t.attributeKey }}</th>
+                <th scope="col">{{ t.attributeValue }}</th>
+                <th scope="col"><span class="visually-hidden">{{ t.removeAttribute }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(); track $index) {
+                <tr>
+                  <td>
+                    <input [id]="'attr-key-' + $index" type="text" list="attribute-suggestions" autocomplete="off" [maxLength]="limits.attributeKey + 20"
+                      [attr.aria-label]="t.attributeKey + ' ' + ($index + 1)" [attr.aria-invalid]="problem('attributes') ? 'true' : null" aria-describedby="attributes-problem"
+                      [value]="row.key" (input)="setKey($index, $any($event.target).value)" />
+                  </td>
+                  <td>
+                    <input [id]="'attr-value-' + $index" type="text" autocomplete="off" [maxLength]="limits.attributeValue + 20"
+                      [attr.aria-label]="t.attributeValue + ' ' + ($index + 1)" [attr.aria-invalid]="problem('attributes') ? 'true' : null" aria-describedby="attributes-problem"
+                      [value]="row.value" (input)="setValue($index, $any($event.target).value)" />
+                  </td>
+                  <td>
+                    <button type="button" class="btn btn--outline btn--small" data-testid="remove-attribute" [attr.aria-label]="t.removeAttribute + ' ' + ($index + 1)" (click)="removeRow($index)">
+                      {{ t.removeAttribute }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+      <datalist id="attribute-suggestions">
+        @for (suggestion of t.attributeSuggestions; track suggestion) {
+          <option [value]="suggestion"></option>
+        }
+      </datalist>
+      <p id="attributes-problem" class="muted" role="status" data-testid="attributes-problem">{{ problem('attributes') }}</p>
+      <button type="button" class="btn btn--outline btn--small" data-testid="add-attribute" (click)="addRow()">{{ t.addAttribute }}</button>
+    </fieldset>
+
+    @if (creating()) {
+      <fieldset class="product-panel__group" aria-describedby="prices-hint">
+        <legend>{{ t.pricesTitle }}</legend>
+        <p id="prices-hint" class="muted">{{ t.pricesHint }}</p>
+        <app-load-state [state]="tiers" />
+        @if (tiers.loaded() && !priceRows().length) {
+          <p class="muted">{{ t.noTiers }}</p>
+        }
+        @if (priceRows().length) {
+          <div class="table-wrap" tabindex="0" role="group" [attr.aria-label]="t.pricesTitle">
+            <table class="table" data-testid="prices">
+              <thead>
+                <tr><th scope="col">{{ t.tier }}</th><th scope="col" class="num">{{ t.price }}</th></tr>
+              </thead>
+              <tbody>
+                @for (tier of priceRows(); track tier.id; let i = $index) {
+                  <tr>
+                    <th scope="row"><label [for]="'price-' + i">{{ tier.name }}@if (tier.isDefault) { <span class="muted"> {{ t.tierDefault }}</span> }</label></th>
+                    <td>
+                      <input [id]="'price-' + i" [name]="'price-' + i" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"
+                        [value]="priceText(i)" (input)="setPrice(i, $any($event.target).value)"
+                        [attr.aria-invalid]="problem('prices[' + i + ']') ? 'true' : null" [attr.aria-describedby]="'price-' + i + '-hint'" />
+                      <p [id]="'price-' + i + '-hint'" class="muted product-panel__cell-hint" role="status">{{ problem('prices[' + i + ']') }}</p>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </fieldset>
+
+      <fieldset class="product-panel__group">
+        <legend>{{ t.stockTitle }}</legend>
+        <app-load-state [state]="warehouses" />
+        @if (warehouses.loaded() && !stockRows().length) {
+          <p class="muted">{{ t.noWarehouses }}</p>
+        }
+        @if (stockRows().length) {
+          <div class="table-wrap" tabindex="0" role="group" [attr.aria-label]="t.stockTitle">
+            <table class="table" data-testid="stock">
+              <thead>
+                <tr><th scope="col">{{ t.warehouse }}</th><th scope="col" class="num">{{ t.quantity }}</th></tr>
+              </thead>
+              <tbody>
+                @for (warehouse of stockRows(); track warehouse.id; let i = $index) {
+                  <tr>
+                    <th scope="row"><label [for]="'qty-' + i">{{ warehouse.name }}</label></th>
+                    <td>
+                      <input [id]="'qty-' + i" [name]="'qty-' + i" type="text" inputmode="numeric" autocomplete="off" placeholder="0"
+                        [value]="quantityText(i)" (input)="setQuantity(i, $any($event.target).value)"
+                        [attr.aria-invalid]="problem('stock[' + i + ']') ? 'true' : null" [attr.aria-describedby]="'qty-' + i + '-hint'" />
+                      <p [id]="'qty-' + i + '-hint'" class="muted product-panel__cell-hint" role="status">{{ problem('stock[' + i + ']') }}</p>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </fieldset>
+    }
+
+    @if (anyProblem()) {
+      <p class="alert alert--error" role="alert" data-testid="fix-fields">{{ formLevel() || t.fixFields }}</p>
+    }
+    <app-error-alert [error]="generalError()" />
+    @if (generalError()?.status === 0) {
+      <p class="muted" role="status">{{ t.retryHint }}</p>
+    }
+
+    <div class="product-panel__actions">
+      <button type="submit" class="btn btn--primary" data-testid="save-product" [disabled]="request.busy()">{{ request.busy() ? t.saving : t.saveProduct }}</button>
+      @if (creating()) {
+        <button type="button" class="btn btn--outline" data-testid="save-and-another" [disabled]="request.busy()" (click)="save(true)">{{ t.saveAndAnother }}</button>
+      }
+      <button type="button" class="btn btn--outline" data-testid="cancel-product" [disabled]="request.busy()" (click)="cancelled.emit()">{{ t.cancel }}</button>
+    </div>
+  </form>
+</section>

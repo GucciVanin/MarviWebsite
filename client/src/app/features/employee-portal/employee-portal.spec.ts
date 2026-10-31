@@ -1,8 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EmployeePortal } from './employee-portal';
+import { registration } from '../../shared/models/testing/registration';
+import { twoAddresses } from '../../shared/models/testing/client-address';
 
 const line = (id: string, productName: string, qty: number, suggested: number | null) => ({
   id,
@@ -15,22 +17,26 @@ const line = (id: string, productName: string, qty: number, suggested: number | 
 
 const quote = (id: string, lines: object[], clientAccountId = 'c-123') => ({
   id,
+  number: Number(id.replace(/\D/g, '')),
   clientAccountId,
+  customerNumber: 42,
+  companyName: 'Bar do Zé',
   status: 'Submitted',
   createdAt: '2026-10-02T13:00:00Z',
   pricedByEmployeeId: null,
   lineItems: lines,
 });
 
-const summary = (id: string, companyName: string, status: string) => ({ id, companyName, status, pricingTierName: 'Atacado' });
+const summary = (id: string, companyName: string, status: string) => ({ id, customerNumber: 42, companyName, status, pricingTierName: 'Atacado' });
 const clientPage = (items: object[], totalCount = items.length) => ({ items, page: 1, pageSize: 10, totalCount });
 
-const profile = (status: string) => ({
+const profile = (status: string, addresses: object = twoAddresses()) => ({
+  registration: registration(),
   id: 'c-123',
+  customerNumber: 42,
   companyName: 'Bar do Zé',
   createdAt: '2026-10-14T13:42:00Z',
-  billingAddress: 'Rua A, 1',
-  shippingAddresses: [],
+  ...addresses,
   pricingTierName: 'Atacado',
   status,
   quotes: [],
@@ -66,7 +72,7 @@ describe('EmployeePortal', () => {
       await settle();
     };
     /** Finds the customer by company name and opens them, the way an employee does (search, then pick). */
-    const openCustomer = async (id: string, status: string) => {
+    const openCustomer = async (id: string, status: string, addresses?: object) => {
       await type(root.querySelector<HTMLInputElement>('input[name="clientSearch"]')!, 'bar');
       button('Buscar cliente').click();
       fixture.detectChanges();
@@ -74,13 +80,20 @@ describe('EmployeePortal', () => {
       await settle();
       button('Selecionar').click();
       fixture.detectChanges();
-      http.expectOne((r) => r.url.includes(`/clients/${id}`)).flush(profile(status));
+      http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile(status, addresses));
       await settle();
     };
     return { fixture, http, root, settle, button, type, openCustomer };
   }
 
   const text = (root: HTMLElement) => (root.textContent ?? '').replace(/\s+/g, ' ');
+  const matrizKey = twoAddresses().addresses[0].key;
+  const filialKey = twoAddresses().addresses[1].key;
+  const choose = (root: HTMLElement, key: string) => {
+    const select = root.querySelector<HTMLSelectElement>('[data-testid="order-delivery"] [data-testid="delivery-select"]')!;
+    select.value = key;
+    select.dispatchEvent(new Event('change'));
+  };
 
   // ---- the quote queue and pricing
 
@@ -91,7 +104,10 @@ describe('EmployeePortal', () => {
     await settle();
 
     const card = root.querySelector('[data-testid="queue-quote"]')!;
-    expect(card.textContent).toContain('c-123');
+    // The customer is named by company and customer number, never by id; the quote by its number.
+    expect(card.textContent).toContain('Cliente: Bar do Zé (C-000042)');
+    expect(card.textContent).toContain('Cotação Q-000001');
+    expect(card.textContent).not.toContain('c-123');
     expect(card.textContent).toContain('Cola 2L');
     const inputs = card.querySelectorAll<HTMLInputElement>('input[type="number"]');
     expect(inputs[0].value).toBe('8.5');
@@ -248,16 +264,19 @@ describe('EmployeePortal', () => {
     const rows = root.querySelectorAll('[data-testid="client-match"]');
     expect(rows.length).toBe(2);
     expect(rows[0].textContent).toContain('Bar do Zé');
+    expect(rows[0].textContent).toContain('C-000042');
     expect(rows[1].textContent).toContain('Zé Mercado');
     expect(rows[1].textContent).toContain('Suspenso');
 
     button('Selecionar', rows[0]).click();
     fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/c-123')).flush(profile('Approved'));
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile('Approved'));
     await settle();
 
     const card = root.querySelector('[data-testid="customer"]')!;
     expect(card.textContent).toContain('Bar do Zé');
+    expect(card.textContent).toContain('(C-000042)');
+    expect(card.textContent).not.toContain('c-123');
     expect(card.textContent).toContain('Aprovado');
     expect(card.textContent).toContain('Atacado');
     expect(card.textContent).toContain('Cliente desde 14/10/2026');
@@ -314,7 +333,7 @@ describe('EmployeePortal', () => {
 
     button('Selecionar').click();
     fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/gone')).flush('Not found', { status: 404, statusText: 'Not Found' });
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush('Not found', { status: 404, statusText: 'Not Found' });
     await settle();
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('Não encontramos');
@@ -326,10 +345,49 @@ describe('EmployeePortal', () => {
 
     button('Consultar cliente', root.querySelector('[data-testid="queue-quote"]')!).click();
     fixture.detectChanges();
-    http.expectOne((r) => r.url.includes('/clients/c-123')).flush(profile('Approved'));
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile('Approved'));
     await settle();
 
     expect(root.querySelector('[data-testid="customer"]')!.textContent).toContain('Bar do Zé');
+  });
+
+  it('shows the customer of a queued quote in a pop-up next to the button, with the order form following the same customer', async () => {
+    const { fixture, http, root, settle, button } = setup({ queue: [quote('q1', [line('l1', 'Cola 2L', 1, 8.5)])] });
+    await settle();
+    const card = root.querySelector('[data-testid="queue-quote"]')!;
+
+    button('Consultar cliente', card).click();
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile('Approved'));
+    await settle();
+
+    const dialog = card.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain('Bar do Zé');
+    expect(dialog.querySelector('a[target="_blank"]')?.getAttribute('href')).toBe('/employee/clientes/C-000042');
+    expect(root.querySelector('[data-testid="order-form"]')).not.toBeNull();
+  });
+
+  it('opens the customer named by ?cliente= (from "Iniciar pedido" on the customer page) with the order form ready', async () => {
+    TestBed.configureTestingModule({
+      imports: [EmployeePortal],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ cliente: 'C-000042' }) } } },
+      ],
+    });
+    const fixture = TestBed.createComponent(EmployeePortal);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((r) => r.url.includes('/quotes/queue')).flush([]);
+    http.expectOne((r) => r.url.includes('/inventory')).flush([]);
+    http.expectOne((r) => r.url === '/api/employee/clients/by-number/42').flush(profile('Approved'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="customer"]').textContent).toContain('Bar do Zé');
+    expect(fixture.nativeElement.querySelector('[data-testid="order-form"]')).not.toBeNull();
   });
 
   it('offers no order form for a customer who is not approved', async () => {
@@ -342,10 +400,10 @@ describe('EmployeePortal', () => {
     expect(root.querySelector('[data-testid="order-form"]')).toBeNull();
   });
 
-  async function openOrderForm(env: ReturnType<typeof setup>) {
+  async function openOrderForm(env: ReturnType<typeof setup>, addresses?: object) {
     const { http, settle, openCustomer } = env;
     await settle();
-    await openCustomer('c-123', 'Approved');
+    await openCustomer('c-123', 'Approved', addresses);
     http.expectOne((r) => r.url === '/api/products').flush([product('1', 'Cola 2L'), product('2', 'Água')]);
     http.expectOne('/api/categories').flush([]);
     await settle();
@@ -353,55 +411,122 @@ describe('EmployeePortal', () => {
 
   it('places an order for an approved customer with the chosen products, quantities and address', async () => {
     const env = setup();
-    const { fixture, http, root, settle, button, type } = env;
+    const { fixture, http, root, settle, button } = env;
     await openOrderForm(env);
     const catalogRows = () => root.querySelectorAll('[data-testid="catalog"] tbody tr');
     button('Adicionar', catalogRows()[0]).click();
     button('Adicionar', catalogRows()[0]).click();
     button('Adicionar', catalogRows()[1]).click();
     await settle();
-    await type(root.querySelector<HTMLInputElement>('input[name="deliveryAddress"]')!, 'Rua Entrega, 10');
+    choose(root, filialKey);
+    await settle();
 
     button('Registrar pedido').click();
     fixture.detectChanges();
     const post = http.expectOne('/api/employee/orders');
     expect(post.request.body).toEqual({
       clientId: 'c-123',
-      deliveryAddress: 'Rua Entrega, 10',
+      deliveryAddressKey: filialKey,
       lineItems: [{ productId: '1', qty: 2 }, { productId: '2', qty: 1 }],
     });
     post.flush({
-      id: 'o1', clientAccountId: 'c-123', quoteId: null, status: 'Placed', deliveryAddress: 'Rua Entrega, 10', warehouseId: null, placedByEmployeeId: 'e1', placedAt: '2026-10-14T13:42:00Z',
+      id: 'o1', number: 45, clientAccountId: 'c-123', customerNumber: 42, companyName: 'Bar do Zé', quoteId: null, status: 'Placed', deliveryAddress: 'Rua Entrega, 10', warehouseId: null, placedByEmployeeId: 'e1', placedAt: '2026-10-14T13:42:00Z',
       totalAmount: 30, lineItems: [{ id: 'ol1', productId: '1', productName: 'Cola 2L', qty: 2, unitPrice: 10 }, { id: 'ol2', productId: '2', productName: 'Água', qty: 1, unitPrice: 10 }],
     });
     await settle();
 
+    expect(root.querySelector('[data-testid="placed-order"]')!.textContent).toContain('Pedido registrado. P-000045');
     expect(root.querySelector('[data-testid="placed-order"]')!.textContent).toContain('R$');
     expect(root.querySelector('[data-testid="placed-order"]')!.textContent).toContain('30,00');
     expect(root.querySelectorAll('[data-testid="order-basket"] tbody tr').length).toBe(0);
   });
 
-  it('cannot register an order without an address and at least one product', async () => {
+  it('cannot register an order without at least one product', async () => {
     const env = setup();
-    const { root, settle, button, type } = env;
+    const { root, settle, button } = env;
     await openOrderForm(env);
     expect(button('Registrar pedido').disabled).toBe(true);
 
     button('Adicionar', root.querySelector('[data-testid="catalog"] tbody tr')!).click();
     await settle();
-    expect(button('Registrar pedido').disabled).toBe(true);
-
-    await type(root.querySelector<HTMLInputElement>('input[name="deliveryAddress"]')!, 'Rua Entrega, 10');
     expect(button('Registrar pedido').disabled).toBe(false);
+  });
+
+  it('lets staff pick only from the loaded customer\'s delivery addresses, the default chosen, and has no free-text address field', async () => {
+    const env = setup();
+    const { root } = env;
+    await openOrderForm(env);
+
+    const select = root.querySelector<HTMLSelectElement>('[data-testid="order-delivery"] [data-testid="delivery-select"]')!;
+    expect(Array.from(select.options).map((o) => o.textContent?.trim().split(' — ')[0])).toEqual(['Matriz', 'Filial Campinas']);
+    expect(select.value).toBe(matrizKey);
+    expect(root.querySelector('input[name="deliveryAddress"]')).toBeNull();
+    expect(root.querySelector('[data-testid="order-delivery"] [data-testid="delivery-add"]')).toBeNull();
+    expect(root.textContent).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
+    expect(root.innerHTML.replace(/value="[^"]*"/g, '')).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
+  });
+
+  it('checks the coverage of the chosen address for the order, informational only', async () => {
+    const env = setup();
+    const { fixture, http, root, settle, button } = env;
+    await openOrderForm(env);
+    button('Adicionar', root.querySelector('[data-testid="catalog"] tbody tr')!).click();
+    await settle();
+
+    button('Verificar cobertura').click();
+    fixture.detectChanges();
+    http.expectOne('/api/coverage/check').flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+
+    expect(root.querySelector('[data-testid="delivery-coverage-failed"]')).not.toBeNull();
+    expect(button('Registrar pedido').disabled).toBe(false);
+  });
+
+  it('tolerates a customer with no delivery address: says so and does not offer to register an order', async () => {
+    const env = setup();
+    const { root, settle, button } = env;
+    await openOrderForm(env, { addresses: [], billingAddressKey: null, defaultDeliveryKey: null });
+    button('Adicionar', root.querySelector('[data-testid="catalog"] tbody tr')!).click();
+    await settle();
+
+    expect(root.querySelector('[data-testid="delivery-none"]')!.textContent).toContain('Este cliente não tem endereço de entrega');
+    expect(button('Registrar pedido').disabled).toBe(true);
+  });
+
+  it('chooses the default again when another customer is loaded', async () => {
+    const env = setup();
+    const { root, settle } = env;
+    await openOrderForm(env);
+    choose(root, filialKey);
+    await settle();
+
+    root.querySelector<HTMLInputElement>('input[name="clientSearch"]')!.value = 'bar';
+    const lookup = env.fixture.componentInstance as unknown as { useCustomer(p: object): void };
+    lookup.useCustomer({ ...profile('Approved'), customerNumber: 77 });
+    await settle();
+
+    expect(root.querySelector<HTMLSelectElement>('[data-testid="delivery-select"]')!.value).toBe(matrizKey);
+  });
+
+  it('shows where a queued quote is to be delivered, and the address of the order just placed', async () => {
+    const env = setup({
+      queue: [{ ...quote('q1', [line('l1', 'Cola 2L', 1, 8.5)]), deliveryAddressSnapshot: { label: 'Filial Campinas', postalCode: '13010000', street: 'Rua Barão de Jaguara', number: '200', complement: 'Sala 3', district: 'Centro', city: 'Campinas', state: 'SP', notes: null, line: 'Rua Barão de Jaguara, 200 - Sala 3, Centro, Campinas/SP, CEP 13010-000' } }],
+    });
+    await env.settle();
+
+    const block = env.root.querySelector('[data-testid="queue-quote"] [data-testid="delivery-to"]')!;
+    expect(block.textContent).toContain('Filial Campinas');
+    expect(block.textContent).toContain('Rua Barão de Jaguara, 200 - Sala 3');
   });
 
   it('shows why an order was refused (an unpriced product) and keeps what was typed', async () => {
     const env = setup();
-    const { fixture, http, root, settle, button, type } = env;
+    const { fixture, http, root, settle, button } = env;
     await openOrderForm(env);
     button('Adicionar', root.querySelector('[data-testid="catalog"] tbody tr')!).click();
     await settle();
-    await type(root.querySelector<HTMLInputElement>('input[name="deliveryAddress"]')!, 'Rua Entrega, 10');
+    choose(root, filialKey);
+    await settle();
 
     button('Registrar pedido').click();
     fixture.detectChanges();
@@ -412,6 +537,6 @@ describe('EmployeePortal', () => {
     expect(alert.textContent).toContain('dados enviados são inválidos');
     expect(alert.querySelector('small')?.textContent).toContain('has no price configured');
     expect(root.querySelectorAll('[data-testid="order-basket"] tbody tr').length).toBe(1);
-    expect(root.querySelector<HTMLInputElement>('input[name="deliveryAddress"]')!.value).toBe('Rua Entrega, 10');
+    expect(root.querySelector<HTMLSelectElement>('[data-testid="delivery-select"]')!.value).toBe(filialKey);
   });
 });

@@ -23,6 +23,12 @@ namespace Marvi.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence<int>("client_number_seq");
+
+            modelBuilder.HasSequence<int>("order_number_seq");
+
+            modelBuilder.HasSequence<int>("quote_number_seq");
+
             modelBuilder.Entity("Marvi.Domain.Auditing.AuditLogEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -370,33 +376,106 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("BillingAddress")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("billing_address");
+                    b.Property<int>("AccountType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("account_type");
+
+                    b.Property<DateOnly?>("BirthDate")
+                        .HasColumnType("date")
+                        .HasColumnName("birth_date");
+
+                    b.Property<string>("Cnpj")
+                        .HasMaxLength(14)
+                        .HasColumnType("character varying(14)")
+                        .HasColumnName("cnpj");
 
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("company_name");
 
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("contact_name");
+
+                    b.Property<string>("CpfHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("cpf_hash");
+
+                    b.Property<string>("CpfProtected")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("cpf_protected");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("InvoiceEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("invoice_email");
+
+                    b.Property<string>("LegalName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("legal_name");
+
+                    b.Property<string>("MainCnae")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("main_cnae");
+
+                    b.Property<string>("MunicipalRegistration")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("municipal_registration");
+
+                    b.Property<int>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('client_number_seq')");
+
+                    b.Property<DateOnly?>("OpeningDate")
+                        .HasColumnType("date")
+                        .HasColumnName("opening_date");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
 
                     b.Property<Guid?>("PricingTierId")
                         .HasColumnType("uuid")
                         .HasColumnName("pricing_tier_id");
 
-                    b.PrimitiveCollection<List<string>>("ShippingAddresses")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("shipping_addresses");
+                    b.Property<string>("StateRegistration")
+                        .HasMaxLength(14)
+                        .HasColumnType("character varying(14)")
+                        .HasColumnName("state_registration");
+
+                    b.Property<int?>("StateRegistrationStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("state_registration_status");
 
                     b.Property<int>("Status")
                         .IsConcurrencyToken()
                         .HasColumnType("integer")
                         .HasColumnName("status");
+
+                    b.Property<int?>("TaxRegime")
+                        .HasColumnType("integer")
+                        .HasColumnName("tax_regime");
+
+                    b.Property<string>("TradeName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("trade_name");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -405,10 +484,138 @@ namespace Marvi.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_client_accounts");
 
+                    b.HasIndex("Cnpj")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_accounts_cnpj");
+
+                    b.HasIndex("CpfHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_accounts_cpf_hash");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_accounts_number");
+
                     b.HasIndex("PricingTierId")
                         .HasDatabaseName("ix_client_accounts_pricing_tier_id");
 
                     b.ToTable("client_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("Marvi.Domain.Identity.ClientAddress", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
+                    b.Property<Guid>("ClientAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_account_id");
+
+                    b.Property<string>("Complement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("complement");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("country");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DeliveryNotes")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delivery_notes");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("district");
+
+                    b.Property<bool>("IsBilling")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_billing");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_default");
+
+                    b.Property<Guid>("Key")
+                        .HasColumnType("uuid")
+                        .HasColumnName("key");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("label");
+
+                    b.Property<bool>("NeedsReview")
+                        .HasColumnType("boolean")
+                        .HasColumnName("needs_review");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("number");
+
+                    b.Property<string>("PostalCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("postal_code");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("Street")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("street");
+
+                    b.HasKey("Id")
+                        .HasName("pk_client_addresses");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_addresses_key");
+
+                    b.HasIndex(new[] { "ClientAccountId" }, "billing")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_addresses_one_billing")
+                        .HasFilter("is_billing = true");
+
+                    b.HasIndex(new[] { "ClientAccountId" }, "default")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_addresses_one_default")
+                        .HasFilter("is_default = true");
+
+                    b.HasIndex(new[] { "ClientAccountId" }, "plain")
+                        .HasDatabaseName("ix_client_addresses_client_account_id");
+
+                    b.ToTable("client_addresses", (string)null);
                 });
 
             modelBuilder.Entity("Marvi.Domain.Identity.EmployeeAccount", b =>
@@ -494,8 +701,64 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.Property<string>("DeliveryAddress")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("delivery_address");
+
+                    b.Property<string>("DeliveryAddressCity")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_city");
+
+                    b.Property<string>("DeliveryAddressComplement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_complement");
+
+                    b.Property<string>("DeliveryAddressDistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_district");
+
+                    b.Property<Guid?>("DeliveryAddressId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delivery_address_id");
+
+                    b.Property<string>("DeliveryAddressLabel")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("delivery_address_label");
+
+                    b.Property<string>("DeliveryAddressNotes")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delivery_address_notes");
+
+                    b.Property<string>("DeliveryAddressNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("delivery_address_number");
+
+                    b.Property<string>("DeliveryAddressPostalCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("delivery_address_postal_code");
+
+                    b.Property<string>("DeliveryAddressState")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("delivery_address_state");
+
+                    b.Property<string>("DeliveryAddressStreet")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_address_street");
+
+                    b.Property<int>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('order_number_seq')");
 
                     b.Property<DateTime>("PlacedAt")
                         .HasColumnType("timestamp with time zone")
@@ -526,6 +789,13 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasIndex("ClientAccountId")
                         .HasDatabaseName("ix_orders_client_account_id");
+
+                    b.HasIndex("DeliveryAddressId")
+                        .HasDatabaseName("ix_orders_delivery_address_id");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_number");
 
                     b.HasIndex("PlacedByEmployeeId")
                         .HasDatabaseName("ix_orders_placed_by_employee_id");
@@ -589,11 +859,68 @@ namespace Marvi.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DeliveryAddressCity")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_city");
+
+                    b.Property<string>("DeliveryAddressComplement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_complement");
+
+                    b.Property<string>("DeliveryAddressDistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("delivery_address_district");
+
+                    b.Property<Guid?>("DeliveryAddressId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid")
+                        .HasColumnName("delivery_address_id");
+
+                    b.Property<string>("DeliveryAddressLabel")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("delivery_address_label");
+
+                    b.Property<string>("DeliveryAddressNotes")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delivery_address_notes");
+
+                    b.Property<string>("DeliveryAddressNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("delivery_address_number");
+
+                    b.Property<string>("DeliveryAddressPostalCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("delivery_address_postal_code");
+
+                    b.Property<string>("DeliveryAddressState")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("delivery_address_state");
+
+                    b.Property<string>("DeliveryAddressStreet")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_address_street");
+
+                    b.Property<int>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("number")
+                        .HasDefaultValueSql("nextval('quote_number_seq')");
+
                     b.Property<Guid?>("PricedByEmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("priced_by_employee_id");
 
                     b.Property<int>("Status")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer")
                         .HasColumnName("status");
 
@@ -602,6 +929,13 @@ namespace Marvi.Infrastructure.Migrations
 
                     b.HasIndex("ClientAccountId")
                         .HasDatabaseName("ix_quotes_client_account_id");
+
+                    b.HasIndex("DeliveryAddressId")
+                        .HasDatabaseName("ix_quotes_delivery_address_id");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_quotes_number");
 
                     b.HasIndex("PricedByEmployeeId")
                         .HasDatabaseName("ix_quotes_priced_by_employee_id");
@@ -646,6 +980,25 @@ namespace Marvi.Infrastructure.Migrations
                         .HasDatabaseName("ix_quote_line_items_quote_id");
 
                     b.ToTable("quote_line_items", (string)null);
+                });
+
+            modelBuilder.Entity("Marvi.Infrastructure.Data.AppSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key")
+                        .HasName("pk_app_settings");
+
+                    b.ToTable("app_settings", (string)null);
                 });
 
             modelBuilder.Entity("Marvi.Infrastructure.Data.ApplicationUser", b =>
@@ -943,6 +1296,18 @@ namespace Marvi.Infrastructure.Migrations
                     b.Navigation("PricingTier");
                 });
 
+            modelBuilder.Entity("Marvi.Domain.Identity.ClientAddress", b =>
+                {
+                    b.HasOne("Marvi.Domain.Identity.ClientAccount", "ClientAccount")
+                        .WithMany("Addresses")
+                        .HasForeignKey("ClientAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_client_addresses_client_accounts_client_account_id");
+
+                    b.Navigation("ClientAccount");
+                });
+
             modelBuilder.Entity("Marvi.Domain.Inventory.InventoryRecord", b =>
                 {
                     b.HasOne("Marvi.Domain.Catalog.Product", "Product")
@@ -972,6 +1337,12 @@ namespace Marvi.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_orders_client_accounts_client_account_id");
+
+                    b.HasOne("Marvi.Domain.Identity.ClientAddress", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryAddressId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_orders_client_addresses_delivery_address_id");
 
                     b.HasOne("Marvi.Domain.Identity.EmployeeAccount", "PlacedByEmployee")
                         .WithMany()
@@ -1026,6 +1397,12 @@ namespace Marvi.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_quotes_client_accounts_client_account_id");
+
+                    b.HasOne("Marvi.Domain.Identity.ClientAddress", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryAddressId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_quotes_client_addresses_delivery_address_id");
 
                     b.HasOne("Marvi.Domain.Identity.EmployeeAccount", "PricedByEmployee")
                         .WithMany()
@@ -1136,6 +1513,8 @@ namespace Marvi.Infrastructure.Migrations
 
             modelBuilder.Entity("Marvi.Domain.Identity.ClientAccount", b =>
                 {
+                    b.Navigation("Addresses");
+
                     b.Navigation("Orders");
 
                     b.Navigation("Quotes");

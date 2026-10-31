@@ -32,6 +32,46 @@ _Avoid_: Estimate, proposal
 A confirmed purchase of a Basket, created by a Customer accepting a Quote or by an Employee placing it directly.
 _Avoid_: Purchase, transaction
 
+**Customer number**:
+A short business reference for a Customer (`Número do cliente`, shown as `C-000042`): a sequence the database assigns once at registration, unique, never reused and never edited. Staff read it out and the Customer sees it on their own profile. It is not the Customer's id: the id (a GUID) is for the backend and no screen, URL, title or label ever shows it. The SPA formats the number in one pipe.
+_Avoid_: Client ID, customer id, account number
+
+**Address**:
+A named place of a Customer in the Brazilian structure (`Endereço`): label (apelido, e.g. "Matriz"), kind (Billing, Delivery or Both), CEP, street, number, complement, district, city, UF, delivery notes. A Customer keeps up to 20 on one account. In the API it is `ClientAddress`, found by an opaque key, never by its id, and no screen shows either. Legacy free-text addresses become Addresses flagged "needs review".
+_Avoid_: Location, site
+
+**Billing address**:
+The one Address of a Customer that invoices go to (`Endereço principal`, shown with the badge "Principal"). Exactly one; it can only be moved by choosing another, never removed.
+_Avoid_: Main address, invoice address
+
+**Delivery address**:
+An Address goods are delivered to (kind Delivery or Both). One of them is the Customer's default delivery address (`Entrega padrão`). A Customer picks one for each Quote ("Entregar em", defaulting to the default one) until the Quote is accepted; staff placing an Order for a Customer pick from that Customer's own. Coverage ("Verificar cobertura") is only informational and never blocks.
+_Avoid_: Shipping address
+
+**Delivery address snapshot**:
+The copy of a Delivery address (label, street, number, complement, district, city, UF, CEP, notes) that a Quote or an Order keeps from the moment it was chosen, plus a link to the Address that is cleared if the Address is later removed. Editing or removing the Address never changes a Quote or an Order that already copied it; accepting a Quote gives the Order the Quote's snapshot as it was. Staff may amend an Order's snapshot until the Order is shipped (audited with before and after). The text in it is the Customer's own: any PDF, e-mail or CSV made from it must escape it. An Order made before this has only its old free text.
+_Avoid_: Live address, address reference
+
+**Quote number / Order number**:
+The same kind of reference for a Quote (`Q-000123`) and an Order (`P-000045`), each from its own sequence. Pages that show a document name it by its number, never by its id.
+_Avoid_: Quote id, order id, reference
+
+**Account type**:
+Whether a Customer buys as a company (`Business`, "Empresa") or as a person (`Personal`, "Pessoa física"), chosen at registration. A Business account carries the CNPJ and company data; a Personal account the CPF and a birth date (18 or older: the distributor sells alcohol). The display name is the company name or the full name. After Approval the verified record is locked for the Customer; only an Admin changes it (audited).
+_Avoid_: Customer type, kind
+
+**CNPJ**:
+A company's 14-character tax number: 8 of company root, 4 of establishment order (`0001` is the head office, "Matriz"; others "Filial") and 2 check digits. Since July 2026 the first 12 characters may be letters. Unique per account.
+_Avoid_: Company id
+
+**CPF**:
+A person's 11-digit tax number. Personal data (LGPD): stored encrypted, shown to staff and in the audit log only masked (`***.456.789-**`); an Admin sees it in full only through the audited "Mostrar CPF". Unique per account.
+_Avoid_: Document, personal id
+
+**State registration**:
+A company's ICMS registration (`Inscrição estadual`), required only when its status is Contributor; Exempt and non-contributor companies have none.
+_Avoid_: IE number (in prose)
+
 **Pricing tier**:
 A named price list a Customer is assigned to; exactly one is the default, used for anonymous visitors and new Customers.
 _Avoid_: Price group, level

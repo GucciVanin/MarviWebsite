@@ -1,0 +1,1 @@
+Slice 9.6 of MRV-9 (spec docs/specs/MRV-9.6-delivery-address-choice.md, issue #57): customers choose the delivery address on quotes and orders; staff placing an order choose from the customer's saved addresses; the chosen address is kept on the document as a snapshot. Owner 2026-10-30: "I like the idea to let the customers pick which address to deliver, move forward with that".

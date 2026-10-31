@@ -13,11 +13,13 @@
     @for (quote of quoteQueue.data(); track quote.id) {
       <article class="card" data-testid="queue-quote">
         <header class="toolbar">
-          <strong [id]="'queue-quote-' + quote.id">{{ t.customer }}: {{ quote.clientAccountId }}</strong>
-          <span class="muted">{{ t.sentOn }} {{ quote.createdAt | ptDate }}</span>
-          <button type="button" class="btn btn--outline btn--small" (click)="useCustomer(quote.clientAccountId)">{{ t.useCustomer }}</button>
+          <strong [id]="'queue-quote-' + quote.number">{{ t.customer }}: {{ quote.companyName }} ({{ quote.customerNumber | customerNumber }})</strong>
+          <span class="muted">{{ refs.quote }} {{ quote.number | documentNumber: 'quote' }} · {{ t.sentOn }} {{ quote.createdAt | ptDate }}</span>
+          <app-customer-lookup [number]="quote.customerNumber" [label]="t.useCustomer" (shown)="useCustomer($event)" />
         </header>
-        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'queue-quote-' + quote.id">
+        <app-delivery-to [snapshot]="quote.deliveryAddressSnapshot" />
+        <form class="stack" (ngSubmit)="sendPrices(quote)">
+        <div class="table-wrap" tabindex="0" role="group" [attr.aria-labelledby]="'queue-quote-' + quote.number">
 <table class="table">
           <thead>
             <tr>
@@ -38,6 +40,7 @@
                     type="number"
                     min="0"
                     step="0.01"
+                    [name]="'price-' + item.id"
                     [attr.aria-label]="t.finalPrice + ': ' + item.productName"
                     [ngModel]="priceValue(item.id, item.suggestedUnitPrice)"
                     (ngModelChange)="setPrice(item.id, $event)"
@@ -48,7 +51,8 @@
           </tbody>
         </table>
 </div>
-        <button type="button" class="btn btn--primary" [disabled]="priceAction.busy()" (click)="sendPrices(quote)">{{ t.sendPrices }}</button>
+        <div><button type="submit" class="btn btn--primary" [disabled]="priceAction.busy()">{{ t.sendPrices }}</button></div>
+        </form>
         @if (pricedQuoteId() === quote.id) {
           @if (priceProblem(); as problem) {
             <p class="alert alert--error" role="alert">{{ problem }}</p>
@@ -77,10 +81,11 @@
           @for (match of matches.items; track match.id) {
             <li class="toolbar" data-testid="client-match">
               <strong>{{ match.companyName }}</strong>
+              <span class="muted">{{ match.customerNumber | customerNumber }}</span>
               <span class="badge" [class.badge--ok]="match.status === 'Approved'" [class.badge--bad]="match.status !== 'Approved'">
                 {{ t.clientStatus[match.status] ?? match.status }}
               </span>
-              <button type="button" class="btn btn--outline btn--small" [disabled]="lookupAction.busy()" (click)="useCustomer(match.id)">{{ t.select }}</button>
+              <app-customer-lookup [number]="match.customerNumber" [label]="t.select" (shown)="useCustomer($event)" />
             </li>
           }
         </ul>
@@ -93,7 +98,7 @@
 
     @if (clientProfile(); as profile) {
       <article class="card" data-testid="customer">
-        <p><strong>{{ profile.companyName }}</strong></p>
+        <p><strong>{{ profile.companyName }}</strong> <span class="muted">({{ profile.customerNumber | customerNumber }})</span></p>
         <p>
           {{ t.status }}:
           <span class="badge" [class.badge--ok]="profile.status === 'Approved'" [class.badge--bad]="profile.status !== 'Approved'">
@@ -146,9 +151,8 @@
 </div>
           }
 
-          <div class="field">
-            <label for="deliveryAddress">{{ t.deliveryAddress }}</label>
-            <input id="deliveryAddress" name="deliveryAddress" type="text" [(ngModel)]="deliveryAddress" />
+          <div data-testid="order-delivery">
+            <app-delivery-picker [addresses]="profile.addresses" [defaultKey]="profile.defaultDeliveryKey" [noneText]="d.noneStaff" [(selectedKey)]="deliveryKey" />
           </div>
           <button type="button" class="btn btn--primary" [disabled]="!canPlaceOrder()" (click)="placeOrder()">{{ t.placeOrder }}</button>
           <app-error-alert [error]="orderAction.error()" />
@@ -157,7 +161,8 @@
 
       @if (placedOrder(); as order) {
         <article class="card" data-testid="placed-order">
-          <p id="placed-order-title" class="alert alert--success" role="status">{{ t.orderPlaced }}</p>
+          <p id="placed-order-title" class="alert alert--success" role="status">{{ t.orderPlaced }} {{ order.number | documentNumber: 'order' }}</p>
+          <app-delivery-to [snapshot]="order.deliveryAddressSnapshot" [text]="order.deliveryAddress" />
           <div class="table-wrap" tabindex="0" role="group" aria-labelledby="placed-order-title">
 <table class="table">
             <thead>

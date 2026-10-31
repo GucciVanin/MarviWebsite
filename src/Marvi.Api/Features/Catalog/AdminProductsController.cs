@@ -1,10 +1,13 @@
 using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Catalog.Contracts;
+using Marvi.Api.Configuration;
 using Marvi.Domain.Catalog;
+using Marvi.Domain.Inventory;
 using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Marvi.Api.Features.Catalog;
@@ -58,25 +61,160 @@ public class AdminProductsController : ControllerBase
             return BadRequest("Unknown category.");
         }
 
+        var contentProblems = new List<ProductSetupProblem>();
+        var description = ProductSetupRules.CheckDescription(request.Description, contentProblems);
+        var imageUrl = ProductSetupRules.CheckImageUrl(request.ImageUrl, contentProblems);
+        var attributes = ProductSetupRules.CheckAttributes(request.Attributes, contentProblems);
+        if (contentProblems.Count > 0)
+        {
+            return BadRequest(contentProblems);
+        }
+
         var product = new Product
         {
             Id = Guid.NewGuid(),
             Sku = AdminInput.Clean(request.Sku),
             Name = AdminInput.Clean(request.Name),
-            Description = request.Description,
+            Description = description,
             CategoryId = request.CategoryId,
-            ImageUrl = request.ImageUrl,
+            ImageUrl = imageUrl,
             IsActive = request.IsActive,
-            Attributes = request.Attributes
+            Attributes = attributes
         };
 
         _dbContext.Products.Add(product);
-        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Product), product.Id, request))
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Product), product.Id, AuditedProduct(product)))
         {
             return Conflict("The product conflicts with existing data (duplicate SKU, or its category was just removed).");
         }
 
         return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, ToDto(product));
+    }
+
+    /// <summary>
+    /// The guided "Novo produto" (MRV-9.5): the product, a price per tier (the rows that have one) and an opening quantity per warehouse, in ONE
+    /// save with one audit entry per row, so a half-created product never exists. Everything is checked before anything is staged; problems come
+    /// back by field (<c>[{ field, message }]</c>) without repeating what was typed.
+    /// </summary>
+    [HttpPost("with-setup")]
+    [EnableRateLimiting(RateLimiting.ProductSetupPolicy)]
+    public async Task<IActionResult> CreateProductWithSetup(CreateProductWithSetupRequest request)
+    {
+        var problems = new List<ProductSetupProblem>();
+        for (var i = 0; i < (request.Prices?.Count ?? 0); i++)
+        {
+            if (request.Prices![i] is null)
+            {
+                problems.Add(new($"prices[{i}]", "Linha de preço inválida."));
+            }
+        }
+
+        for (var i = 0; i < (request.Stock?.Count ?? 0); i++)
+        {
+            if (request.Stock![i] is null)
+            {
+                problems.Add(new($"stock[{i}]", "Linha de estoque inválida."));
+            }
+        }
+
+        if (problems.Count > 0)
+        {
+            return BadRequest(problems);
+        }
+
+        var plan = ProductSetupRules.Check(
+            new ProductSetupInput(
+                request.Sku, request.Name, request.Description, request.ImageUrl, request.Attributes,
+                request.Prices?.Select(p => new ProductSetupPrice(p.PricingTierId, p.UnitPrice)).ToList(),
+                request.Stock?.Select(s => new ProductSetupStock(s.WarehouseId, s.QtyOnHand)).ToList()),
+            problems);
+        if (request.CategoryId is null)
+        {
+            problems.Add(new("categoryId", "Escolha a categoria do produto."));
+        }
+
+        if (plan is null || problems.Count > 0)
+        {
+            return BadRequest(problems);
+        }
+
+        problems.AddRange(await UnknownReferencesAsync(request, plan));
+        if (problems.Count > 0)
+        {
+            return BadRequest(problems);
+        }
+
+        if (await _dbContext.Products.AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, plan.Sku)))
+        {
+            return Conflict(new[] { SkuTaken });
+        }
+
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            Sku = plan.Sku,
+            Name = plan.Name,
+            Description = plan.Description,
+            CategoryId = request.CategoryId,
+            ImageUrl = plan.ImageUrl,
+            IsActive = request.IsActive,
+            Attributes = plan.Attributes
+        };
+        _dbContext.Products.Add(product);
+        var audited = new List<AuditedRow>
+        {
+            new(AuditActions.Create, nameof(Product), product.Id, new { plan.Sku, plan.Name, plan.Description, product.CategoryId, plan.ImageUrl, product.IsActive, plan.Attributes })
+        };
+        foreach (var price in plan.Prices)
+        {
+            var row = new ProductPricing { Id = Guid.NewGuid(), ProductId = product.Id, PricingTierId = price.PricingTierId, UnitPrice = price.UnitPrice!.Value, MinQty = 1 };
+            _dbContext.ProductPricings.Add(row);
+            audited.Add(new(AuditActions.Create, nameof(ProductPricing), row.Id, new { productId = product.Id, row.PricingTierId, row.UnitPrice, row.MinQty }));
+        }
+
+        foreach (var stock in plan.Stock)
+        {
+            var row = new InventoryRecord { Id = Guid.NewGuid(), ProductId = product.Id, WarehouseId = stock.WarehouseId, QtyOnHand = stock.QtyOnHand!.Value };
+            _dbContext.InventoryRecords.Add(row);
+            audited.Add(new(AuditActions.Create, nameof(InventoryRecord), row.Id, new { productId = product.Id, row.WarehouseId, row.QtyOnHand }));
+        }
+
+        if (!await _auditLogger.TrySaveAsync(audited))
+        {
+            // A race the checks above could not see: the same SKU saved a moment ago (a double click, a retry), or something chosen was just removed.
+            var taken = await _dbContext.Products.AsNoTracking().AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, plan.Sku));
+            return Conflict(new[] { taken ? SkuTaken : new ProductSetupProblem("form", "Algo escolhido foi removido enquanto você preenchia. Recarregue a página e tente de novo.") });
+        }
+
+        return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, ToDto(product));
+    }
+
+    private static readonly ProductSetupProblem SkuTaken = new("sku", "SKU já existe.");
+
+    // The category, every priced tier and every stocked warehouse must exist; a problem names the row of the form.
+    private async Task<List<ProductSetupProblem>> UnknownReferencesAsync(CreateProductWithSetupRequest request, ProductSetupPlan plan)
+    {
+        var problems = new List<ProductSetupProblem>();
+        if (!await _dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId))
+        {
+            problems.Add(new("categoryId", "A categoria escolhida não existe."));
+        }
+
+        var tierIds = plan.Prices.Select(p => p.PricingTierId).ToList();
+        var knownTiers = (await _dbContext.PricingTiers.Where(t => tierIds.Contains(t.Id)).Select(t => t.Id).ToListAsync()).ToHashSet();
+        foreach (var price in plan.Prices.Where(p => !knownTiers.Contains(p.PricingTierId)))
+        {
+            problems.Add(new($"prices[{request.Prices!.FindIndex(r => r.PricingTierId == price.PricingTierId)}]", "A faixa de preço não existe."));
+        }
+
+        var warehouseIds = plan.Stock.Select(s => s.WarehouseId).ToList();
+        var knownWarehouses = (await _dbContext.Warehouses.Where(w => warehouseIds.Contains(w.Id)).Select(w => w.Id).ToListAsync()).ToHashSet();
+        foreach (var stock in plan.Stock.Where(s => !knownWarehouses.Contains(s.WarehouseId)))
+        {
+            problems.Add(new($"stock[{request.Stock!.FindIndex(r => r.WarehouseId == stock.WarehouseId)}]", "O armazém não existe."));
+        }
+
+        return problems;
     }
 
     [HttpPut("{id:guid}")]
@@ -99,14 +237,31 @@ public class AdminProductsController : ControllerBase
             return BadRequest("Unknown category.");
         }
 
+        // A product made before these rules (or by the CSV import) may hold a value they refuse. Editing the name, the category or the active flag
+        // must still work, so a field is checked only when its submitted value differs from the stored one; an unchanged value is kept as stored.
+        var contentProblems = new List<ProductSetupProblem>();
+        var description = AdminInput.Clean(request.Description) == AdminInput.Clean(product.Description)
+            ? product.Description
+            : ProductSetupRules.CheckDescription(request.Description, contentProblems);
+        var imageUrl = AdminInput.Clean(request.ImageUrl) == AdminInput.Clean(product.ImageUrl)
+            ? product.ImageUrl
+            : ProductSetupRules.CheckImageUrl(request.ImageUrl, contentProblems);
+        var attributes = SameAttributes(request.Attributes, product.Attributes)
+            ? product.Attributes
+            : ProductSetupRules.CheckAttributes(request.Attributes, contentProblems);
+        if (contentProblems.Count > 0)
+        {
+            return BadRequest(contentProblems);
+        }
+
         product.Sku = AdminInput.Clean(request.Sku);
         product.Name = AdminInput.Clean(request.Name);
-        product.Description = request.Description;
+        product.Description = description;
         product.CategoryId = request.CategoryId;
-        product.ImageUrl = request.ImageUrl;
+        product.ImageUrl = imageUrl;
         product.IsActive = request.IsActive;
-        product.Attributes = request.Attributes;
-        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Product), id, request))
+        product.Attributes = attributes;
+        if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Product), id, AuditedProduct(product)))
         {
             return Conflict("The product conflicts with existing data (duplicate SKU, or its category was just removed).");
         }
@@ -170,6 +325,22 @@ public class AdminProductsController : ControllerBase
     // A product may have no category; when it has one, it must be a real category.
     private async Task<bool> CategoryExistsAsync(Guid? categoryId) =>
         categoryId is null || await _dbContext.Categories.AnyAsync(c => c.Id == categoryId);
+
+    // Same attributes once cleaned (names and values trimmed, blank rows dropped): what the SPA sends back for an unchanged product.
+    private static bool SameAttributes(Dictionary<string, string>? submitted, Dictionary<string, string>? stored)
+    {
+        static Dictionary<string, string> Cleaned(Dictionary<string, string>? d) =>
+            (d ?? new()).Select(kv => (Key: AdminInput.Clean(kv.Key), Value: AdminInput.Clean(kv.Value)))
+                .Where(kv => kv.Key.Length > 0 || kv.Value.Length > 0)
+                .GroupBy(kv => kv.Key).ToDictionary(g => g.Key, g => g.Last().Value);
+        var a = Cleaned(submitted);
+        var b = Cleaned(stored);
+        return a.Count == b.Count && a.All(kv => b.TryGetValue(kv.Key, out var value) && value == kv.Value);
+    }
+
+    // The audit entry records what the row stores (cleaned), not the raw request.
+    private static object AuditedProduct(Product product) =>
+        new { product.Sku, product.Name, product.Description, product.CategoryId, product.ImageUrl, product.IsActive, product.Attributes };
 
     private static ProductAdminDto ToDto(Product product) =>
         new(product.Id, product.Sku, product.Name, product.Description, product.CategoryId, product.ImageUrl, product.IsActive, product.Attributes);
