@@ -154,7 +154,7 @@ describe('AdminCustomers', () => {
 
     button('Editar', row('Bar do Zé')).click();
     fixture.detectChanges();
-    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', ...twoAddresses(), quotes: [], orders: [] });
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', companyName: 'Bar do Zé', registration: registration(), ...twoAddresses(), quotes: [], orders: [] });
     await settle();
     const filialCard = Array.from(root.querySelectorAll<HTMLElement>('[data-testid="customer-addresses"] li'))[1];
     button('Corrigir endereço', filialCard).click();
@@ -173,7 +173,7 @@ describe('AdminCustomers', () => {
 
     button('Editar', row('Bar do Zé')).click();
     fixture.detectChanges();
-    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', ...twoAddresses(), quotes: [], orders: [] });
+    http.expectOne('/api/employee/clients/c1').flush({ id: 'c1', companyName: 'Bar do Zé', registration: registration(), ...twoAddresses(), quotes: [], orders: [] });
     await settle();
     const filialCard = Array.from(root.querySelectorAll<HTMLElement>('[data-testid="customer-addresses"] li'))[1];
     button('Corrigir endereço', filialCard).click();
