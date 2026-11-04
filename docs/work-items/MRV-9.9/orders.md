@@ -1,0 +1,6 @@
+# MRV-9.9 orders (issue #61)
+Serves AC-1..AC-8. Constraints: no new dependency; layout audit 0, axe 0, 200% text gated categories 0, Lighthouse a11y 100; never wipe or write the dev DB; client suite alone with exit code captured.
+- O-0 Bundle gate: change the documented total cap to 300,000 B everywhere it is stated (docs/tests/layout-audit.md, docs/tests/README.md, project.md, any script or CI check that enforces 237,975; if CI/scripts hard-code it, update them), and add a reported-not-gated measurement of the first-visit download for `/` (initial chunks only) to the bundle measuring notes; record the old and new figures.
+- O-1 (AC-1, AC-2, AC-4, AC-5, AC-6) API: login refuses Suspended after a verified password (403 + pt-BR message), uniform wrong-password response, token rejection for Suspended clients within 60 s through a status cache invalidated on admin suspend/approve, authorization matrix and fake-clock tests.
+- O-2 (AC-3) SPA: login-page message, session end + redirect on the suspension answer, specs.
+- O-3 (AC-7, AC-8) Runtime suite on Postgres (suspend, refused, approve, works) with throwaway data; docs (CONTEXT.md Suspension, project.md, architecture.md, coverage maps); pr-notes.md; three identical runs with exit code 0 and no Errors line.

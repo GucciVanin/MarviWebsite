@@ -242,7 +242,8 @@ const pendingOrder = await call('POST', '/api/employee/orders', { token: emp, bo
 ok('an order cannot be placed for a Pending customer (403)', pendingOrder.status === 403, String(pendingOrder.status));
 ok('a Suspended customer cannot accept a priced quote (403)', (await call('PUT', `/api/admin/clients/${clientP.id}/suspend`, { token: admin })).status === 204
   && (await call('POST', `/api/quotes/${pendingQuote.id}/accept`, { token: clientP.token })).status === 403);
-sql(`update client_accounts set status=1 where id='${clientP.id}'`);
+// Reinstated through the API (not SQL): the API's own status cache is told at once (MRV-9.9); a change made behind its back is covered by the 60 s check below.
+await call('PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: standard.id } });
 const approvedAccept = await call('POST', `/api/quotes/${pendingQuote.id}/accept`, { token: clientP.token });
 ok('once Approved again, the same customer can accept (201)', approvedAccept.status === 201, String(approvedAccept.status));
 
@@ -289,7 +290,7 @@ ok('...the customer is Approved on the tier the admin chose, and can now request
   && (await call('POST', '/api/quotes', { token: newcomer.token, body: { lineItems: [{ productId: prod.cola.id, qty: 1 }] } })).status === 201);
 const colaFor = async (token) => (await call('GET', '/api/products', { token })).json.find((p) => p.id === prod.cola.id)?.price;
 ok('once approved on Wholesale the customer sees the Wholesale price (cola 4.00), not the visitor price (5.00)', near(await colaFor(newcomer.token), 4) && near(await colaFor(undefined), 5));
-ok('...and a suspended customer is back to what a visitor sees (cola 5.00): only an Approved customer gets their own tier', (await call('PUT', `/api/admin/clients/${newcomer.id}/suspend`, { token: admin })).status === 204 && near(await colaFor(newcomer.token), 5));
+ok('...and a suspended customer is back to what a visitor sees (cola 5.00) once signed out: only an Approved customer gets their own tier (the old token is refused, MRV-9.9)', (await call('PUT', `/api/admin/clients/${newcomer.id}/suspend`, { token: admin })).status === 204 && near(await colaFor(undefined), 5) && (await call('GET', '/api/products', { token: newcomer.token })).status === 403);
 ok('the approval is in the audit log with the previous status', (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.entityId === newcomer.id && e.action === 'Approve' && e.details.data.includes('Pending')));
 
 section('DECISIONS: a customer is decided once, even when several admins act at the same moment (on real Postgres)');
@@ -311,6 +312,51 @@ const raceResults = await Promise.all([
 ok('a customer saving their profile while an admin decides them never gets a 500 (200, 403 once approved, or 409 at worst), and the decision still wins', raceResults.every((r) => r.status < 500) && raceResults[0].status === 204
   && (await call('GET', '/api/client/profile', { token: profileRace.token })).json.status === 'Approved', raceResults.map((r) => r.status).join(','));
 ok('a suspended customer can be approved again (204)', (await call('PUT', `/api/admin/clients/${racer.id}/approve`, { token: admin, body: { pricingTierId: wholesale.id } })).status === 204);
+
+section('SUSPENDED CUSTOMERS CANNOT SIGN IN (MRV-9.9, throwaway customers on real Postgres)');
+{
+  const pw = 'Client-1234!';
+  const email = 'suspensao@teste.test';
+  const stop = await registerClient('Suspensão Ltda', email);
+  const signIn = (e, p) => call('POST', '/api/auth/login', { body: { email: e, password: p } });
+  const wrongBefore = await signIn(email, 'Errada-123!');
+  const unknown = await signIn('ninguem@teste.test', 'Errada-123!');
+  ok('before the suspension: sign-in works (200 with a token), a wrong password is 401', (await signIn(email, pw)).json?.token && wrongBefore.status === 401);
+  ok('the token of an Approved customer reads the portal (200)', (await call('GET', '/api/client/profile', { token: stop.token })).status === 200);
+  ok('the admin suspends the customer (204)', (await call('PUT', `/api/admin/clients/${stop.id}/suspend`, { token: admin })).status === 204);
+  const refused = await signIn(email, pw);
+  ok('the right password of a suspended customer is refused: 403, the code and the message, no token', refused.status === 403 && refused.json?.code === 'account_suspended'
+    && refused.json?.message === 'Sua conta está suspensa. Entre em contato com a empresa.' && !refused.text.includes('token') && !refused.text.includes('eyJ'), refused.text);
+  const wrongAfter = await signIn(email, 'Errada-123!');
+  const norm = (r) => r.text.replace(/"traceId":"[^"]*"/, '');
+  ok('a WRONG password of the suspended customer answers exactly like any wrong password (same status and body), not 403', wrongAfter.status === 401 && wrongAfter.status === wrongBefore.status
+    && norm(wrongAfter) === norm(wrongBefore) && norm(wrongAfter) === norm(unknown) && !wrongAfter.text.includes('suspensa'));
+  const stale = await call('GET', '/api/client/profile', { token: stop.token });
+  ok('the old token is refused at once on the same API process (403, code account_suspended)', stale.status === 403 && stale.json?.code === 'account_suspended');
+  ok('...on quotes, addresses and orders too (403)', (await call('GET', '/api/quotes/mine', { token: stop.token })).status === 403
+    && (await call('POST', '/api/client/addresses', { token: stop.token, body: addr(77) })).status === 403 && (await call('GET', '/api/orders/mine', { token: stop.token })).status === 403);
+  ok('staff still see the suspended customer and their data (200, status Suspended)', (await call('GET', `/api/employee/clients/${stop.id}`, { token: emp })).json?.status === 'Suspended');
+  ok('the suspension is audited once', sql(`select count(*) from audit_log_entries where entity_id='${stop.id}' and action='Suspend'`) === '1');
+  ok('the admin approves again (204) and the customer signs in at once, the old token working too', (await call('PUT', `/api/admin/clients/${stop.id}/approve`, { token: admin, body: { pricingTierId: standard.id } })).status === 204
+    && (await signIn(email, pw)).json?.token && (await call('GET', '/api/client/profile', { token: stop.token })).status === 200);
+
+  // A change made behind the API's back (as another replica would make it) is noticed within the 60 s the cache lives.
+  ok('primed: the token is accepted (200)', (await call('GET', '/api/client/profile', { token: stop.token })).status === 200);
+  sql(`update client_accounts set status=2 where id='${stop.id}'`);
+  const started = Date.now();
+  const staleSeconds = (await call('GET', '/api/client/profile', { token: stop.token })).status === 200 ? 'still accepted at first' : 'refused at once';
+  let seconds = null;
+  while (Date.now() - started < 70_000) {
+    if ((await call('GET', '/api/client/profile', { token: stop.token })).status === 403) { seconds = Math.round((Date.now() - started) / 1000); break; }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  note(`MRV-9.9: a status changed in the database (not through the API) was noticed after ${seconds} s (${staleSeconds}); the limit is 60 s`);
+  ok('...a status changed directly in the database is noticed within 60 s (403)', seconds !== null && seconds <= 62, String(seconds));
+  ok('...and sign-in is refused for it as well (403)', (await signIn(email, pw)).status === 403);
+  sql(`update client_accounts set status=1 where id='${stop.id}'`);
+  const pending = await registerClient('Pendente Entra Ltda', 'pendente.entra@teste.test', { approve: false });
+  ok('a Pending customer still signs in (token) and reads their portal (200); the admin signs in too', !!pending.token && (await call('GET', '/api/client/profile', { token: pending.token })).status === 200 && !!(await login(ADMIN.email, ADMIN.password)) && !!(await login(emp1Email, emp1Pw)));
+}
 
 section('PENDING ACTIONS: the admin inbox lists everything waiting on someone (on real Postgres)');
 const waiting = await registerClient('Esperando Ltda', 'esperando@fila.test', { approve: false });

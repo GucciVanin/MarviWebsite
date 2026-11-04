@@ -46,6 +46,14 @@ function messageFor(status: number): string {
   return PT.errors.generic;
 }
 
+/** The machine-readable reason the API gives when a customer's account is Suspended (MRV-9.9): sign-in refused, or a request made with an old token. */
+export const ACCOUNT_SUSPENDED = 'account_suspended';
+
+/** True when `error` is the API's "your account is suspended" answer (403 with the code), not any other 403. */
+export function isSuspendedAnswer(error: unknown): boolean {
+  return error instanceof HttpErrorResponse && error.status === 403 && (error.error as { code?: unknown } | null)?.code === ACCOUNT_SUSPENDED;
+}
+
 /** True when `error` is an HTTP failure with one of the given statuses (e.g. 400/401 for rejected credentials). */
 export function hasStatus(error: unknown, ...statuses: number[]): boolean {
   return error instanceof HttpErrorResponse && statuses.includes(error.status);

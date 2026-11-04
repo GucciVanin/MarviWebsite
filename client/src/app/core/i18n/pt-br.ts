@@ -957,6 +957,8 @@ export const PT = {
     submitLogin: 'Entrar',
     submitRegister: 'Cadastrar',
     loginFailed: 'Não foi possível entrar. Verifique seu e-mail e sua senha.',
+    // The same words as the API's answer (MRV-9.9); shown on the login page after a refused sign-in and after a session the company ended.
+    suspended: 'Sua conta está suspensa. Entre em contato com a empresa.',
     registerFailed: 'Não foi possível concluir o cadastro. Verifique os dados e tente novamente.',
     newClient: 'Novo cliente?',
     createAccount: 'Crie sua conta',

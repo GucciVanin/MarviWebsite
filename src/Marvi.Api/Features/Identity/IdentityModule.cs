@@ -3,6 +3,7 @@ using Marvi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Marvi.Api.Features.Identity;
@@ -34,6 +35,10 @@ public static class IdentityModule
         services.AddScoped<JwtTokenService>();
         services.AddScoped<ClientAddressService>();
 
+        // Who is Suspended (MRV-9.9): one cache for the process, on a clock the tests can replace.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<ClientStatusCache>();
+
         // Registration data (MRV-9.4). The CPF is stored encrypted with Data Protection, whose keys must survive restarts: a configured folder on a mounted volume
         // (DataProtection:KeysPath). The Testing host uses throwaway keys so the suites never write outside their process.
         var protection = services.AddDataProtection().SetApplicationName("Marvi");
@@ -51,6 +56,9 @@ public static class IdentityModule
         services.AddScoped<ClientRegistrationService>();
         return services;
     }
+
+    /// <summary>Refuses the token of a Suspended customer on every endpoint (MRV-9.9). After authentication, before authorization.</summary>
+    public static IApplicationBuilder UseSuspendedClientGate(this IApplicationBuilder app) => app.UseMiddleware<SuspendedClientGate>();
 
     /// <summary>Ensures the Client/Employee/Admin Identity roles exist; role assignment fails on a fresh database without them.</summary>
     public static async Task SeedRolesAsync(IServiceProvider services)

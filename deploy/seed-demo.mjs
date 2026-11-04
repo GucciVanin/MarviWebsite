@@ -8,7 +8,7 @@
 //     cliente@demo.marvi.test    Bar do Demo                      Approved, Standard tier, has a priced quote and a quote in the queue
 //     mercado@demo.marvi.test    Mercado Atacadão Demo            Approved, Atacado tier, has an order
 //     pendente@demo.marvi.test   Mercearia Aguardando Aprovação   Pending (try "Aprovar" in the admin area)
-//     suspenso@demo.marvi.test   Loja Suspensa Demo               Suspended
+//     suspenso@demo.marvi.test   Loja Suspensa Demo               Suspended (cannot sign in: the login says so, MRV-9.9)
 //     pessoa@demo.marvi.test     João da Silva (conta pessoal)    Approved, Standard tier, a personal account with CPF and birth date
 //   Business accounts carry a CNPJ and the rest of the company data (the Pending one has only a CNPJ, so the completeness indicator shows what is missing;
 //   the wholesale market has the Receita's alphanumeric CNPJ example). The numbers are the usual public test numbers, not real people or companies.

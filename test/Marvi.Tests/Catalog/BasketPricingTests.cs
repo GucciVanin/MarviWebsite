@@ -129,7 +129,7 @@ public class BasketPricingTests : IClassFixture<MarviApiFactory>
     public async Task InvalidLines_AreRefusedBeforeEligibilityIsChecked()
     {
         var (client, accountId) = await _factory.RegisterClientAsync();
-        await _factory.SetClientStatusAsync(accountId, ClientAccountStatus.Suspended);
+        await _factory.SetClientStatusAsync(accountId, ClientAccountStatus.Pending);
 
         var response = await client.PostAsJsonAsync("/api/quotes", new CreateQuoteRequest([]));
 

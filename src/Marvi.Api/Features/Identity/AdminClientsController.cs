@@ -20,9 +20,11 @@ public class AdminClientsController : ControllerBase
     private readonly ClientAddressService _addresses;
     private readonly ClientRegistrationService _registration;
     private readonly CpfProtector _cpf;
+    private readonly ClientStatusCache _statusCache;
 
-    public AdminClientsController(AppDbContext dbContext, AuditLogger auditLogger, ClientAddressService addresses, ClientRegistrationService registration, CpfProtector cpf)
+    public AdminClientsController(AppDbContext dbContext, AuditLogger auditLogger, ClientAddressService addresses, ClientRegistrationService registration, CpfProtector cpf, ClientStatusCache statusCache)
     {
+        _statusCache = statusCache;
         _dbContext = dbContext;
         _auditLogger = auditLogger;
         _addresses = addresses;
@@ -160,6 +162,8 @@ public class AdminClientsController : ControllerBase
             return Conflict(AuditLogger.ConflictMessage);
         }
 
+        // Sign-in works again at once (MRV-9.9).
+        _statusCache.Invalidate(id);
         return NoContent();
     }
 
@@ -213,6 +217,8 @@ public class AdminClientsController : ControllerBase
             return Conflict(AuditLogger.ConflictMessage);
         }
 
+        // The customer's token stops working at once (MRV-9.9), not up to a minute later.
+        _statusCache.Invalidate(id);
         return NoContent();
     }
 }

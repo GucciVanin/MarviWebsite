@@ -56,6 +56,8 @@ public static class TestClients
         var account = await db.ClientAccounts.FindAsync(accountId);
         account!.Status = status;
         await db.SaveChangesAsync();
+        // The same thing an admin's decision does: the API forgets the status it had cached (MRV-9.9).
+        scope.ServiceProvider.GetRequiredService<Marvi.Api.Features.Identity.ClientStatusCache>().Invalidate(accountId);
     }
 
     /// <summary>Creates a product priced for the default tier (the tier new clients are assigned).</summary>

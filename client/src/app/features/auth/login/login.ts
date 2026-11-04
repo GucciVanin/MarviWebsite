@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
-import { describeApiError, hasStatus } from '../../../core/http/api-error';
+import { describeApiError, hasStatus, isSuspendedAnswer } from '../../../core/http/api-error';
 import { AppIcon } from '../../../shared/ui/app-icon/app-icon';
 import { PT } from '../../../core/i18n/pt-br';
 
@@ -21,7 +21,8 @@ export class Login {
   email = '';
   password = '';
   // Signals, not plain fields: the app is zoneless, so only signal writes re-render after async callbacks.
-  protected readonly error = signal<string | null>(null);
+  // A session the company ended arrives here with its reason (MRV-9.9).
+  protected readonly error = signal<string | null>(this.authService.takeSuspendedNotice() ? this.t.suspended : null);
   protected readonly busy = signal(false);
 
   submit(): void {
@@ -32,7 +33,9 @@ export class Login {
       error: (failure: unknown) => {
         this.busy.set(false);
         // Wrong credentials are 400/401; anything else (network, server) is not the user's typing.
-        this.error.set(hasStatus(failure, 400, 401) ? this.t.loginFailed : describeApiError(failure).message);
+        this.error.set(
+          isSuspendedAnswer(failure) ? this.t.suspended : hasStatus(failure, 400, 401) ? this.t.loginFailed : describeApiError(failure).message,
+        );
       },
     });
   }

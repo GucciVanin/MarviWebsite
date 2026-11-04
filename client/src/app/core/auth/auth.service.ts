@@ -72,6 +72,7 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly tokenSignal = signal<string | null>(localStorage.getItem(TOKEN_STORAGE_KEY));
   private readonly claims = computed(() => decodeToken(this.tokenSignal()));
+  private suspendedNotice = false;
 
   // Signed in means a decodable, unexpired token that carries a known role; anything else is treated as signed out.
   // A plain function, not a computed(): a computed would memoise on the token and never notice it expiring mid-session.
@@ -116,6 +117,19 @@ export class AuthService {
 
   logout(): void {
     this.setToken(null);
+  }
+
+  /** The company ended this session (the account was suspended): sign out and keep a note for the login page to show once. */
+  endSuspendedSession(): void {
+    this.setToken(null);
+    this.suspendedNotice = true;
+  }
+
+  /** True once after {@link endSuspendedSession}; reading it clears it, so a reload or a later visit to the login page shows nothing. */
+  takeSuspendedNotice(): boolean {
+    const notice = this.suspendedNotice;
+    this.suspendedNotice = false;
+    return notice;
   }
 
   getToken(): string | null {

@@ -113,13 +113,15 @@ public class ClientProfileTests : IClassFixture<MarviApiFactory>
 
         var response = await client.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest("Acme Co", null, new RegistrationRequest(Phone: "11 91234-5678")));
 
+        // MRV-9.9: with a stale token the gate answers first, for the read and the unchanged save too (the controller's own lock stays as defence in depth).
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await PutAsync(client, "Acme Renamed")).StatusCode);
-        // Reading is still allowed, and an unchanged save is not an edit.
-        var profile = (await client.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!;
-        Assert.Equal(ClientAccountStatus.Suspended, profile.Status);
-        Assert.Null(profile.Registration!.Phone);
-        Assert.Equal(HttpStatusCode.OK, (await PutAsync(client, "Acme Co")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/client/profile")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await PutAsync(client, "Acme Co")).StatusCode);
+        var stored = (await admin.GetFromJsonAsync<ClientProfileDto>($"/api/employee/clients/{id}"))!;
+        Assert.Equal(ClientAccountStatus.Suspended, stored.Status);
+        Assert.Equal("Acme Co", stored.CompanyName);
+        Assert.Null(stored.Registration!.Phone);
     }
 
     [Theory]

@@ -297,7 +297,7 @@ public class ClientAddressTests : IClassFixture<MarviApiFactory>
     }
 
     [Fact]
-    public async Task ASuspendedCustomer_CanStillMaintainTheirAddresses()
+    public async Task ASuspendedCustomer_CannotMaintainTheirAddresses_WithAStaleToken()
     {
         var admin = await _factory.AdminAsync();
         var (client, id) = await _factory.RegisterClientAsync();
@@ -305,7 +305,10 @@ public class ClientAddressTests : IClassFixture<MarviApiFactory>
 
         var response = await client.PostAsJsonAsync("/api/client/addresses", TestAddresses.Other());
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        // MRV-9.9: a suspended customer cannot use the API at all, not even to keep their addresses (staff can, through the customer page).
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("account_suspended", await response.Content.ReadAsStringAsync());
+        Assert.Single((await admin.GetFromJsonAsync<ClientProfileDto>($"/api/employee/clients/{id}"))!.Addresses);
     }
 
     // ---- AC-7: staff and the audit log

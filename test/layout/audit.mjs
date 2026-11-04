@@ -33,7 +33,7 @@ const ACCOUNTS = {
   cliente: { email: 'cliente@demo.marvi.test', password: 'Demo-Cliente-1!' },
   mercado: { email: 'mercado@demo.marvi.test', password: 'Demo-Cliente-1!' },
   pendente: { email: 'pendente@demo.marvi.test', password: 'Demo-Cliente-1!' },
-  suspenso: { email: 'suspenso@demo.marvi.test', password: 'Demo-Cliente-1!' },
+  // A Suspended customer cannot sign in (MRV-9.9): this account is only used by the `suspended` step, through the login form, to show the refusal.
   pessoa: { email: 'pessoa@demo.marvi.test', password: 'Demo-Cliente-1!' },
 };
 
@@ -42,13 +42,13 @@ const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos
 // group = who is signed in and how the page is opened. `notice` leaves the privacy notice visible (fixed layer, AC-3/AC-9).
 const GROUPS = [
   { name: 'public', account: null, notice: false, routes: PUBLIC },
+  { name: 'public-suspended', account: null, notice: false, routes: ['/login#suspended'] },
   { name: 'public-register', account: null, notice: false, routes: ['/register#business', '/register#personal'] },
   { name: 'public-notice', account: null, notice: true, routes: ['/', '/storefront', '/contato', '/register'] },
   { name: 'public-as-employee', account: 'employee', notice: false, routes: ['/', '/storefront', '/contato'] },
   { name: 'client-portal', account: 'cliente', notice: false, routes: ['/portal', '/portal#address-add', '/portal#address-edit', '/portal#delivery-coverage', '/portal#delivery-change'] },
   { name: 'client-portal-wholesale', account: 'mercado', notice: false, routes: ['/portal'] },
   { name: 'client-portal-pending', account: 'pendente', notice: false, routes: ['/portal'] },
-  { name: 'client-portal-suspended', account: 'suspenso', notice: false, routes: ['/portal'] },
   { name: 'client-portal-personal', account: 'pessoa', notice: false, routes: ['/portal'] },
   { name: 'employee-portal', account: 'employee', notice: false, routes: ['/employee', '/employee#widget', '/employee#order', '/employee/historico', '/employee/historico#history-orders', '/employee/clientes/C-000001', '/employee/clientes/C-999999'] },
   { name: 'admin-portal', account: 'admin', notice: false, routes: ADMIN },
@@ -141,6 +141,7 @@ async function openProductPanel(page, errors) {
 //   delivery-change    /portal with the first quote's change-of-address picker open (MRV-9.6)
 //   order              /employee with a customer loaded through the widget (closed again), so the order form's "Entregar em" selector shows (MRV-9.6)
 //   history-orders     /employee/historico on the orders list, each with its delivery address (MRV-9.6)
+//   suspended    /login after the suspended demo customer's right password was submitted: the "Sua conta está suspensa" message showing (MRV-9.9)
 //   business     the registration page with the business account chosen and an alphanumeric CNPJ typed (MRV-9.4)
 //   personal     the registration page with the personal account chosen, a CPF and a birth date under 18 typed (the longest message)
 //   registration / registration-personal   the admin customers editor of the first company / person, with the registration form
@@ -173,6 +174,11 @@ async function openStep(page, step) {
   } else if (step === 'history-orders') {
     await page.getByRole('button', { name: 'Pedidos', exact: true }).click();
     await page.waitForSelector('[data-testid="history-item"] [data-testid="delivery-to"]', { timeout: 8000 });
+  } else if (step === 'suspended') {
+    await page.locator('#email').fill('suspenso@demo.marvi.test');
+    await page.locator('#password').fill('Demo-Cliente-1!');
+    await page.locator('button[type="submit"]').click();
+    await page.waitForSelector('[role="alert"]:has-text("Sua conta está suspensa")', { timeout: 8000 });
   } else if (step === 'business') {
     await page.locator('#register-type-business').click();
     await page.locator('#register-cnpj').fill('12abc34501de35');

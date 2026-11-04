@@ -18,7 +18,6 @@ const ACCOUNTS = {
   cliente: { email: 'cliente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal', '/portal#address-add', '/portal#address-edit', '/portal#delivery-coverage', '/portal#delivery-change'] },
   mercado: { email: 'mercado@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   pendente: { email: 'pendente@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
-  suspenso: { email: 'suspenso@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
   pessoa: { email: 'pessoa@demo.marvi.test', password: 'Demo-Cliente-1!', routes: ['/portal'] },
 };
 if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
@@ -29,7 +28,8 @@ if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
 }
 
 // The registration page is public (no account): its two account types are audited signed out (MRV-9.4).
-ACCOUNTS.visitante = { routes: ['/register#business', '/register#personal'] };
+// The login page with the suspended customer's refusal showing (MRV-9.9): a Suspended customer cannot sign in, so the message is reached through the form.
+ACCOUNTS.visitante = { routes: ['/register#business', '/register#personal', '/login#suspended'] };
 
 const browser = await chromium.launch();
 let failures = 0, checked = 0, skipped = 0;
@@ -53,6 +53,12 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
       if (step === 'widget') {
         await page.locator('button[aria-haspopup="dialog"]').first().click();
         await page.waitForSelector('[role="dialog"][data-popover] [data-testid="lookup-facts"]', { timeout: 8000 });
+      }
+      if (step === 'suspended') {
+        await page.locator('#email').fill('suspenso@demo.marvi.test');
+        await page.locator('#password').fill('Demo-Cliente-1!');
+        await page.locator('button[type="submit"]').click();
+        await page.waitForSelector('[role="alert"]:has-text("Sua conta está suspensa")', { timeout: 8000 });
       }
       if (step === 'business') {
         await page.locator('#register-type-business').click();

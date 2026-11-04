@@ -64,6 +64,7 @@ app.UseHttpsRedirection();
 app.UseCors("SpaClient");
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseSuspendedClientGate();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");

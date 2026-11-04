@@ -12,8 +12,12 @@ _Avoid_: Client (in prose), buyer, account
 Whether a Customer may request a quote, accept one, or have an order placed for them. Only an Approved Customer is eligible; Pending and Suspended Customers are not.
 _Avoid_: Permission, access
 
+**Suspension** (MRV-9.9):
+An Admin's decision that a Customer is cut off until the company has settled the matter internally. A Suspended Customer **cannot sign in** (the sign-in answers 403 with the reason, only after the right password was given) and a session they already hold ends within 60 seconds (at once when the Admin acts); nothing of theirs is deleted and staff still see their quotes, orders and data. "Aprovar" reinstates them. Not to be confused with a Pending Customer, who signs in and waits for approval.
+_Avoid_: Block, ban, deactivation
+
 **Approval**:
-An Admin's explicit decision to let a Customer transact, choosing their pricing tier. A newly registered Customer is Pending (least privilege: no access to quotes and orders until approved); a Suspended Customer is approved again the same way. Nobody is approved by default.
+An Admin's explicit decision to let a Customer transact, choosing their pricing tier. A newly registered Customer is Pending (least privilege: no access to quotes and orders until approved); a Suspended Customer is approved again the same way (which also lets them sign in again). Nobody is approved by default.
 _Avoid_: Activation, verification
 
 **No credit**:

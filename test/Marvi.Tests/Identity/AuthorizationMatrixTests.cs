@@ -165,6 +165,29 @@ public class AuthorizationMatrixTests : IClassFixture<MarviApiFactory>
         Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
     }
 
+    /// <summary>MRV-9.9 (AC-5): the token of a customer who has since been suspended is refused on every protected endpoint, whatever its role rule.</summary>
+    [Fact]
+    public async Task ASuspendedCustomersStaleToken_IsRefusedOnEveryEndpoint_WithTheSuspensionReason()
+    {
+        var (client, id) = await _factory.RegisterClientAsync();
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/client/profile")).StatusCode);
+        var admin = await _factory.AdminAsync();
+        (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).EnsureSuccessStatusCode();
+        var problems = new List<string>();
+
+        foreach (var (method, url, _) in Endpoints())
+        {
+            var response = await client.SendAsync(Request(method, url));
+            var body = await response.Content.ReadAsStringAsync();
+            if (response.StatusCode != HttpStatusCode.Forbidden || !body.Contains("account_suspended", StringComparison.Ordinal))
+            {
+                problems.Add($"{method} {url} with a suspended customer's token: expected 403 account_suspended, got {(int)response.StatusCode} {body}");
+            }
+        }
+
+        Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+    }
+
     private static Regex RouteRegex(string pattern)
     {
         var text = Regex.Replace(pattern.Trim('/'), @"\{[^}]+\}", m =>

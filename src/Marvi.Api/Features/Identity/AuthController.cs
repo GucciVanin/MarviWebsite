@@ -148,7 +148,15 @@ public class AuthController : ControllerBase
         Guid? employeeAccountId = null;
         if (string.Equals(role, Principal.Roles.Client, StringComparison.OrdinalIgnoreCase))
         {
-            clientAccountId = (await _dbContext.ClientAccounts.FirstOrDefaultAsync(c => c.UserId == user.Id))?.Id;
+            var account = await _dbContext.ClientAccounts.AsNoTracking().FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (account?.Status == ClientAccountStatus.Suspended)
+            {
+                // MRV-9.9. Only here, after the password was verified: a wrong password answers 401 exactly as for any account, so this answer
+                // cannot be used to find out which e-mails belong to suspended customers. No token, nothing logged.
+                return StatusCode(StatusCodes.Status403Forbidden, AccountSuspension.Body);
+            }
+
+            clientAccountId = account?.Id;
         }
         else if (string.Equals(role, Principal.Roles.Employee, StringComparison.OrdinalIgnoreCase))
         {
