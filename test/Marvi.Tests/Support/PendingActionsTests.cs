@@ -109,7 +109,7 @@ public class PendingActionsTests
         }
 
         var existing = (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{inactive}"))!;
-        (await admin.PutAsJsonAsync($"/api/admin/products/{inactive}", new UpdateProductRequest(existing.Sku, existing.Name, null, existing.CategoryId, null, false, new Dictionary<string, string>()))).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync($"/api/admin/products/{inactive}", new UpdateProductRequest(existing.Sku, existing.Name, null, existing.CategoryId, false, new Dictionary<string, string>()))).EnsureSuccessStatusCode();
 
         var pending = await GetAsync(admin);
 

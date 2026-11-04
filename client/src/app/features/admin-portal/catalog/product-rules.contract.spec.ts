@@ -18,7 +18,7 @@ interface RuleCase {
 const cases = contract.cases as RuleCase[];
 const textOf = (c: RuleCase) => (c.prefix ?? '') + (c.text ?? '').repeat(c.repeat ?? 1);
 const base = (change: Partial<ProductDraft> = {}): ProductDraft => ({
-  sku: 'COLA-1', name: 'Cola 2L', categoryId: 'c1', description: '', imageUrl: '', attributes: [], prices: [], quantities: [], ...change,
+  sku: 'COLA-1', name: 'Cola 2L', categoryId: 'c1', description: '', attributes: [], prices: [], quantities: [], ...change,
 });
 
 /** The form's verdict for one case: true when the form would let it through. */
@@ -29,7 +29,6 @@ function clientAccepts(c: RuleCase): boolean {
     case 'sku': return !validateProduct(base({ sku: text }))['sku'];
     case 'name': return !validateProduct(base({ name: text }))['name'];
     case 'description': return !validateProduct(base({ description: text }))['description'];
-    case 'imageUrl': return !validateProduct(base({ imageUrl: text }))['imageUrl'];
     case 'attributeCount': return !validateProduct(base({ attributes: Array.from({ length: c.repeat ?? 0 }, (_, i) => ({ key: `k${i}`, value: 'v' })) }))['attributes'];
     case 'attributeKey': return !validateProduct(base({ attributes: [{ key: text, value: 'v' }] }))['attributes'];
     case 'attributeValue': return !validateProduct(base({ attributes: [{ key: 'marca', value: text }] }))['attributes'];
@@ -47,7 +46,7 @@ describe('product rules: the client against the server contract (MRV-9.8 AC-5)',
 
   it('covers every kind of rule, so a new field in the table is not silently skipped', () => {
     expect([...new Set(cases.map((c) => c.field))].sort()).toEqual([
-      'attributeCount', 'attributeDuplicate', 'attributeKey', 'attributeValue', 'category', 'description', 'imageUrl', 'name', 'price', 'quantity', 'sku',
+      'attributeCount', 'attributeDuplicate', 'attributeKey', 'attributeValue', 'category', 'description', 'name', 'price', 'quantity', 'sku',
     ]);
     expect(cases.some((c) => c.valid)).toBe(true);
     expect(cases.some((c) => !c.valid)).toBe(true);

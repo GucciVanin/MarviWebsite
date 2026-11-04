@@ -4,6 +4,19 @@
 import { chromium } from 'playwright';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
+import { deflateSync } from 'node:zlib';
+
+// A flat grey 480 x 480 PNG made here (no file in the repository), for the photo chooser.
+function flatPng(width = 480, height = 480) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => { const t = Buffer.from(type, 'ascii'); const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data]))); return Buffer.concat([len, t, data, crc]); };
+  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 0;
+  const rows = Buffer.alloc((width + 1) * height, 0x80);
+  for (let y = 0; y < height; y++) rows[y * (width + 1)] = 0;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(rows)), chunk('IEND', Buffer.alloc(0))]);
+}
+
 const axeSrc = require('fs').readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
 
 const BASE = process.env.BASE_URL;
@@ -23,7 +36,7 @@ const ACCOUNTS = {
 if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
   ACCOUNTS.admin = {
     email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD,
-    routes: ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/catalogo#product-new', '/admin/catalogo#product-errors', '/admin/catalogo#product-edit', '/admin/importacao', '/admin/auditoria'],
+    routes: ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/catalogo#product-new', '/admin/catalogo#product-errors', '/admin/catalogo#product-photo', '/admin/catalogo#product-photo-error', '/admin/catalogo#product-edit', '/admin/importacao', '/admin/auditoria'],
   };
 }
 
@@ -103,13 +116,21 @@ for (const [role, account] of Object.entries(ACCOUNTS)) {
           await page.locator(`#attr-key-${i}`).fill(i ? 'Quantidade por caixa' : 'Certificação');
           await page.locator(`#attr-value-${i}`).fill('Valor de atributo bem longo para testar a quebra de linha');
         }
-        await page.locator('#productImage').fill('https://exemplo.com.br/imagens/produtos/refrigerante-cola.png');
         if (step === 'product-errors') {
           await page.locator('#price-0').fill('1,234');
           await page.locator('#qty-0').fill('-3');
-          await page.locator('#productImage').fill('http://exemplo.com.br/imagem.png');
           await page.locator('[data-testid="save-product"]').click();
           await page.waitForSelector('[data-testid="fix-fields"]', { timeout: 8000 });
+        }
+      } else if (step === 'product-photo' || step === 'product-photo-error') {
+        await page.getByRole('button', { name: 'Novo produto' }).click();
+        await page.waitForSelector('[data-testid="product-panel"] [data-testid="prices"] tbody tr', { timeout: 8000 });
+        if (step === 'product-photo') {
+          await page.locator('#productPhoto').setInputFiles({ name: 'cola.png', mimeType: 'image/png', buffer: flatPng() });
+          await page.waitForSelector('[data-testid="photo-preview"] img', { timeout: 15000 });
+        } else {
+          await page.locator('#productPhoto').setInputFiles({ name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') });
+          await page.waitForSelector('#productPhoto[aria-invalid="true"]', { timeout: 8000 });
         }
       } else if (step === 'product-edit') {
         await page.locator('[data-testid="products"] tbody tr').first().getByRole('button', { name: 'Editar' }).click();

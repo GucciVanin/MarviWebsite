@@ -67,6 +67,8 @@ export function auditDom() {
     if (el.closest('svg') && el.tagName.toLowerCase() !== 'svg') return false;
     const s = cs(el);
     if (s.display === 'none' || s.display === 'contents' || s.visibility === 'hidden' || s.visibility === 'collapse') return false;
+    // The content of a closed <details> is not rendered (only its summary is), so it cannot cover or be covered by anything.
+    if (el.parentElement?.closest('details:not([open])') && !el.closest('summary')) return false;
     if (px(s.opacity) === 0) return false;
     const r = rectOf(el);
     if (r.width <= 0 || r.height <= 0) return false;

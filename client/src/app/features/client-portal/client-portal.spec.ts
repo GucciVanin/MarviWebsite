@@ -779,4 +779,33 @@ describe('ClientPortal', () => {
 
     expect(text(root)).toContain('Nenhum pedido ainda');
   });
+
+  // ---- MRV-9.7: the product photo on the basket, quote and order lines
+
+  it('shows the product photo (or the placeholder) on the basket, quote and order lines, with an empty alt (the name is beside it)', async () => {
+    const photo = '/api/public/media/products/0123456789abcdef0123456789abcdef.jpg';
+    const { root, settle, button } = setup({
+      products: [{ ...product('1', 'Cola 2L', 12.5), imageUrl: photo }, product('2', 'Água', 3)],
+      quotes: [quote('q1', 'Priced', [{ ...line('Cola 2L', 2, 12.5, 11), imageUrl: photo }, line('Água', 1, 3, 3)])],
+      orders: [{ id: 'o1', number: 45, clientAccountId: 'c1', customerNumber: 42, companyName: 'Bar do Zé', quoteId: 'q1', status: 'Placed', deliveryAddress: '', warehouseId: null, placedByEmployeeId: null, placedAt: '2026-10-14T13:42:00Z', totalAmount: 22,
+        lineItems: [{ id: 'ol1', productId: 'p1', productName: 'Cola 2L', imageUrl: photo, qty: 2, unitPrice: 11 }] }],
+    });
+    await settle();
+    const catalogRows = () => root.querySelectorAll('[data-testid="catalog"] tbody tr');
+    button('Adicionar', catalogRows()[0]).click();
+    button('Adicionar', catalogRows()[1]).click();
+    await settle();
+
+    const first = (selector: string) => root.querySelector(selector)!;
+    expect(first('[data-testid="catalog"] tbody tr img').getAttribute('src')).toBe(photo);
+    const basket = root.querySelectorAll('[data-testid="basket"] tbody tr');
+    expect(basket[0].querySelector('img')!.getAttribute('src')).toBe(photo);
+    expect(basket[0].querySelector('img')!.getAttribute('alt')).toBe('');
+    expect(basket[1].querySelector('img')).toBeNull();
+    expect(basket[1].querySelector('app-product-photo')).not.toBeNull();
+    const quoteRows = root.querySelectorAll('[data-testid="quote"] tbody tr');
+    expect(quoteRows[0].querySelector('img')!.getAttribute('src')).toBe(photo);
+    expect(quoteRows[1].querySelector('img')).toBeNull();
+    expect(root.querySelector('[data-testid="order"] tbody img')!.getAttribute('alt')).toBe('');
+  });
 });

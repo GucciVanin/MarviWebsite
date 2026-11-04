@@ -41,6 +41,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     public DbSet<InventoryRecord> InventoryRecords => Set<InventoryRecord>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
+    public DbSet<ProductPhotoUpload> ProductPhotoUploads => Set<ProductPhotoUpload>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -166,6 +167,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.Property(m => m.Message).HasMaxLength(ContactMessage.MaxMessageLength);
             e.Property(m => m.HandledAt).IsConcurrencyToken();
             e.HasIndex(m => m.CreatedAt);
+        });
+
+        // Product photos waiting to be linked (MRV-9.7): the token is the key, the row is deleted in the same save that links the file to a product.
+        builder.Entity<ProductPhotoUpload>(e =>
+        {
+            e.HasKey(u => u.Token);
+            e.Property(u => u.Token).HasMaxLength(32);
+            e.Property(u => u.FileName).HasMaxLength(40);
+            e.HasIndex(u => u.CreatedAt);
+            e.HasIndex(u => u.UploadedByUserId);
         });
 
         // Stock records are deleted deliberately, never as a side effect of deleting the warehouse.

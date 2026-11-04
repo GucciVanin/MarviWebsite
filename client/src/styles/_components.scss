@@ -405,6 +405,43 @@
   &__price { font-size: 1.25rem; font-weight: 800; color: var(--color-navy-900); }
 }
 
+// The product photo (MRV-9.7): a box of fixed proportions whatever arrives (an image, a placeholder, or nothing yet), so the page never shifts.
+.photo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  overflow: hidden;
+  background: var(--color-paper);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  // The image fills the box that CSS sizes (the aspect ratio below), whatever its own pixels are: it never decides the box's height.
+  img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+  &--card { width: 100%; aspect-ratio: 4 / 3; border-radius: 0; font-size: 2.5rem; }
+  &--thumb { width: 3rem; height: 3rem; font-size: 1.4rem; }
+  &--panel { width: 10rem; height: 10rem; max-width: 100%; font-size: 3rem; border: 1px solid var(--color-border); }
+}
+// A name with its thumbnail beside it (tables of products and of quote, order and basket lines).
+.photo-cell { display: flex; gap: var(--space-1); align-items: center; min-width: 0; overflow-wrap: anywhere; }
+
+// What the admin entered about the product, on the card: description (three lines, the rest on the card's details) and attributes.
+.product__description { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--text-sm); color: var(--color-text-muted); }
+.product__specs {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 0.15rem var(--space-1);
+  margin: 0;
+  font-size: var(--text-xs);
+  dt { font-weight: 700; color: var(--color-text-muted); }
+  dd { margin: 0; overflow-wrap: anywhere; }
+}
+.product__more {
+  font-size: var(--text-xs);
+  summary { cursor: pointer; font-weight: 600; color: var(--color-text-muted); }
+  .product__specs { margin-top: 0.25rem; }
+}
+
 // A spinning icon (the busy / loading mark). It only rotates when motion is allowed; otherwise it stays still.
 @media (prefers-reduced-motion: no-preference) {
   .icon-spin { animation: icon-spin 1s linear infinite; }
@@ -606,20 +643,20 @@
     input { flex: 1 1 8rem; min-width: 0; }
   }
 
-  // The address and its preview side by side on equal columns, one above the other on a narrow screen.
-  &__image {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-    gap: var(--space-2);
-    align-items: start;
-    margin-bottom: var(--space-2);
-    .field { margin-bottom: 0; }
-  }
-  &__preview {
+  // The photo chooser (MRV-9.7): the preview box (a fixed square, so nothing moves when the image arrives) beside the controls, stacked when narrow.
+  &__photo {
     min-width: 0;
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    border: 0;
+    legend { padding: 0; margin-bottom: var(--space-1); font-weight: 700; }
+    .field { margin-bottom: var(--space-1); }
     p { margin: 0; }
-    img { display: block; max-width: 100%; max-height: 10rem; object-fit: contain; border-radius: var(--radius-sm); }
   }
+  &__photo-body { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: stretch; }
+  &__photo-controls { display: grid; gap: var(--space-1); flex: 1 1 14rem; min-width: 0; justify-items: start; }
+  &__file { max-width: 100%; }
+  &__preview { flex: none; max-width: 100%; }
 
   &__group {
     min-width: 0;

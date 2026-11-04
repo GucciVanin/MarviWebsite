@@ -29,6 +29,9 @@ public static class RateLimiting
     /// <summary>The admin's guided product creation (<c>POST /api/admin/products/with-setup</c>): one request writes a product, its prices and its stock (MRV-9.5); <c>RateLimiting:ProductSetup</c>.</summary>
     public const string ProductSetupPolicy = "productSetup";
 
+    /// <summary>The admin's product photo upload (<c>POST /api/admin/media/product-photos</c>): each call may write up to 5 MB to disk (MRV-9.7); <c>RateLimiting:ProductPhoto</c>.</summary>
+    public const string ProductPhotoPolicy = "productPhoto";
+
     private const int DefaultAuthPermits = 10;
     private const int DefaultCoveragePermits = 30;
     private const int DefaultContactPermits = 5;
@@ -37,6 +40,7 @@ public static class RateLimiting
     private const int DefaultProfilePermits = 20;
     private const int DefaultRevealPermits = 10;
     private const int DefaultProductSetupPermits = 30;
+    private const int DefaultProductPhotoPermits = 30;
     private const int DefaultWindowSeconds = 60;
 
     public static IServiceCollection AddMarviRateLimiting(this IServiceCollection services, IConfiguration configuration)
@@ -63,6 +67,7 @@ public static class RateLimiting
             AddPolicy(options, ProfilePolicy, configuration.GetSection("RateLimiting:Profile"), DefaultProfilePermits);
             AddPolicy(options, RevealPolicy, configuration.GetSection("RateLimiting:Reveal"), DefaultRevealPermits);
             AddPolicy(options, ProductSetupPolicy, configuration.GetSection("RateLimiting:ProductSetup"), DefaultProductSetupPermits);
+            AddPolicy(options, ProductPhotoPolicy, configuration.GetSection("RateLimiting:ProductPhoto"), DefaultProductPhotoPermits);
         });
 
         return services;

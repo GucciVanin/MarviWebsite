@@ -32,7 +32,7 @@
           <tbody>
             @for (item of quote.lineItems; track item.id) {
               <tr>
-                <td>{{ item.productName }}</td>
+                <td><span class="photo-cell"><app-product-photo [src]="item.imageUrl" alt="" size="thumb" /><span>{{ item.productName }}</span></span></td>
                 <td class="num">{{ item.qty }}</td>
                 <td class="num">{{ item.suggestedUnitPrice === null ? t.notSuggested : (item.suggestedUnitPrice | brl) }}</td>
                 <td>
@@ -132,7 +132,7 @@
               <tbody>
                 @for (line of orderLines(); track line.productId) {
                   <tr>
-                    <td>{{ line.name }}</td>
+                    <td><span class="photo-cell"><app-product-photo [src]="line.imageUrl" alt="" size="thumb" /><span>{{ line.name }}</span></span></td>
                     <td>
                       <input
                         type="number"
@@ -176,7 +176,7 @@
             <tbody>
               @for (item of order.lineItems; track item.id) {
                 <tr>
-                  <td>{{ item.productName }}</td>
+                  <td><span class="photo-cell"><app-product-photo [src]="item.imageUrl" alt="" size="thumb" /><span>{{ item.productName }}</span></span></td>
                   <td class="num">{{ item.qty }}</td>
                   <td class="num">{{ item.unitPrice | brl }}</td>
                   <td class="num">{{ item.unitPrice * item.qty | brl }}</td>

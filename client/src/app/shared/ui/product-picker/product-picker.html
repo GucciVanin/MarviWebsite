@@ -30,7 +30,7 @@
     <tbody>
       @for (product of catalog.data(); track product.id) {
         <tr>
-          <td>{{ product.name }} <span class="muted">({{ product.sku }})</span></td>
+          <td><span class="photo-cell"><app-product-photo [src]="product.imageUrl" alt="" size="thumb" [eager]="$index < 4" /><span>{{ product.name }} <span class="muted">({{ product.sku }})</span></span></span></td>
           <td class="num">
             @if (product.price !== null) {
               {{ product.price | brl }}

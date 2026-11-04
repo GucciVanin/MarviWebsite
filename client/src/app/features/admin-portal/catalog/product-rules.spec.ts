@@ -1,7 +1,7 @@
-import { PRODUCT_LIMITS, ProductDraft, StoredProduct, attributesOf, filledAttributes, isActivationOnly, isHttpsUrl, parsePrice, parseQuantity, rowsOf, suggestSku, validateProduct } from './product-rules';
+import { PRODUCT_LIMITS, ProductDraft, StoredProduct, attributesOf, filledAttributes, isActivationOnly, formatBytes, parsePrice, photoDimensionsProblem, photoFileProblem, parseQuantity, rowsOf, suggestSku, validateProduct } from './product-rules';
 
 const draft = (change: Partial<ProductDraft> = {}): ProductDraft => ({
-  sku: 'COLA-1', name: 'Cola 2L', categoryId: 'c1', description: '', imageUrl: '', attributes: [], prices: [], quantities: [], ...change,
+  sku: 'COLA-1', name: 'Cola 2L', categoryId: 'c1', description: '', attributes: [], prices: [], quantities: [], ...change,
 });
 
 describe('product rules', () => {
@@ -26,13 +26,14 @@ describe('product rules', () => {
     expect(validateProduct(draft({ categoryId: 'c1' }))['categoryId']).toBeUndefined();
   });
 
-  it('limits the description and requires an https image address', () => {
+  it('limits the description', () => {
     expect(validateProduct(draft({ description: 'd'.repeat(2001) }))['description']).toBeTruthy();
     expect(validateProduct(draft({ description: 'linha 1\nlinha 2' }))['description']).toBeUndefined();
-    for (const imageUrl of ['http://a.com/x.png', 'javascript:alert(1)', '//a.com/x.png', 'https://u:p@a.com/x.png', 'https://a.com/a b', 'https://a.com/' + 'p'.repeat(490)]) {
-      expect(validateProduct(draft({ imageUrl }))['imageUrl']).toBeTruthy();
-    }
-    expect(isHttpsUrl('https://cdn.exemplo.com.br/cola.png')).toBe(true);
+  });
+
+  it('has no image address any more: the photo is an uploaded file (MRV-9.7)', () => {
+    expect(Object.keys(draft())).not.toContain('imageUrl');
+    expect(PRODUCT_LIMITS).not.toHaveProperty('imageUrl');
   });
 
   it('checks attribute rows: blank rows are ignored; name, value, duplicates (ignoring case) and the count are limited', () => {
@@ -85,16 +86,16 @@ describe('product rules', () => {
     expect(suggestSku('', [])).toBe('PRD-001');
     expect(suggestSku('Ch', [])).toBe('CHX-001');
   });
-  it('when editing, a description, image or attributes that break the rules are refused even if they were stored that way', () => {
+  it('when editing, a description or attributes that break the rules are refused even if they were stored that way', () => {
     const row = (key: string, value: string) => ({ key, value });
-    const broken = draft({ description: 'd'.repeat(2500), imageUrl: 'http://velho.com/a.png', attributes: [row('Marca', 'A'), row('marca', 'B'), row('Linha', 'a\nb')] });
+    const broken = draft({ description: 'd'.repeat(2500), attributes: [row('Marca', 'A'), row('marca', 'B'), row('Linha', 'a\nb')] });
 
-    expect(Object.keys(validateProduct(broken)).sort()).toEqual(['attributes', 'description', 'imageUrl']);
+    expect(Object.keys(validateProduct(broken)).sort()).toEqual(['attributes', 'description']);
   });
 
   describe('the activation-only edit (the one exception the API makes)', () => {
-    const stored: StoredProduct = { sku: 'old code!', name: 'Antigo', categoryId: null, description: 'd'.repeat(2500), imageUrl: 'http://velho.com/a.png', isActive: true, attributes: { Marca: 'A', marca: 'B' } };
-    const same = draft({ sku: 'old code!', name: 'Antigo', categoryId: '', description: 'd'.repeat(2500), imageUrl: 'http://velho.com/a.png', attributes: rowsOf(stored.attributes) });
+    const stored: StoredProduct = { sku: 'old code!', name: 'Antigo', categoryId: null, description: 'd'.repeat(2500), isActive: true, attributes: { Marca: 'A', marca: 'B' } };
+    const same = draft({ sku: 'old code!', name: 'Antigo', categoryId: '', description: 'd'.repeat(2500), attributes: rowsOf(stored.attributes) });
 
     it('is recognised when only "Ativo" differs, with the trimming and blank rows the API ignores', () => {
       expect(isActivationOnly(stored, same, false)).toBe(true);
@@ -103,10 +104,45 @@ describe('product rules', () => {
 
     it('is not recognised when "Ativo" is unchanged or anything else differs', () => {
       expect(isActivationOnly(stored, same, true)).toBe(false);
+      expect(isActivationOnly(stored, same, false, true)).toBe(false); // a new, replaced or removed photo is an edit like any other
       expect(isActivationOnly(stored, { ...same, name: 'Antigo 2' }, false)).toBe(false);
       expect(isActivationOnly(stored, { ...same, categoryId: 'c1' }, false)).toBe(false);
       expect(isActivationOnly(stored, { ...same, description: 'curta' }, false)).toBe(false);
       expect(isActivationOnly(stored, { ...same, attributes: [{ key: 'Marca', value: 'A' }] }, false)).toBe(false);
     });
   });
+
+describe('the photo rules of the form (MRV-9.7), the same limits as the API', () => {
+  const file = (name: string, type: string, size = 1000) => ({ name, type, size });
+
+  it('accepts JPEG, PNG and WebP up to 5 MB, by type or (when the browser gives none) by extension', () => {
+    for (const [name, type] of [['a.jpg', 'image/jpeg'], ['a.png', 'image/png'], ['a.webp', 'image/webp'], ['A.JPEG', ''], ['b.PNG', '']]) {
+      expect(photoFileProblem(file(name, type)), name).toBe('');
+    }
+    expect(photoFileProblem(file('a.jpg', 'image/jpeg', 5 * 1024 * 1024))).toBe('');
+  });
+
+  it('refuses anything else, an empty file and a file over 5 MB, in Portuguese and without the name', () => {
+    for (const [name, type] of [['a.svg', 'image/svg+xml'], ['a.gif', 'image/gif'], ['a.pdf', 'application/pdf'], ['a.heic', 'image/heic'], ['a.txt', ''], ['a', '']]) {
+      expect(photoFileProblem(file(name, type)), name).toBe('Use uma foto JPEG, PNG ou WebP.');
+    }
+    expect(photoFileProblem(file('a.jpg', 'image/jpeg', 0))).toBe('Escolha uma foto do produto.');
+    expect(photoFileProblem(file('a.jpg', 'image/jpeg', 5 * 1024 * 1024 + 1))).toBe('A foto deve ter no máximo 5 MB.');
+  });
+
+  it('wants 400 to 6000 pixels on each side', () => {
+    expect(photoDimensionsProblem(400, 400)).toBe('');
+    expect(photoDimensionsProblem(6000, 6000)).toBe('');
+    expect(photoDimensionsProblem(399, 800)).toContain('400 x 400');
+    expect(photoDimensionsProblem(800, 399)).toContain('400 x 400');
+    expect(photoDimensionsProblem(6001, 800)).toContain('6000 x 6000');
+    expect(photoDimensionsProblem(800, 6001)).toContain('6000 x 6000');
+  });
+
+  it('shows a file size in KB or MB with a decimal comma', () => {
+    expect(formatBytes(500)).toBe('1 KB');
+    expect(formatBytes(2048)).toBe('2 KB');
+    expect(formatBytes(1_258_291)).toBe('1,2 MB');
+  });
+});
 });

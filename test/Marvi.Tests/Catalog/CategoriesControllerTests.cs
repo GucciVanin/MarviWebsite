@@ -155,8 +155,8 @@ public class CategoriesControllerTests : IClassFixture<MarviApiFactory>
         var created = await admin.PostProductAsync(categoryId: category.Id);
         var createdProduct = (await created.Content.ReadFromJsonAsync<ProductAdminDto>())!;
         var (id, sku) = (createdProduct.Id, createdProduct.Sku);
-        var editUnknown = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku, "Widget", null, Guid.NewGuid(), null, true, new()));
-        var editNone = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku, "Widget", null, null, null, true, new()));
+        var editUnknown = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku, "Widget", null, Guid.NewGuid(), true, new()));
+        var editNone = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku, "Widget", null, null, true, new()));
 
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);

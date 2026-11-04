@@ -81,6 +81,13 @@ public static class ProductionConfigurationGuard
             problems.Add("DataProtection:KeysPath is not set (a folder on a persistent volume, outside the repository).");
         }
 
+        // Product photos (MRV-9.7) are files: without a folder on a persistent volume they would vanish with the container while the database
+        // still pointed at them.
+        if (string.IsNullOrWhiteSpace(configuration["Media:Path"]))
+        {
+            problems.Add("Media:Path is not set (a folder on a persistent volume, outside the repository, for the product photos).");
+        }
+
         if (configuration.GetValue<bool>("DataProtection:Ephemeral"))
         {
             problems.Add("DataProtection:Ephemeral is for tests only: the stored CPFs would be lost at every restart.");

@@ -21,7 +21,7 @@ public class CatalogDataProtectionTests : IClassFixture<MarviApiFactory>
     }
 
     private static UpdateProductRequest Product(string sku, Guid category, string name = "Widget") =>
-        new(sku, name, null, category, null, true, new Dictionary<string, string>());
+        new(sku, name, null, category, true, new Dictionary<string, string>());
 
     [Fact]
     public async Task DeleteProduct_IsRefusedOnceItAppearsOnAQuote_AndSucceedsWhenItHasNoHistory()

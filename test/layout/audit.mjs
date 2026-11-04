@@ -13,6 +13,7 @@ import { createServer } from 'node:http';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateSync } from 'node:zlib';
 import { auditDom, RULES } from './rules.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -38,7 +39,7 @@ const ACCOUNTS = {
 };
 
 const PUBLIC = ['/', '/login', '/register', '/privacidade', '/contato', '/storefront'];
-const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/catalogo#product-new', '/admin/catalogo#product-errors', '/admin/catalogo#product-edit', '/admin/importacao', '/admin/auditoria'];
+const ADMIN = ['/admin', '/admin/visao-geral', '/admin/catalogo', '/admin/precos', '/admin/operacao', '/admin/clientes', '/admin/clientes#address-fix', '/admin/clientes#registration', '/admin/clientes#registration-personal', '/admin/clientes#reveal', '/admin/catalogo#product-new', '/admin/catalogo#product-errors', '/admin/catalogo#product-photo', '/admin/catalogo#product-photo-error', '/admin/catalogo#product-edit', '/admin/importacao', '/admin/auditoria'];
 // group = who is signed in and how the page is opened. `notice` leaves the privacy notice visible (fixed layer, AC-3/AC-9).
 const GROUPS = [
   { name: 'public', account: null, notice: false, routes: PUBLIC },
@@ -108,6 +109,29 @@ async function openWidget(page) {
 }
 
 // The admin's product panel (MRV-9.5) in its fullest state; nothing is ever sent (with `errors`, the empty code stops the save in the browser).
+// A flat grey 480 x 480 PNG made here (no file in the repository), for the photo chooser.
+function flatPng(width = 480, height = 480) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => { const t = Buffer.from(type, 'ascii'); const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data]))); return Buffer.concat([len, t, data, crc]); };
+  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 0;
+  const rows = Buffer.alloc((width + 1) * height, 0x80);
+  for (let y = 0; y < height; y++) rows[y * (width + 1)] = 0;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(rows)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+// The photo chooser with a file chosen: 'ok' uploads a real PNG (the preview and the remove button show); 'error' chooses an SVG (the message shows, nothing is sent).
+async function openPhotoPanel(page, outcome) {
+  await openProductPanel(page, false);
+  if (outcome === 'ok') {
+    await page.locator('#productPhoto').setInputFiles({ name: 'refrigerante-cola-2-litros-garrafa-pet-caixa-com-seis-unidades.png', mimeType: 'image/png', buffer: flatPng() });
+    await page.waitForSelector('[data-testid="photo-preview"] img', { timeout: 15000 });
+  } else {
+    await page.locator('#productPhoto').setInputFiles({ name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') });
+    await page.waitForSelector('#productPhoto[aria-invalid="true"]', { timeout: 8000 });
+  }
+}
+
 async function openProductPanel(page, errors) {
   await page.getByRole('button', { name: 'Novo produto' }).click();
   await page.waitForSelector('[data-testid="product-panel"] [data-testid="prices"] tbody tr', { timeout: 8000 });
@@ -117,12 +141,10 @@ async function openProductPanel(page, errors) {
     await page.locator(`#attr-key-${i}`).fill(i ? 'Quantidade por caixa' : 'Certificação');
     await page.locator(`#attr-value-${i}`).fill(long);
   }
-  await page.locator('#productImage').fill('https://exemplo.com.br/imagens/produtos/refrigerante-cola-2-litros-garrafa-pet-grande.png');
   await page.locator('#productName').fill('Refrigerante sabor cola 2 litros garrafa PET caixa com seis unidades');
   if (errors) {
     await page.locator('#price-0').fill('1,234');
     await page.locator('#qty-0').fill('-3');
-    await page.locator('#productImage').fill('http://exemplo.com.br/imagem.png');
     await page.locator('[data-testid="add-attribute"]').click();
     await page.locator('#attr-key-2').fill('certificação');
     await page.locator('#attr-value-2').fill('x');
@@ -145,8 +167,10 @@ async function openProductPanel(page, errors) {
 //   business     the registration page with the business account chosen and an alphanumeric CNPJ typed (MRV-9.4)
 //   personal     the registration page with the personal account chosen, a CPF and a birth date under 18 typed (the longest message)
 //   registration / registration-personal   the admin customers editor of the first company / person, with the registration form
-//   product-new     /admin/catalogo with the "Novo produto" panel open, two attribute rows with long text, a long https image address (MRV-9.5)
-//   product-errors  the same panel after "Salvar produto" with an empty code and bad price, quantity and image (every message showing); nothing is sent
+//   product-new     /admin/catalogo with the "Novo produto" panel open, two attribute rows with long text (MRV-9.5)
+//   product-errors  the same panel after "Salvar produto" with bad price, quantity and a repeated attribute name (every message showing); nothing is sent
+//   product-photo   the same panel with a photo chosen and uploaded: the preview from the same-origin address, its file name and size, the remove button (MRV-9.7)
+//   product-photo-error  the same panel after a file of the wrong type was chosen: the chooser's message showing, nothing uploaded (MRV-9.7)
 //   product-edit    the same panel opened to edit the first product (its attributes as rows)
 async function openStep(page, step) {
   if (step === 'address-add') {
@@ -199,6 +223,8 @@ async function openStep(page, step) {
     }
   } else if (step === 'product-new' || step === 'product-errors') {
     await openProductPanel(page, step === 'product-errors');
+  } else if (step === 'product-photo' || step === 'product-photo-error') {
+    await openPhotoPanel(page, step === 'product-photo' ? 'ok' : 'error');
   } else if (step === 'product-edit') {
     await page.locator('[data-testid="products"] tbody tr').first().getByRole('button', { name: 'Editar' }).click();
     await page.waitForSelector('[data-testid="product-panel"] #productSku', { timeout: 8000 });

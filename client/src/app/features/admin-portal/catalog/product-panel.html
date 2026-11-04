@@ -52,24 +52,26 @@
       <p id="productDescription-hint" class="muted" role="status">{{ problem('description') }}</p>
     </div>
 
-    <div class="product-panel__image">
-      <div class="field">
-        <label for="productImage">{{ t.imageUrl }}</label>
-        <input id="productImage" name="productImage" type="url" inputmode="url" autocomplete="off" spellcheck="false" [value]="imageUrl()"
-          (input)="imageUrl.set($any($event.target).value); imageBroken.set(false)"
-          [attr.aria-invalid]="problem('imageUrl') ? 'true' : null" aria-describedby="productImage-hint" />
-        <p id="productImage-hint" class="muted" role="status">{{ problem('imageUrl') || t.imageHint }}</p>
-      </div>
-      @if (previewable()) {
-        <div class="product-panel__preview" data-testid="image-preview">
-          @if (imageBroken()) {
-            <p class="muted" role="status">{{ t.imageFailed }}</p>
-          } @else {
-            <img [src]="imageUrl().trim()" [alt]="t.imagePreview" referrerpolicy="no-referrer" loading="lazy" (error)="imageBroken.set(true)" />
-          }
+    <fieldset class="product-panel__photo" data-testid="photo-field" aria-describedby="productPhoto-hint">
+      <legend>{{ t.photo }}</legend>
+      <div class="product-panel__photo-body">
+        <div class="product-panel__preview" data-testid="photo-preview" [attr.aria-busy]="photoWorking() ? 'true' : null">
+          <app-product-photo [src]="shownPhoto()" [alt]="name().trim() || t.photoPreview" size="panel" [eager]="true" />
         </div>
-      }
-    </div>
+        <div class="product-panel__photo-controls">
+          <div class="field">
+            <label for="productPhoto">{{ shownPhoto() ? t.photoReplace : t.photoChoose }}</label>
+            <input id="productPhoto" name="productPhoto" type="file" class="product-panel__file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+              [attr.aria-disabled]="photoWorking() ? 'true' : null" [attr.aria-invalid]="photoProblem() ? 'true' : null" aria-describedby="productPhoto-hint"
+              (change)="choosePhoto($event)" />
+          </div>
+          @if (shownPhoto()) {
+            <button type="button" class="btn btn--outline btn--small" data-testid="remove-photo" [disabled]="photoWorking()" (click)="removePhoto()">{{ t.photoRemove }}</button>
+          }
+          <p id="productPhoto-hint" class="muted" role="status" data-testid="photo-status">{{ photoProblem() || photoStatus() || t.photoHint }}</p>
+        </div>
+      </div>
+    </fieldset>
 
     <div class="field">
       <label for="productActive">
@@ -196,9 +198,9 @@
     }
 
     <div class="product-panel__actions">
-      <button type="submit" class="btn btn--primary" data-testid="save-product" [disabled]="request.busy()">{{ request.busy() ? t.saving : t.saveProduct }}</button>
+      <button type="submit" class="btn btn--primary" data-testid="save-product" [disabled]="savingBlocked()">{{ request.busy() ? t.saving : t.saveProduct }}</button>
       @if (creating()) {
-        <button type="button" class="btn btn--outline" data-testid="save-and-another" [disabled]="request.busy()" (click)="save(true)">{{ t.saveAndAnother }}</button>
+        <button type="button" class="btn btn--outline" data-testid="save-and-another" [disabled]="savingBlocked()" (click)="save(true)">{{ t.saveAndAnother }}</button>
       }
       <button type="button" class="btn btn--outline" data-testid="cancel-product" [disabled]="request.busy()" (click)="cancelled.emit()">{{ t.cancel }}</button>
     </div>

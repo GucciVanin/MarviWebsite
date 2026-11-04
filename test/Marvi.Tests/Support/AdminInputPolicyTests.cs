@@ -73,7 +73,7 @@ public class AdminInputPolicyTests : IClassFixture<MarviApiFactory>
         var id = (await (await admin.PostProductAsync(sku, "AA")).Content.ReadFromJsonAsync<ProductAdminDto>())!.Id;
 
         var duplicate = await admin.PostProductAsync(sku.ToUpperInvariant(), "BB");
-        var selfUpdate = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku.ToUpperInvariant(), "AA2", null, await admin.EnsureTestCategoryAsync(), null, true, new()));
+        var selfUpdate = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku.ToUpperInvariant(), "AA2", null, await admin.EnsureTestCategoryAsync(), true, new()));
 
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
         Assert.Equal("sku", (await duplicate.Content.ReadFromJsonAsync<List<ProductProblem>>())!.Single().Field);

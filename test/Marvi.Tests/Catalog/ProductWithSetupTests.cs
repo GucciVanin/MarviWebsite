@@ -59,12 +59,12 @@ public class ProductWithSetupTests : IClassFixture<MarviApiFactory>
             Stock = [new(w.WarehouseA, 40), new(w.WarehouseB, null)],
         };
         change?.Invoke(b);
-        return new CreateProductWithSetupRequest(b.Sku, b.Name, b.Description, b.CategoryId, b.ImageUrl, b.IsActive, b.Attributes, b.Prices, b.Stock);
+        return new CreateProductWithSetupRequest(b.Sku, b.Name, b.Description, b.CategoryId, b.PhotoToken, b.IsActive, b.Attributes, b.Prices, b.Stock);
     }
 
     private sealed class Builder
     {
-        public string? Sku, Name, Description, ImageUrl;
+        public string? Sku, Name, Description, PhotoToken;
         public Guid? CategoryId;
         public bool IsActive = true;
         public Dictionary<string, string>? Attributes = new();
@@ -178,8 +178,6 @@ public class ProductWithSetupTests : IClassFixture<MarviApiFactory>
         { "sku", "ab" }, { "sku", "a b c" }, { "sku", "código-1" }, { "sku", "this-sku-is-way-too-long-because-it-has-41" },
         { "name", "x" }, { "name", "Cola\u0007" }, { "name", "Cola\u202Eevil" },
         { "description", "long" }, { "description", "bell\u0007" },
-        { "imageUrl", "http://example.com/a.png" }, { "imageUrl", "javascript:alert(1)" }, { "imageUrl", "https://user:pw@example.com/a.png" },
-        { "imageUrl", "https://example.com/a b.png" }, { "imageUrl", "long" }, { "imageUrl", "//example.com/a.png" },
         { "attributes", "31 rows" }, { "attributes", "key 61" }, { "attributes", "value 201" }, { "attributes", "duplicate ignoring case" },
         { "attributes", "blank key" }, { "attributes", "blank value" }, { "attributes", "control" },
         { "prices[0]", "zero" }, { "prices[0]", "negative" }, { "prices[0]", "three decimals" }, { "prices[0]", "too big" },
@@ -210,12 +208,6 @@ public class ProductWithSetupTests : IClassFixture<MarviApiFactory>
                 case ("name", _): b.Name = typed + "\u202E"; break;
                 case ("description", "long"): b.Description = new string('d', 2001); break;
                 case ("description", _): b.Description = typed + "\u0007"; break;
-                case ("imageUrl", "http://example.com/a.png"): b.ImageUrl = "http://example.com/a.png"; break;
-                case ("imageUrl", "javascript:alert(1)"): b.ImageUrl = "javascript:alert(1)"; break;
-                case ("imageUrl", "https://user:pw@example.com/a.png"): b.ImageUrl = "https://user:pw@example.com/a.png"; break;
-                case ("imageUrl", "https://example.com/a b.png"): b.ImageUrl = "https://example.com/a b.png"; break;
-                case ("imageUrl", "long"): b.ImageUrl = "https://example.com/" + new string('p', 481); break;
-                case ("imageUrl", _): b.ImageUrl = "//example.com/a.png"; break;
                 case ("attributes", "31 rows"): b.Attributes = rows31; break;
                 case ("attributes", "key 61"): b.Attributes = new() { [new string('k', 61)] = "v" }; break;
                 case ("attributes", "value 201"): b.Attributes = new() { ["marca"] = new string('v', 201) }; break;
@@ -320,31 +312,30 @@ public class ProductWithSetupTests : IClassFixture<MarviApiFactory>
         Assert.Equal(attributes, loaded.Attributes);
 
         var put = await admin.PutAsJsonAsync($"/api/admin/products/{created.Id}",
-            new UpdateProductRequest(loaded.Sku, loaded.Name, loaded.Description, loaded.CategoryId, loaded.ImageUrl, loaded.IsActive, loaded.Attributes));
+            new UpdateProductRequest(loaded.Sku, loaded.Name, loaded.Description, loaded.CategoryId, loaded.IsActive, loaded.Attributes));
         Assert.Equal(HttpStatusCode.NoContent, put.StatusCode);
         Assert.Equal(attributes, (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{created.Id}"))!.Attributes);
     }
 
     [Fact]
-    public async Task TheEditEndpoint_AppliesTheSameContentRules_ToImageAndAttributes()
+    public async Task TheEditEndpoint_AppliesTheSameContentRules_ToAttributes_AndIgnoresAnImageAddressInTheBody()
     {
         var admin = await _factory.AdminAsync();
         var id = await admin.CreateProductAsync();
         var current = (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!;
-        UpdateProductRequest With(string? image, Dictionary<string, string>? attributes) =>
-            new(current.Sku, current.Name, null, current.CategoryId, image, true, attributes);
+        UpdateProductRequest With(Dictionary<string, string>? attributes) =>
+            new(current.Sku, current.Name, null, current.CategoryId, true, attributes);
 
-        var httpImage = await admin.PutAsJsonAsync($"/api/admin/products/{id}", With("http://example.com/a.png", new()));
-        var duplicateKeys = await admin.PutAsJsonAsync($"/api/admin/products/{id}", With(null, new() { ["A"] = "1", ["a"] = "2" }));
-        var ok = await admin.PutAsJsonAsync($"/api/admin/products/{id}", With(" https://example.com/a.png ", new() { [" marca "] = " Cola ", [" "] = " " }));
+        var duplicateKeys = await admin.PutAsJsonAsync($"/api/admin/products/{id}", With(new() { ["A"] = "1", ["a"] = "2" }));
+        // The old free-text image address is not part of the request any more (MRV-9.7): sending it changes nothing.
+        var withOldField = await admin.PutAsJsonAsync($"/api/admin/products/{id}",
+            new { sku = current.Sku, name = current.Name, description = (string?)null, categoryId = current.CategoryId, imageUrl = "https://example.com/a.png", isActive = true, attributes = new Dictionary<string, string> { [" marca "] = " Cola ", [" "] = " " } });
 
-        Assert.Equal(HttpStatusCode.BadRequest, httpImage.StatusCode);
-        Assert.Equal("imageUrl", (await httpImage.Content.ReadFromJsonAsync<List<Problem>>(Web))!.Single().Field);
         Assert.Equal(HttpStatusCode.BadRequest, duplicateKeys.StatusCode);
         Assert.Equal("attributes", (await duplicateKeys.Content.ReadFromJsonAsync<List<Problem>>(Web))!.Single().Field);
-        Assert.Equal(HttpStatusCode.NoContent, ok.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, withOldField.StatusCode);
         var saved = (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!;
-        Assert.Equal("https://example.com/a.png", saved.ImageUrl);
+        Assert.Null(saved.ImageUrl);
         Assert.Equal(new Dictionary<string, string> { ["marca"] = "Cola" }, saved.Attributes);
     }
 
@@ -393,7 +384,7 @@ public class ProductWithSetupTests : IClassFixture<MarviApiFactory>
         attributes["Linha"] = "a\nb";
         attributes["Marca"] = "A";
         attributes["marca"] = "B";
-        db.Products.Add(new Product { Id = id, Sku = $"OLD-{id:N}"[..20], Name = "Antigo", Description = new string('d', 2500), ImageUrl = "http://exemplo.com/a.png", IsActive = true, Attributes = attributes });
+        db.Products.Add(new Product { Id = id, Sku = $"OLD-{id:N}"[..20], Name = "Antigo", Description = new string('d', 2500), IsActive = true, Attributes = attributes });
         await db.SaveChangesAsync();
         return id;
     }
@@ -404,32 +395,32 @@ public class ProductWithSetupTests : IClassFixture<MarviApiFactory>
         var admin = await _factory.AdminAsync();
         var id = await SeedLegacyProductAsync();
         var stored = (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!;
-        UpdateProductRequest Put(string name, bool active, string? description, string? image, Dictionary<string, string> attributes) =>
-            new(stored.Sku, name, description, stored.CategoryId, image, active, attributes);
+        UpdateProductRequest Put(string name, bool active, string? description, Dictionary<string, string> attributes) =>
+            new(stored.Sku, name, description, stored.CategoryId, active, attributes);
         async Task<HttpResponseMessage> Send(UpdateProductRequest body) => await admin.PutAsJsonAsync($"/api/admin/products/{id}", body);
 
         // Negative: IsActive plus any other change on a broken product is validated, so the whole product is refused and nothing is stored.
-        var renamedAndDeactivated = await Send(Put("Renomeado", false, stored.Description, stored.ImageUrl, stored.Attributes));
+        var renamedAndDeactivated = await Send(Put("Renomeado", false, stored.Description, stored.Attributes));
         Assert.Equal(HttpStatusCode.BadRequest, renamedAndDeactivated.StatusCode);
         var fields = (await renamedAndDeactivated.Content.ReadFromJsonAsync<List<Problem>>(Web))!.Select(p => p.Field).ToHashSet();
-        Assert.Superset(new HashSet<string> { "description", "imageUrl", "attributes" }, fields);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Send(Put(stored.Name, true, stored.Description, stored.ImageUrl, stored.Attributes))).StatusCode); // no change at all is validated too
-        Assert.Equal(HttpStatusCode.BadRequest, (await Send(Put("x2", false, new string('e', 2600), stored.ImageUrl, stored.Attributes))).StatusCode);
+        Assert.Superset(new HashSet<string> { "description", "attributes" }, fields);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(Put(stored.Name, true, stored.Description, stored.Attributes))).StatusCode); // no change at all is validated too
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(Put("x2", false, new string('e', 2600), stored.Attributes))).StatusCode);
         var untouched = (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!;
         Assert.Equal(JsonSerializer.Serialize(stored), JsonSerializer.Serialize(untouched)); // nothing was stored by the refused edits
         Assert.True(untouched.IsActive);
 
         // Positive: a request whose only difference is IsActive is accepted without re-validating the rest, and leaves every other field as it was.
-        Assert.Equal(HttpStatusCode.NoContent, (await Send(Put(stored.Name, false, stored.Description, stored.ImageUrl, stored.Attributes))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(Put(stored.Name, false, stored.Description, stored.Attributes))).StatusCode);
         var after = (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!;
         Assert.False(after.IsActive);
         Assert.Equal(JsonSerializer.Serialize(stored with { IsActive = false }), JsonSerializer.Serialize(after));
-        Assert.Equal(HttpStatusCode.NoContent, (await Send(Put(stored.Name, true, stored.Description, stored.ImageUrl, stored.Attributes))).StatusCode); // and back
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(Put(stored.Name, true, stored.Description, stored.Attributes))).StatusCode); // and back
         Assert.True((await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!.IsActive);
 
-        var stillNoCategory = await Send(Put("Corrigido", true, "curta", "https://exemplo.com/a.png", new() { ["Marca"] = "Cola" }));
+        var stillNoCategory = await Send(Put("Corrigido", true, "curta", new() { ["Marca"] = "Cola" }));
         Assert.Equal(HttpStatusCode.BadRequest, stillNoCategory.StatusCode); // the category is a rule too: the stored product has none
-        var fixedUp = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(stored.Sku, "Corrigido", "curta", await admin.EnsureTestCategoryAsync(), "https://exemplo.com/a.png", true, new() { ["Marca"] = "Cola" }));
+        var fixedUp = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(stored.Sku, "Corrigido", "curta", await admin.EnsureTestCategoryAsync(), true, new() { ["Marca"] = "Cola" }));
         Assert.Equal(HttpStatusCode.NoContent, fixedUp.StatusCode);
     }
 
@@ -486,7 +477,7 @@ public class ProductWithSetupTests : IClassFixture<MarviApiFactory>
         var id = await admin.CreateProductAsync();
         var current = (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!;
 
-        (await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(current.Sku, "  Limpo  ", "  desc  ", current.CategoryId, null, true, new() { [" marca "] = " Cola ", [" "] = " " }))).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(current.Sku, "  Limpo  ", "  desc  ", current.CategoryId, true, new() { [" marca "] = " Cola ", [" "] = " " }))).EnsureSuccessStatusCode();
 
         var entries = (await admin.GetFromJsonAsync<List<AuditLogEntryDto>>("/api/admin/audit-log?pageSize=200"))!;
         var details = entries.First(e => e.EntityName == "Product" && e.Action == "Update" && e.EntityId == id).Details["data"];

@@ -103,6 +103,7 @@
         <table class="table" data-testid="products">
           <thead>
             <tr>
+              <th><span class="visually-hidden">{{ t.photoColumn }}</span></th>
               <th>{{ t.sku }}</th>
               <th>{{ t.name }}</th>
               <th>{{ t.category }}</th>
@@ -113,6 +114,7 @@
           <tbody>
             @for (product of productRows(); track product.id) {
               <tr>
+                <td><app-product-photo [src]="product.imageUrl" [alt]="product.name" size="thumb" /></td>
                 <td>{{ product.sku }}</td>
                 <td>{{ product.name }}</td>
                 <td>{{ categoryNameOf(product.categoryId) }}</td>

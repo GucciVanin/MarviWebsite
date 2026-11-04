@@ -18,7 +18,7 @@ public static class ProductRuleContract
     }
 
     /// <summary>What a case puts in a product: the baseline is a valid product, the case changes one thing.</summary>
-    public sealed record Sample(string Sku, string Name, string? Description, string? ImageUrl, Dictionary<string, string> Attributes, string? PriceText, string? QuantityText, bool WithoutCategory = false)
+    public sealed record Sample(string Sku, string Name, string? Description, Dictionary<string, string> Attributes, string? PriceText, string? QuantityText, bool WithoutCategory = false)
     {
         /// <summary>The API field a refusal of this case is named by.</summary>
         public static string ApiField(Case c) => c.Field switch
@@ -32,14 +32,13 @@ public static class ProductRuleContract
 
         public static Sample Of(Case c, string baseSku)
         {
-            var sample = new Sample(baseSku, "Produto", null, null, new Dictionary<string, string>(), null, null);
+            var sample = new Sample(baseSku, "Produto", null, new Dictionary<string, string>(), null, null);
             var value = c.Value;
             return c.Field switch
             {
                 "sku" => sample with { Sku = value },
                 "name" => sample with { Name = value },
                 "description" => sample with { Description = value },
-                "imageUrl" => sample with { ImageUrl = value },
                 "attributeCount" => sample with { Attributes = Enumerable.Range(0, c.Repeat).ToDictionary(i => $"k{i}", _ => "v") },
                 "attributeKey" => sample with { Attributes = new() { [value] = "v" } },
                 "attributeValue" => sample with { Attributes = new() { ["marca"] = value } },
@@ -114,6 +113,6 @@ public static class ProductRuleContract
             }
         }
 
-        return new ProductInput(sample.Sku, sample.Name, sample.Description, sample.ImageUrl, sample.Attributes, prices, stock, sample.WithoutCategory ? null : Guid.NewGuid());
+        return new ProductInput(sample.Sku, sample.Name, sample.Description, sample.Attributes, prices, stock, sample.WithoutCategory ? null : Guid.NewGuid());
     }
 }

@@ -1,6 +1,8 @@
 using Marvi.Api.Features.Admin;
 using Marvi.Api.Features.Auditing;
 using Marvi.Api.Features.Catalog.Contracts;
+using Marvi.Api.Features.Catalog.Media;
+using Marvi.Api.Features.Identity;
 using Marvi.Api.Configuration;
 using Marvi.Domain.Catalog;
 using Marvi.Domain.Inventory;
@@ -21,11 +23,13 @@ public class AdminProductsController : ControllerBase
 
     private readonly AppDbContext _dbContext;
     private readonly AuditLogger _auditLogger;
+    private readonly ProductPhotoService _photos;
 
-    public AdminProductsController(AppDbContext dbContext, AuditLogger auditLogger)
+    public AdminProductsController(AppDbContext dbContext, AuditLogger auditLogger, ProductPhotoService photos)
     {
         _dbContext = dbContext;
         _auditLogger = auditLogger;
+        _photos = photos;
     }
 
     [HttpGet]
@@ -80,7 +84,7 @@ public class AdminProductsController : ControllerBase
 
         var plan = ProductRules.Check(
             new ProductInput(
-                request.Sku, request.Name, request.Description, request.ImageUrl, request.Attributes,
+                request.Sku, request.Name, request.Description, request.Attributes,
                 request.Prices?.Select(p => new ProductPrice(p.PricingTierId, p.UnitPrice)).ToList(),
                 request.Stock?.Select(s => new ProductStock(s.WarehouseId, s.QtyOnHand)).ToList(),
                 request.CategoryId),
@@ -91,6 +95,18 @@ public class AdminProductsController : ControllerBase
         }
 
         problems.AddRange(await UnknownReferencesAsync(request, plan));
+        // The photo (MRV-9.7) is linked by the token an upload answered; it is checked here, with the other references, and linked in the one save below.
+        ProductPhotoUpload? upload = null;
+        if (!string.IsNullOrEmpty(request.PhotoToken))
+        {
+            var (found, photoProblem) = await _photos.ResolveAsync(request.PhotoToken, User.UserId() ?? Guid.Empty);
+            upload = found;
+            if (photoProblem is not null)
+            {
+                problems.Add(photoProblem);
+            }
+        }
+
         if (problems.Count > 0)
         {
             return BadRequest(problems);
@@ -108,14 +124,19 @@ public class AdminProductsController : ControllerBase
             Name = plan.Name,
             Description = plan.Description,
             CategoryId = request.CategoryId,
-            ImageUrl = plan.ImageUrl,
+            ImageUrl = upload is null ? null : ProductPhotoRules.PublicPathOf(upload.FileName),
             IsActive = request.IsActive,
             Attributes = plan.Attributes
         };
         _dbContext.Products.Add(product);
+        if (upload is not null)
+        {
+            _dbContext.ProductPhotoUploads.Remove(upload); // same save: the product, its photo link and the used-up token commit together
+        }
+
         var audited = new List<AuditedRow>
         {
-            new(AuditActions.Create, nameof(Product), product.Id, new { plan.Sku, plan.Name, plan.Description, product.CategoryId, plan.ImageUrl, product.IsActive, plan.Attributes })
+            new(AuditActions.Create, nameof(Product), product.Id, new { plan.Sku, plan.Name, plan.Description, product.CategoryId, product.ImageUrl, product.IsActive, plan.Attributes })
         };
         foreach (var price in plan.Prices)
         {
@@ -135,6 +156,11 @@ public class AdminProductsController : ControllerBase
         {
             // A race the checks above could not see: the same SKU saved a moment ago (a double click, a retry), or something chosen was just removed.
             var taken = await _dbContext.Products.AsNoTracking().AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, plan.Sku));
+            if (!taken && !string.IsNullOrEmpty(request.PhotoToken) && await _photos.IsSpentAsync(request.PhotoToken))
+            {
+                return BadRequest(new[] { new ProductProblem(ProductPhotoRules.Field, ProductPhotoRules.TokenMessage) }); // the same token was used by another request first
+            }
+
             return Conflict(new[] { taken ? SkuTaken : new ProductProblem("form", "Algo escolhido foi removido enquanto você preenchia. Recarregue a página e tente de novo.") });
         }
 
@@ -184,6 +210,7 @@ public class AdminProductsController : ControllerBase
             return NotFound();
         }
 
+        string? replacedPhoto = null;
         if (IsOnlyActivationChange(product, request))
         {
             product.IsActive = request.IsActive;
@@ -192,11 +219,28 @@ public class AdminProductsController : ControllerBase
         {
             var problems = new List<ProductProblem>();
             var plan = ProductRules.Check(
-                new ProductInput(request.Sku, request.Name, request.Description, request.ImageUrl, request.Attributes, Prices: null, Stock: null, request.CategoryId),
+                new ProductInput(request.Sku, request.Name, request.Description, request.Attributes, Prices: null, Stock: null, request.CategoryId),
                 problems);
-            if (plan is null)
+            if (!string.IsNullOrEmpty(request.PhotoToken) && request.RemovePhoto)
+            {
+                problems.Add(new(ProductPhotoRules.Field, ProductPhotoRules.BothMessage));
+            }
+
+            if (plan is null || problems.Count > 0)
             {
                 return BadRequest(problems);
+            }
+
+            ProductPhotoUpload? upload = null;
+            if (!string.IsNullOrEmpty(request.PhotoToken))
+            {
+                var (found, photoProblem) = await _photos.ResolveAsync(request.PhotoToken, User.UserId() ?? Guid.Empty);
+                if (photoProblem is not null)
+                {
+                    return BadRequest(new[] { photoProblem });
+                }
+
+                upload = found;
             }
 
             if (request.CategoryId is { } categoryId && !await _dbContext.Categories.AnyAsync(c => c.Id == categoryId))
@@ -213,7 +257,18 @@ public class AdminProductsController : ControllerBase
             product.Name = plan.Name;
             product.Description = plan.Description;
             product.CategoryId = request.CategoryId;
-            product.ImageUrl = plan.ImageUrl;
+            if (upload is not null)
+            {
+                replacedPhoto = product.ImageUrl;
+                product.ImageUrl = ProductPhotoRules.PublicPathOf(upload.FileName);
+                _dbContext.ProductPhotoUploads.Remove(upload); // same save as the product's other fields
+            }
+            else if (request.RemovePhoto)
+            {
+                replacedPhoto = product.ImageUrl;
+                product.ImageUrl = null;
+            }
+
             product.IsActive = request.IsActive;
             product.Attributes = plan.Attributes;
         }
@@ -222,15 +277,22 @@ public class AdminProductsController : ControllerBase
         {
             // A race the checks above could not see: the same SKU taken a moment ago, or the category removed.
             var taken = await _dbContext.Products.AsNoTracking().AnyAsync(p => p.Id != id && p.Sku.ToLower() == product.Sku.ToLower());
+            if (!taken && !string.IsNullOrEmpty(request.PhotoToken) && await _photos.IsSpentAsync(request.PhotoToken))
+            {
+                return BadRequest(new[] { new ProductProblem(ProductPhotoRules.Field, ProductPhotoRules.TokenMessage) });
+            }
+
             return Conflict(new[] { taken ? SkuTaken : new ProductProblem("form", "Algo escolhido foi removido enquanto você preenchia. Recarregue a página e tente de novo.") });
         }
 
+        // The save succeeded: the previous photo (replaced or removed) has no product any more, so its file goes too.
+        _photos.DeleteFileOf(replacedPhoto);
         return NoContent();
     }
 
     /// <summary>
     /// Read-only data check (MRV-9.8): every stored product run through <see cref="ProductRules"/>, listing the ones that break them (SKU, name,
-    /// description, image, attributes) with the field messages. Nothing is changed. Run it, and fix what it lists, before the first production
+    /// description, attributes) with the field messages. Nothing is changed. Run it, and fix what it lists, before the first production
     /// migration (docs/operations.md section 8).
     /// </summary>
     [HttpGet("data-check")]
@@ -241,7 +303,7 @@ public class AdminProductsController : ControllerBase
         foreach (var product in products)
         {
             var problems = new List<ProductProblem>();
-            ProductRules.Check(new ProductInput(product.Sku, product.Name, product.Description, product.ImageUrl, product.Attributes, Prices: null, Stock: null, product.CategoryId), problems);
+            ProductRules.Check(new ProductInput(product.Sku, product.Name, product.Description, product.Attributes, Prices: null, Stock: null, product.CategoryId), problems);
             if (problems.Count > 0)
             {
                 broken.Add(new BrokenProductDto(product.Id, product.Sku, product.Name, problems));
@@ -276,6 +338,7 @@ public class AdminProductsController : ControllerBase
             return Conflict(InUseMessage);
         }
 
+        _photos.DeleteFileOf(product.ImageUrl);
         return NoContent();
     }
 
@@ -286,7 +349,8 @@ public class AdminProductsController : ControllerBase
         && AdminInput.Clean(request.Sku) == AdminInput.Clean(product.Sku)
         && AdminInput.Clean(request.Name) == AdminInput.Clean(product.Name)
         && AdminInput.Clean(request.Description) == AdminInput.Clean(product.Description)
-        && AdminInput.Clean(request.ImageUrl) == AdminInput.Clean(product.ImageUrl)
+        && string.IsNullOrEmpty(request.PhotoToken)
+        && !request.RemovePhoto
         && request.CategoryId == product.CategoryId
         && SameAttributes(request.Attributes, product.Attributes);
 

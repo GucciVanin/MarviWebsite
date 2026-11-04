@@ -77,7 +77,11 @@ A company's ICMS registration (`Inscrição estadual`), required only when its s
 _Avoid_: IE number (in prose)
 
 **Product rules** (MRV-9.8):
-The single set of limits a product must meet, whatever way it arrives: created in the admin portal, edited later or brought in by the CSV import (SKU, name, description, https image, attributes). One validator in the domain, `ProductRules`, decides all three; there is no lenient path. A product stored before the rules that breaks them is not rewritten: it is listed by the data check and must be corrected to be edited again (it can still be deactivated).
+The single set of limits a product must meet, whatever way it arrives: created in the admin portal, edited later or brought in by the CSV import (SKU, name, description, attributes). One validator in the domain, `ProductRules`, decides all three; there is no lenient path. A product stored before the rules that breaks them is not rewritten: it is listed by the data check and must be corrected to be edited again (it can still be deactivated).
+
+**Product photo** (MRV-9.7):
+The one display photo of a product: a JPEG, PNG or WebP of 400 to 6000 pixels per side and at most 5 MB, uploaded by an admin in the product panel and stored as a file on the server's media volume. It is shown on the storefront card, in the product picker, in the basket and on quote and order lines (with a neutral placeholder when there is none). The upload comes first and answers a short-lived **photo token**; the product save (create or edit, the one product path) links the file with that token in the same transaction, and an upload nobody links within an hour is deleted. Photos are not resized and carry whatever metadata they were taken with. It replaces the free-text image address of MRV-9.5.
+_Avoid_: Image URL, picture, thumbnail (the small version in tables is the same file)
 
 **Pricing tier**:
 A named price list a Customer is assigned to; exactly one is the default, used for anonymous visitors and new Customers.

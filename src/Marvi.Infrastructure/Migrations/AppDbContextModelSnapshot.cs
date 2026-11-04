@@ -217,6 +217,39 @@ namespace Marvi.Infrastructure.Migrations
                     b.ToTable("products", (string)null);
                 });
 
+            modelBuilder.Entity("Marvi.Domain.Catalog.ProductPhotoUpload", b =>
+                {
+                    b.Property<string>("Token")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("token");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uploaded_by_user_id");
+
+                    b.HasKey("Token")
+                        .HasName("pk_product_photo_uploads");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_product_photo_uploads_created_at");
+
+                    b.HasIndex("UploadedByUserId")
+                        .HasDatabaseName("ix_product_photo_uploads_uploaded_by_user_id");
+
+                    b.ToTable("product_photo_uploads", (string)null);
+                });
+
             modelBuilder.Entity("Marvi.Domain.Catalog.ProductPricing", b =>
                 {
                     b.Property<Guid>("Id")

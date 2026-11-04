@@ -13,6 +13,7 @@ import type { Category, ProductListItem } from '../../shared/models/catalog.mode
 import { AppIcon } from '../../shared/ui/app-icon/app-icon';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
+import { ProductPhoto } from '../../shared/ui/product-photo/product-photo';
 import { Reveal } from '../../shared/ui/reveal/reveal';
 import { Deal, DealsService } from './api/deals.service';
 import { CoverageCheckResult, CoverageService } from './api/coverage.service';
@@ -20,7 +21,7 @@ import { CoverageCheckResult, CoverageService } from './api/coverage.service';
 
 @Component({
   selector: 'app-storefront',
-  imports: [FormsModule, RouterLink, AppIcon, ErrorAlert, LoadState, Reveal, BrlPipe, PtDatePipe],
+  imports: [FormsModule, RouterLink, AppIcon, ErrorAlert, LoadState, ProductPhoto, Reveal, BrlPipe, PtDatePipe],
   templateUrl: './storefront.html',
 })
 export class Storefront implements OnInit {
@@ -150,4 +151,18 @@ export class Storefront implements OnInit {
     }
     this.coverageAction.run(this.coverageService.check({ address }), (result) => this.coverageResult.set(result));
   }
+
+  /**
+   * What the admin entered about a product, as the card shows it (MRV-9.7 AC-6): the first few attributes beside the photo, the rest and a long
+   * description behind "Ver detalhes". Everything is plain text in the template (escaped by Angular).
+   */
+  protected detailsOf(product: ProductListItem): { shown: { key: string; value: string }[]; more: { key: string; value: string }[]; longDescription: boolean } {
+    const all = Object.entries(product.attributes ?? {}).map(([key, value]) => ({ key, value }));
+    return { shown: all.slice(0, SPECS_ON_CARD), more: all.slice(SPECS_ON_CARD), longDescription: (product.description ?? '').length > LONG_DESCRIPTION };
+  }
 }
+
+/** Attributes drawn on the card itself; the rest are behind "Ver detalhes". */
+const SPECS_ON_CARD = 4;
+/** A description longer than this is cut to three lines on the card and shown in full behind "Ver detalhes". */
+const LONG_DESCRIPTION = 140;

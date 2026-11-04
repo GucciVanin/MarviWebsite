@@ -6,6 +6,8 @@ export interface QuoteLineItem {
   id: string;
   productId: string;
   productName: string;
+  /** The product's photo path, null when it has none. */
+  imageUrl?: string | null;
   qty: number;
   suggestedUnitPrice: number | null;
   finalUnitPrice: number | null;

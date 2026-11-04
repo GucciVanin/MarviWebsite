@@ -21,6 +21,7 @@ public class ProductionConfigurationGuardTests
         ("Cors:AllowedOrigin", "https://loja.marvi.example"),
         ("Privacy:CpfHashKey", "Rj4mV8xQz2LpT6nWc9KdB3sHy7FgA1uE5oIq0Zb"),
         ("DataProtection:KeysPath", "/keys"),
+        ("Media:Path", "/media"),
     ];
 
     private static (string, string?)[] With(string key, string? value) =>
@@ -127,7 +128,7 @@ public class ProductionConfigurationGuardTests
 
         var problems = ProductionConfigurationGuard.Problems(bad);
 
-        Assert.Equal(7, problems.Count);
+        Assert.Equal(8, problems.Count); // the example secrets, the origin and the missing media folder
         Assert.All(problems, p =>
         {
             Assert.DoesNotContain("Marvi-Dev-Admin-1!", p);
@@ -145,6 +146,16 @@ public class ProductionConfigurationGuardTests
 
         Assert.Single(problems, p => p.Contains("Privacy:CpfHashKey"));
         Assert.DoesNotContain(problems, p => p.Contains("CHANGE-ME"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData(null)]
+    public void WithoutAMediaFolder_ProductionRefusesToStart(string? path)
+    {
+        // MRV-9.7: product photos are files on a persistent volume; a container-local folder would lose them at the next deploy.
+        Assert.Single(ProductionConfigurationGuard.Problems(Config(With("Media:Path", path))), p => p.Contains("Media:Path"));
     }
 
     [Fact]

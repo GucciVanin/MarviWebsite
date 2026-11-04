@@ -20,6 +20,6 @@ public record QuoteDto(Guid Id, int Number, Guid ClientAccountId, int CustomerNu
         quote.Status,
         quote.CreatedAt,
         quote.PricedByEmployeeId,
-        quote.LineItems.Select(li => new QuoteLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.SuggestedUnitPrice, li.FinalUnitPrice)).ToList(),
+        quote.LineItems.Select(li => new QuoteLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.SuggestedUnitPrice, li.FinalUnitPrice, li.Product?.ImageUrl)).ToList(),
         DeliveryAddressSnapshotDto.From(quote));
 }

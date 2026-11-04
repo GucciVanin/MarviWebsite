@@ -34,7 +34,7 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
     public async Task TheOldCreateEndpoint_IsGone_ForAnAdmin_AndForAnonymous()
     {
         var admin = await _factory.AdminAsync();
-        var body = new { sku = "OLD-CREATE-1", name = "Velho", description = (string?)null, categoryId = (Guid?)null, imageUrl = (string?)null, isActive = true, attributes = new Dictionary<string, string>() };
+        var body = new { sku = "OLD-CREATE-1", name = "Velho", description = (string?)null, categoryId = (Guid?)null, isActive = true, attributes = new Dictionary<string, string>() };
 
         var asAdmin = await admin.PostAsJsonAsync("/api/admin/products", body);
         var anonymous = await _factory.CreateClient().PostAsJsonAsync("/api/admin/products", body);
@@ -101,7 +101,7 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
             var prices = input.Prices!.Select(p => new ProductSetupPriceRequest(seed.TierId, p.UnitPrice)).ToList();
             var stock = input.Stock!.Select(s => new ProductSetupStockRequest(seed.WarehouseId, s.QtyOnHand)).ToList();
             var created = await admin.PostAsJsonAsync("/api/admin/products/with-setup",
-                new CreateProductWithSetupRequest(sample.Sku, sample.Name, sample.Description, sample.WithoutCategory ? null : category, sample.ImageUrl, true, sample.Attributes, prices, stock));
+                new CreateProductWithSetupRequest(sample.Sku, sample.Name, sample.Description, sample.WithoutCategory ? null : category, null, true, sample.Attributes, prices, stock));
             Assert.True(created.StatusCode is HttpStatusCode.Created or HttpStatusCode.BadRequest, $"create '{rule.Label}': {created.StatusCode}");
             Assert.True(rule.Valid == (created.StatusCode == HttpStatusCode.Created), $"create: '{rule.Label}' expected valid={rule.Valid}, got {created.StatusCode}.");
             if (!rule.Valid)
@@ -118,7 +118,7 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
             var baseSku = BaseSku();
             var existing = (await (await admin.PostProductAsync(baseSku)).Content.ReadFromJsonAsync<ProductAdminDto>())!;
             var updated = await admin.PutAsJsonAsync($"/api/admin/products/{existing.Id}",
-                new UpdateProductRequest(sample.Sku, sample.Name, sample.Description, sample.WithoutCategory ? null : category, sample.ImageUrl, true, sample.Attributes));
+                new UpdateProductRequest(sample.Sku, sample.Name, sample.Description, sample.WithoutCategory ? null : category, true, sample.Attributes));
             Assert.True(updated.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.BadRequest, $"update '{rule.Label}': {updated.StatusCode}");
             Assert.True(rule.Valid == (updated.StatusCode == HttpStatusCode.NoContent), $"update: '{rule.Label}' expected valid={rule.Valid}, got {updated.StatusCode}.");
             if (!rule.Valid)
@@ -129,8 +129,7 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
             (await admin.DeleteAsync($"/api/admin/products/{existing.Id}")).EnsureSuccessStatusCode();
         }
 
-        // 4. Import: the same product as a CSV row (the file has no image column), checked by a dry run and then really.
-        if (rule.Field != "imageUrl")
+        // 4. Import: the same product as a CSV row , checked by a dry run and then really.
         {
             var headers = new List<string> { "sku", "name", "description", "category" };
             var cells = new List<string> { Csv(sample.Sku), Csv(sample.Name), Csv(sample.Description ?? string.Empty), Csv(sample.WithoutCategory ? string.Empty : "Test products") };
@@ -242,7 +241,7 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var fields = (await response.Content.ReadFromJsonAsync<ProductImportReportDto>())!.Errors.Select(e => e.Field).ToHashSet();
-        Assert.Superset(new HashSet<string?> { "description", "imageUrl" }, fields);
+        Assert.Superset(new HashSet<string?> { "description" }, fields);
         Assert.Equal("Antigo", (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!.Name);
     }
 
@@ -251,7 +250,7 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
         var id = Guid.NewGuid();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Products.Add(new Product { Id = id, Sku = sku, Name = "Antigo", Description = new string('d', 2500), ImageUrl = "http://exemplo.com/a.png", IsActive = true, Attributes = new() { ["k"] = "v" } });
+        db.Products.Add(new Product { Id = id, Sku = sku, Name = "Antigo", Description = new string('d', 2500), IsActive = true, Attributes = new() { ["k"] = "v" } });
         await db.SaveChangesAsync();
         return id;
     }
@@ -265,14 +264,13 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
         var cat = await admin.EnsureTestCategoryAsync();
         var rows = new Dictionary<string, Product>
         {
-            ["fine"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = "CHK-FINE-1", Name = "Certo", Description = "ok", ImageUrl = "https://exemplo.com/a.png", Attributes = new() { ["Marca"] = "A" } },
+            ["fine"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = "CHK-FINE-1", Name = "Certo", Description = "ok", Attributes = new() { ["Marca"] = "A" } },
             ["sku"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = new string('S', 50), Name = "Sku longo", Attributes = new() },
             ["shape"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = "CHK SHAPE", Name = "Sku com espaco", Attributes = new() },
             ["description"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = "CHK-DESC-1", Name = "Descricao", Description = new string('d', 2500), Attributes = new() },
-            ["image"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = "CHK-IMG-1", Name = "Imagem", ImageUrl = "http://exemplo.com/a.png", Attributes = new() },
             ["attributes"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = "CHK-ATT-1", Name = "Atributos", Attributes = Enumerable.Range(0, 31).ToDictionary(i => $"k{i}", _ => "v") },
             ["nocat"] = new() { Id = Guid.NewGuid(), Sku = "CHK-NOCAT-1", Name = "Sem categoria", Attributes = new() },
-            ["many"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = "CHK-MANY-1", Name = "Varios", Description = new string('d', 2500), ImageUrl = "http://exemplo.com/b.png", Attributes = new() { ["A"] = "1", ["a"] = "2" } },
+            ["many"] = new() { Id = Guid.NewGuid(), CategoryId = cat, Sku = "CHK-MANY-1", Name = "Varios", Description = new string('d', 2500), Attributes = new() { ["A"] = "1", ["a"] = "2" } },
         };
         using (var scope = _factory.Services.CreateScope())
         {
@@ -295,9 +293,8 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
         Assert.Equal(["sku"], FieldsOf("sku"));
         Assert.Equal(["sku"], FieldsOf("shape"));
         Assert.Equal(["description"], FieldsOf("description"));
-        Assert.Equal(["imageUrl"], FieldsOf("image"));
         Assert.Equal(["attributes"], FieldsOf("attributes"));
-        Assert.Equal(["attributes", "description", "imageUrl"], FieldsOf("many"));
+        Assert.Equal(["attributes", "description"], FieldsOf("many"));
         Assert.Equal(rows["sku"].Sku, check.Products.Single(p => p.Id == rows["sku"].Id).Sku);
         Assert.Equal(before, after); // read-only: nothing was rewritten
     }
@@ -312,7 +309,8 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
         var validators = types
             .Where(t => Regex.IsMatch(t.Name, "Product.*(Rules|Validator|Validation|Checker)$") || Regex.IsMatch(t.Name, "^(Validate|Check).*Product"))
             .Select(t => t.Name).Distinct().Order().ToArray();
-        Assert.Equal(["ProductRules"], validators);
+        // ProductPhotoRules judges an uploaded FILE (MRV-9.7), not product fields; the product itself, photo link included, is still saved by the one path.
+        Assert.Equal(["ProductPhotoRules", "ProductRules"], validators);
 
         // 2. The entry points decide through it and carry no limit of their own.
         var root = Path.GetDirectoryName(ProductRuleContract.FilePath())!;
@@ -356,11 +354,10 @@ public class SingleProductPathTests : IClassFixture<MarviApiFactory>
         Assert.Equal(constants["MinNameLength"], limits["nameMin"]);
         Assert.Equal(constants["MaxNameLength"], limits["nameMax"]);
         Assert.Equal(constants["MaxDescriptionLength"], limits["description"]);
-        Assert.Equal(constants["MaxImageUrlLength"], limits["imageUrl"]);
         Assert.Equal(constants["MaxAttributes"], limits["attributes"]);
         Assert.Equal(constants["MaxAttributeKeyLength"], limits["attributeKey"]);
         Assert.Equal(constants["MaxAttributeValueLength"], limits["attributeValue"]);
         Assert.Equal(constants["MaxStock"], limits["stock"]);
-        Assert.Equal(10, limits.Count); // a new limit in the file must be compared here too
+        Assert.Equal(9, limits.Count); // a new limit in the file must be compared here too
     }
 }

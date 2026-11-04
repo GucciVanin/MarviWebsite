@@ -23,6 +23,6 @@ public record OrderDto(Guid Id, int Number, Guid ClientAccountId, int CustomerNu
         order.PlacedByEmployeeId,
         order.PlacedAt,
         order.TotalAmount,
-        order.LineItems.Select(li => new OrderLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.UnitPrice)).ToList(),
+        order.LineItems.Select(li => new OrderLineItemDto(li.Id, li.ProductId, li.Product?.Name ?? string.Empty, li.Qty, li.UnitPrice, li.Product?.ImageUrl)).ToList(),
         DeliveryAddressSnapshotDto.From(order));
 }

@@ -20,7 +20,7 @@ public sealed record ImportCatalog(
     IReadOnlyDictionary<string, ExistingProduct>? ExistingProducts = null);
 
 /// <summary>The stored fields of a product that an import row can leave unchanged.</summary>
-public sealed record ExistingProduct(string? Description, string? ImageUrl, IReadOnlyDictionary<string, string> Attributes, Guid? CategoryId = null);
+public sealed record ExistingProduct(string? Description, IReadOnlyDictionary<string, string> Attributes, Guid? CategoryId = null);
 
 /// <summary>One product row that passed every check. A null description or category means the cell was blank: leave an existing value as it is. <c>Attributes</c> is the complete cleaned set to store when the row has any attribute cell (existing ones merged ignoring case), empty otherwise.</summary>
 public sealed record PlannedProduct(
@@ -223,7 +223,7 @@ public static class ProductImportPlanner
             var description = Cell("description");
             var problems = new List<ProductProblem>();
             var plan = ProductRules.Check(
-                new ProductInput(sku, name, description.Length > 0 ? description : existing?.Description, existing?.ImageUrl, attributes,
+                new ProductInput(sku, name, description.Length > 0 ? description : existing?.Description, attributes,
                     priceRows, stockRow is null ? null : [stockRow],
                     // A category is required like everywhere else: the cell, else the stored one. A cell that names an unknown category already has its own error.
                     categoryId ?? existing?.CategoryId ?? (categoryName.Length > 0 ? Guid.Empty : null)),

@@ -82,9 +82,9 @@ public static class TestClients
     /// category there, so without one the shared "Test products" category is used (see <see cref="EnsureTestCategoryAsync"/>).
     /// </summary>
     public static async Task<HttpResponseMessage> PostProductAsync(this HttpClient admin, string? sku = null, string name = "Widget", Guid? categoryId = null,
-        bool isActive = true, string? description = null, string? imageUrl = null, Dictionary<string, string>? attributes = null) =>
+        bool isActive = true, string? description = null, string? photoToken = null, Dictionary<string, string>? attributes = null) =>
         await admin.PostAsJsonAsync("/api/admin/products/with-setup",
-            new CreateProductWithSetupRequest(sku ?? $"SKU-{Guid.NewGuid():N}", name, description, categoryId ?? await admin.EnsureTestCategoryAsync(), imageUrl,
+            new CreateProductWithSetupRequest(sku ?? $"SKU-{Guid.NewGuid():N}", name, description, categoryId ?? await admin.EnsureTestCategoryAsync(), photoToken,
                 isActive, attributes ?? new Dictionary<string, string>(), [], []));
 
     /// <summary>The category that products made by <see cref="PostProductAsync"/> go in when a test does not care (created on first use).</summary>

@@ -32,6 +32,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Removing a feature means deleting its folder and its line here.
 builder.Services.AddIdentityFeature(builder.Configuration);
 builder.Services.AddCatalogFeature();
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<Marvi.Api.Features.Catalog.Media.ProductPhotoCleanupWorker>();
+}
+
 builder.Services.AddCoverageFeature();
 builder.Services.AddQuotesFeature();
 builder.Services.AddAuditingFeature();

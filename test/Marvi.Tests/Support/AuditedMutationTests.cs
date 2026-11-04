@@ -54,7 +54,7 @@ public class AuditedMutationTests : IClassFixture<MarviApiFactory>
         var id = (await OkAsync<ProductAdminDto>(created)).Id;
         await AssertAuditedAsync(admin, "Product", "Create", id);
 
-        (await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(Unique("SKU"), "Widget 2", null, await admin.EnsureTestCategoryAsync(), null, true, new()))).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(Unique("SKU"), "Widget 2", null, await admin.EnsureTestCategoryAsync(), true, new()))).EnsureSuccessStatusCode();
         await AssertAuditedAsync(admin, "Product", "Update", id);
 
         (await admin.DeleteAsync($"/api/admin/products/{id}")).EnsureSuccessStatusCode();

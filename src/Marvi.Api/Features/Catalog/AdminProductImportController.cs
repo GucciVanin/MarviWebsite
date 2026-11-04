@@ -81,9 +81,9 @@ public class AdminProductImportController : ControllerBase
         var (categoryIds, ambiguousCategories) = NamesToIds(categories.Select(c => (c.Name, c.Id)));
         var (tierIds, ambiguousTiers) = NamesToIds(tiers.Select(t => (t.Name, t.Id)));
         // What the stored products keep when a cell is blank: the planner checks each row as the product would be stored.
-        var stored = await _dbContext.Products.AsNoTracking().Select(p => new { p.Sku, p.Description, p.ImageUrl, p.Attributes, p.CategoryId }).ToListAsync();
+        var stored = await _dbContext.Products.AsNoTracking().Select(p => new { p.Sku, p.Description, p.Attributes, p.CategoryId }).ToListAsync();
         var existingProducts = stored.GroupBy(p => p.Sku, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => new ExistingProduct(g.First().Description, g.First().ImageUrl, g.First().Attributes, g.First().CategoryId), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key, g => new ExistingProduct(g.First().Description, g.First().Attributes, g.First().CategoryId), StringComparer.OrdinalIgnoreCase);
         var catalog = new ImportCatalog(categoryIds, tierIds, defaultTier?.Id ?? Guid.Empty, CanImportStock: stockWarehouse.HasValue, ambiguousCategories, ambiguousTiers, existingProducts);
 
         var plan = ProductImportPlanner.Plan(text, catalog);

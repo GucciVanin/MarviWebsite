@@ -52,7 +52,8 @@ public class ProductsController : ControllerBase
         var availableByProduct = StockAvailability.AvailableByProduct(
             await _dbContext.InventoryRecords.Where(i => productIds.Contains(i.ProductId)).ToListAsync());
 
-        var result = products.Select(p => BuildListItem(p, tier, pricingRows, activeDeals, availableByProduct)).ToList();
+        var categoryNames = await _dbContext.Categories.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name);
+        var result = products.Select(p => BuildListItem(p, tier, pricingRows, activeDeals, availableByProduct, categoryNames)).ToList();
         return Ok(result);
     }
 
@@ -101,11 +102,12 @@ public class ProductsController : ControllerBase
         return await DefaultPricingTier.FindAsync(_dbContext);
     }
 
-    private ProductListItemDto BuildListItem(Product product, PricingTier tier, List<ProductPricing> pricingRows, List<Deal> activeDeals, IReadOnlyDictionary<Guid, int> availableByProduct)
+    private ProductListItemDto BuildListItem(Product product, PricingTier tier, List<ProductPricing> pricingRows, List<Deal> activeDeals, IReadOnlyDictionary<Guid, int> availableByProduct, IReadOnlyDictionary<Guid, string> categoryNames)
     {
         var (price, dealName) = TryResolvePrice(product, tier, pricingRows, activeDeals);
         var inStock = StockAvailability.InStock(availableByProduct, product.Id);
-        return new ProductListItemDto(product.Id, product.Sku, product.Name, product.ImageUrl, product.Attributes, price, dealName, inStock);
+        return new ProductListItemDto(product.Id, product.Sku, product.Name, product.ImageUrl, product.Attributes, price, dealName, inStock, product.Description,
+            product.CategoryId is { } categoryId && categoryNames.TryGetValue(categoryId, out var categoryName) ? categoryName : null);
     }
 
     // A null price means "no price configured for this tier" (shown as "on request"); it must never read as a price of 0.

@@ -6,7 +6,7 @@ namespace Marvi.Tests.Catalog;
 public class ProductRulesTests
 {
     private static ProductInput Input(string sku = "COLA-2L.1_a", string name = "Cola") =>
-        new(sku, name, null, null, null, null, null, Guid.NewGuid());
+        new(sku, name, null, null, null, null, Guid.NewGuid());
 
     [Fact]
     public void ACategoryIsRequired_Always()

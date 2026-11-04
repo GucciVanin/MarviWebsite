@@ -29,6 +29,8 @@ services:
       # Registration data (MRV-9.4). The CPF is stored encrypted with ASP.NET Data Protection, whose keys live in /keys (the named volume
       # below, so they survive container restarts and rebuilds; never in the repository). The hash key makes CPFs unique without storing them.
       DataProtection__KeysPath: /keys
+      # Product photos (MRV-9.7) are files: /media is the named volume below, so they survive restarts and rebuilds. The Production guard refuses to start without it.
+      Media__Path: /media
       Privacy__CpfHashKey: ${CPF_HASH_KEY:-dev-only-compose-cpf-hash-key-CHANGE-ME-before-production-1234567890}
       # This compose file is for development and the runtime test suite, which run on the example values of deploy/.env.example.
       # The API image is Production by default and refuses example secrets there (MRV-3.3a); this says, loudly, that here it is fine.
@@ -43,6 +45,7 @@ services:
       RateLimiting__Profile__PermitLimit: "100000"
       RateLimiting__Reveal__PermitLimit: "100000"
       RateLimiting__ProductSetup__PermitLimit: "100000"
+      RateLimiting__ProductPhoto__PermitLimit: "100000"
       # The nginx proxy in front of the API forwards the real client address; trust it (the API is only meant to be reached through it).
       ForwardedHeaders__Enabled: "true"
       # Google reviews on the home page (MRV-2.5); both empty hides the section.
@@ -51,6 +54,7 @@ services:
       Reviews__Google__BaseUrl: ${GOOGLE_PLACES_BASE_URL:-}
     volumes:
       - marvi-dataprotection:/keys
+      - marvi-media:/media
     ports:
       - "8080:8080"
     depends_on:
@@ -79,3 +83,4 @@ services:
 volumes:
   marvi-db-data:
   marvi-dataprotection:
+  marvi-media:

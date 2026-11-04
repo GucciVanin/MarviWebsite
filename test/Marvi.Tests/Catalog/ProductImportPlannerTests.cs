@@ -15,7 +15,7 @@ public class ProductImportPlannerTests
         DefaultTier,
         canImportStock,
         // The rows below are stored products that already have a category: a blank category cell keeps it (a NEW product needs one: see the category tests).
-        ExistingProducts: new[] { "AAA", "BBB", "CCC" }.ToDictionary(sku => sku, _ => new ExistingProduct(null, null, new Dictionary<string, string>(), BeerId)));
+        ExistingProducts: new[] { "AAA", "BBB", "CCC" }.ToDictionary(sku => sku, _ => new ExistingProduct(null, new Dictionary<string, string>(), BeerId)));
 
     private static ImportPlan Plan(string csv, bool canImportStock = true) => ProductImportPlanner.Plan(csv, Catalog(canImportStock));
 
@@ -279,7 +279,7 @@ public class ProductImportPlannerTests
     [Fact]
     public void AStoredProductWithNoCategory_IsRefusedUntilARowGivesItOne()
     {
-        var catalog = Catalog() with { ExistingProducts = new Dictionary<string, ExistingProduct> { ["OLD"] = new(null, null, new Dictionary<string, string>(), null) } };
+        var catalog = Catalog() with { ExistingProducts = new Dictionary<string, ExistingProduct> { ["OLD"] = new(null, new Dictionary<string, string>(), null) } };
 
         var blank = ProductImportPlanner.Plan("sku,name\nOLD,Velho\n", catalog);
         var given = ProductImportPlanner.Plan("sku,name,category\nOLD,Velho,cervejas\n", catalog);

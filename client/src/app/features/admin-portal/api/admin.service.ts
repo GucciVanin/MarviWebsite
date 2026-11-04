@@ -60,15 +60,26 @@ export interface ProductAdmin {
   attributes: Record<string, string>;
 }
 
-/** An edit of a product (`PUT`): the whole product, checked by the same rules as a new one (MRV-9.8). */
+/**
+ * A product to save (MRV-9.8: one body for create and edit, checked by the same rules). The photo (MRV-9.7) is never an address typed by hand:
+ * `photoToken` links a file uploaded with `uploadProductPhoto` (the same save, so it is all or nothing); on an edit `removePhoto` clears the
+ * current one; neither keeps it.
+ */
 export interface UpdateProductRequest {
   sku: string;
   name: string;
   description: string | null;
   categoryId: string | null;
-  imageUrl: string | null;
   isActive: boolean;
   attributes: Record<string, string>;
+  photoToken?: string | null;
+  removePhoto?: boolean;
+}
+
+/** What an upload answers: the token to send with the product, and the same-origin address that previews the stored file. */
+export interface ProductPhotoUploaded {
+  photoToken: string;
+  previewUrl: string;
 }
 
 /** The guided "Novo produto" (MRV-9.5): the product plus a price per tier and a quantity per warehouse; a row with null is skipped. */
@@ -321,6 +332,13 @@ export class AdminService {
 
   createProductWithSetup(request: CreateProductWithSetupRequest): Observable<ProductAdmin> {
     return this.http.post<ProductAdmin>('/api/admin/products/with-setup', request);
+  }
+
+  /** Uploads one photo (multipart, 5 MB at most); it belongs to no product until the product is saved with the returned token. */
+  uploadProductPhoto(file: File): Observable<ProductPhotoUploaded> {
+    const form = new FormData();
+    form.append('photo', file, file.name);
+    return this.http.post<ProductPhotoUploaded>('/api/admin/media/product-photos', form);
   }
 
   updateProduct(id: string, request: UpdateProductRequest): Observable<void> {

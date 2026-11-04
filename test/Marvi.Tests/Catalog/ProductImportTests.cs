@@ -109,7 +109,7 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
         var original = (await FindProductAsync(admin, sku))!;
         // Deactivate through the admin API: an import must not reactivate it.
         (await admin.PutAsJsonAsync($"/api/admin/products/{original.Id}",
-            new UpdateProductRequest(sku, original.Name, original.Description, original.CategoryId, null, false, original.Attributes))).EnsureSuccessStatusCode();
+            new UpdateProductRequest(sku, original.Name, original.Description, original.CategoryId, false, original.Attributes))).EnsureSuccessStatusCode();
 
         var report = await ReportAsync(await ImportAsync(admin, $"sku,name,description,category,attr_Marca,attr_Cor\n{sku.ToUpperInvariant()},Sparkling Water,,,,Blue\n"));
 

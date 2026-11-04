@@ -4,6 +4,7 @@
 // Requires Node >= 18 (global fetch) and Docker; reads the seeded admin from deploy/.env.example defaults.
 import { execSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const API = 'http://localhost:8080';
@@ -70,7 +71,7 @@ const area2 = await mk('/api/admin/coverage-areas', { warehouseId: wh2.id, type:
 const prod = {};
 const defineProduct = async (key, sku, name, categoryId, active, attributes, prices) => {
   // The one way to create a product is with-setup (MRV-9.8), and it needs a category: a product without one is made in a category and then edited to have none.
-  const p = await mk('/api/admin/products/with-setup', { sku, name, description: `${name} - descrição`, categoryId: categoryId ?? cat.soft.id, imageUrl: null, isActive: active, attributes, prices: [], stock: [] });
+  const p = await mk('/api/admin/products/with-setup', { sku, name, description: `${name} - descrição`, categoryId: categoryId ?? cat.soft.id, isActive: active, attributes, prices: [], stock: [] });
   if (categoryId === null) {
     // No API path leaves a product without a category any more (MRV-9.8: the category is a rule like the others); this fixture stands for a product stored before the rule.
     sql(`update products set category_id = null where id = '${p.id}'`);
@@ -629,7 +630,7 @@ ok('a client cannot reach employee endpoints and an employee cannot reach client
 
 section('INPUT POLICY: trimming, limits, duplicates ignoring case, delete protection (on real Postgres)');
 const policySku = `Pol-${crypto.randomUUID().slice(0, 8)}`;
-const newProduct = (sku, name, extra = {}) => ({ sku, name, description: null, categoryId: cat.soft.id, imageUrl: null, isActive: true, attributes: {}, prices: [], stock: [], ...extra });
+const newProduct = (sku, name, extra = {}) => ({ sku, name, description: null, categoryId: cat.soft.id, isActive: true, attributes: {}, prices: [], stock: [], ...extra });
 const policyProduct = await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(`  ${policySku}  `, '  Policy product  ') });
 ok('product SKU and name are stored trimmed', policyProduct.status === 201 && policyProduct.json.sku === policySku && policyProduct.json.name === 'Policy product', JSON.stringify(policyProduct.json));
 const policyDuplicate = await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(policySku.toUpperCase(), 'Other') });
@@ -756,7 +757,7 @@ ok('...and exactly one default tier exists', sql(`select count(*) from pricing_t
 
 section('PRODUCT WITH SETUP (MRV-9.5): one request writes the product, its prices and its stock, or nothing');
 const setupSku = `SET-${crypto.randomUUID().slice(0, 8)}`;
-const setupBody = (sku, extra = {}) => ({ sku, name: 'Produto guiado', description: 'Criado pelo formulario guiado', categoryId: cat.soft.id, imageUrl: 'https://exemplo.com/cola.png', isActive: true, attributes: { Marca: 'Cola', 'Quantidade por caixa': '12' }, prices: [{ pricingTierId: standard.id, unitPrice: 7.5 }, { pricingTierId: wholesale.id, unitPrice: 6 }], stock: [{ warehouseId: wh1.id, qtyOnHand: 12 }, { warehouseId: wh2.id, qtyOnHand: null }], ...extra });
+const setupBody = (sku, extra = {}) => ({ sku, name: 'Produto guiado', description: 'Criado pelo formulario guiado', categoryId: cat.soft.id, isActive: true, attributes: { Marca: 'Cola', 'Quantidade por caixa': '12' }, prices: [{ pricingTierId: standard.id, unitPrice: 7.5 }, { pricingTierId: wholesale.id, unitPrice: 6 }], stock: [{ warehouseId: wh1.id, qtyOnHand: 12 }, { warehouseId: wh2.id, qtyOnHand: null }], ...extra });
 const countOf = (table) => Number(sql(`select count(*) from ${table}`));
 const setupBefore = { products: countOf('products'), prices: countOf('product_pricings'), stock: countOf('inventory_records'), audit: countOf('audit_log_entries') };
 const setupCreated = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`  ${setupSku}  `) });
@@ -776,7 +777,7 @@ const badPrice = await call('POST', '/api/admin/products/with-setup', { token: a
 ok('a bad price on the second tier is refused (400) naming prices[1]', badPrice.status === 400 && badPrice.json?.some((p) => p.field === 'prices[1]'), String(badPrice.status));
 const unknownWarehouse = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`UNK-${crypto.randomUUID().slice(0, 8)}`, { stock: [{ warehouseId: crypto.randomUUID(), qtyOnHand: 3 }] }) });
 ok('an unknown warehouse is refused (400) naming stock[0]', unknownWarehouse.status === 400 && unknownWarehouse.json?.some((p) => p.field === 'stock[0]'), String(unknownWarehouse.status));
-ok('an http image address is refused (400)', (await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`IMG-${crypto.randomUUID().slice(0, 8)}`, { imageUrl: 'http://exemplo.com/a.png' }) })).status === 400);
+ok('an unknown photo token is refused (400) naming the photo field', await (async () => { const x = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`IMG-${crypto.randomUUID().slice(0, 8)}`, { photoToken: crypto.randomBytes(16).toString('hex') }) }); return x.status === 400 && x.json?.some((p) => p.field === 'photo'); })());
 ok('none of the refusals left a product, a price, a stock row or an audit entry', countOf('products') === afterFirst.products && countOf('product_pricings') === afterFirst.prices && countOf('inventory_records') === afterFirst.stock && countOf('audit_log_entries') === afterFirst.audit);
 
 const burstSku = `BURST-${crypto.randomUUID().slice(0, 8)}`;
@@ -800,10 +801,10 @@ ok('create stays all or nothing: a bad row (unknown tier) refuses the whole requ
 
 const editSku = `EDT-${crypto.randomUUID().slice(0, 8)}`;
 const editProduct = (await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(editSku, 'Editavel', { description: 'curta' }) })).json;
-const putBody = (extra = {}) => ({ sku: editSku, name: 'Editavel', description: 'curta', categoryId: cat.soft.id, imageUrl: null, isActive: true, attributes: {}, ...extra });
-const editBad = await call('PUT', `/api/admin/products/${editProduct.id}`, { token: admin, body: putBody({ name: 'Renomeado', imageUrl: 'http://exemplo.com/a.png', description: 'd'.repeat(2001) }) });
-ok('edit refuses invalid data with the same field messages as create (400, imageUrl and description named)',
-  editBad.status === 400 && editBad.json?.some((p) => p.field === 'imageUrl') && editBad.json?.some((p) => p.field === 'description'), JSON.stringify(editBad.json));
+const putBody = (extra = {}) => ({ sku: editSku, name: 'Editavel', description: 'curta', categoryId: cat.soft.id, isActive: true, attributes: {}, ...extra });
+const editBad = await call('PUT', `/api/admin/products/${editProduct.id}`, { token: admin, body: putBody({ name: 'x', description: 'd'.repeat(2001) }) });
+ok('edit refuses invalid data with the same field messages as create (400, name and description named)',
+  editBad.status === 400 && editBad.json?.some((p) => p.field === 'name') && editBad.json?.some((p) => p.field === 'description'), JSON.stringify(editBad.json));
 ok('...and stored nothing of it', sql(`select name || '/' || coalesce(image_url, '-') || '/' || length(coalesce(description, ''))  from products where id='${editProduct.id}'`) === 'Editavel/-/5');
 const editTaken = await call('PUT', `/api/admin/products/${editProduct.id}`, { token: admin, body: putBody({ sku: 'BEER-001' }) });
 ok('...a SKU another product has is a 409 on the sku field', editTaken.status === 409 && editTaken.json?.[0]?.field === 'sku', String(editTaken.status));
@@ -824,7 +825,7 @@ const check = await call('GET', '/api/admin/products/data-check', { token: admin
 const checkRow = check.json?.products?.find((p) => p.id === brokenId);
 const noCatImport = await importCsv(`sku,name\nNOC-${crypto.randomUUID().slice(0, 8)},Sem categoria\n`);
 ok('import refuses a NEW product with no category (400, line 2, field category) like create', noCatImport.status === 400 && noCatImport.json?.errors?.[0]?.field === 'category' && noCatImport.json.errors[0].line === 2, JSON.stringify(noCatImport.json));
-ok('the data check lists it with its fields (imageUrl and categoryId), changes nothing, and does not list a valid product', check.status === 200 && checkRow?.problems?.some((p) => p.field === 'imageUrl') && checkRow.problems.some((p) => p.field === 'categoryId')
+ok('the data check lists it with its field (categoryId; an old image address is no longer a rule), changes nothing, and does not list a valid product', check.status === 200 && checkRow?.problems?.length === 1 && checkRow.problems.some((p) => p.field === 'categoryId')
   && !check.json.products.some((p) => p.id === editProduct.id) && sql(`select image_url from products where id='${brokenId}'`) === 'http://exemplo.com/a.png');
 
 const impBadSku = `IMB-${crypto.randomUUID().slice(0, 8)}`;
@@ -852,9 +853,9 @@ const endpoints = [
   ['GET', `/api/admin/deals/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/deals/${ID}`, { name: 'x', discountType: 'Percent', discountValue: 1, startDate: iso(0), endDate: iso(1), productIds: [], categoryIds: [], minQty: 1 }, ['admin']], ['DELETE', `/api/admin/deals/${ID}`, undefined, ['admin']],
   ['GET', '/api/admin/pricing-tiers', undefined, ['admin']], ['POST', '/api/admin/pricing-tiers', { name: 'Q', isDefault: false }, ['admin']], ['PUT', `/api/admin/pricing-tiers/${ID}`, { name: 'Q', isDefault: false }, ['admin']],
   ['GET', `/api/admin/products/${ID}/pricing`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}/pricing`, { pricingTierId: ID, unitPrice: 1, minQty: 1 }, ['admin']], ['DELETE', `/api/admin/products/${ID}/pricing/${ID}/1`, undefined, ['admin']],
-  ['GET', '/api/admin/products', undefined, ['admin']], ['GET', '/api/admin/products/data-check', undefined, ['admin']],
-  ['POST', '/api/admin/products/with-setup', { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {}, prices: [], stock: [] }, ['admin']],
-  ['GET', `/api/admin/products/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}`, { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} }, ['admin']], ['DELETE', `/api/admin/products/${ID}`, undefined, ['admin']],
+  ['GET', '/api/admin/products', undefined, ['admin']], ['GET', '/api/admin/products/data-check', undefined, ['admin']], ['POST', '/api/admin/media/product-photos', undefined, ['admin']],
+  ['POST', '/api/admin/products/with-setup', { sku: 'S', name: 'N', description: null, categoryId: null, isActive: true, attributes: {}, prices: [], stock: [] }, ['admin']],
+  ['GET', `/api/admin/products/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}`, { sku: 'S', name: 'N', description: null, categoryId: null, isActive: true, attributes: {} }, ['admin']], ['DELETE', `/api/admin/products/${ID}`, undefined, ['admin']],
   ['GET', '/api/admin/coverage-areas', undefined, ['admin']], ['POST', '/api/admin/coverage-areas', { warehouseId: ID, type: 'Radius', radiusMiles: 1, polygonGeoJson: null }, ['admin']],
   ['GET', `/api/admin/coverage-areas/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/coverage-areas/${ID}`, { warehouseId: ID, type: 'Radius', radiusMiles: 1, polygonGeoJson: null }, ['admin']], ['DELETE', `/api/admin/coverage-areas/${ID}`, undefined, ['admin']],
   ['GET', '/api/admin/warehouses', undefined, ['admin']], ['POST', '/api/admin/warehouses', { name: 'W', address: 'A', latitude: 1, longitude: 1 }, ['admin']],
@@ -1019,7 +1020,7 @@ await mustBe400('approve with unknown tier', 'PUT', `/api/admin/clients/${client
 await mustBe400('product with blank SKU', 'POST', '/api/admin/products/with-setup', { token: admin, body: newProduct('  ', 'x') });
 await mustBe400('product with blank name', 'POST', '/api/admin/products/with-setup', { token: admin, body: newProduct('OK-1', '') });
 await mustBe400('product with a duplicate SKU', 'POST', '/api/admin/products/with-setup', { token: admin, body: newProduct('BEER-001', 'Duplicate') });
-await mustBe400('an edit with a blank SKU', 'PUT', `/api/admin/products/${prod.cola.id}`, { token: admin, body: { sku: '  ', name: 'x', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
+await mustBe400('an edit with a blank SKU', 'PUT', `/api/admin/products/${prod.cola.id}`, { token: admin, body: { sku: '  ', name: 'x', description: null, categoryId: null, isActive: true, attributes: {} } });
 await mustBe400('negative unit price', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: standard.id, unitPrice: -1, minQty: 1 } });
 await mustBe400('pricing with min quantity 0', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: standard.id, unitPrice: 1, minQty: 0 } });
 await mustBe400('pricing for an unknown tier', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: crypto.randomUUID(), unitPrice: 1, minQty: 1 } });
@@ -1252,6 +1253,134 @@ ok('the legacy free text of a staff order is capped at 500 characters and refuse
   && (await call('POST', '/api/employee/orders', { token: emp, body: { clientId: noDelivery.id, deliveryAddress: 'b'.repeat(500), lineItems: dline } })).status === 201);
 const concurrentAmend = await Promise.all([1, 2, 3].map(() => call('PUT', `/api/quotes/${depotQuote.json.number}/delivery-address`, { token: clientA.token, body: { deliveryAddressKey: aMain.key } })));
 ok('parallel changes of one quote answer 200 or 409, never 500', concurrentAmend.every((r) => [200, 409].includes(r.status)), concurrentAmend.map((r) => r.status).join(','));
+
+section('PRODUCT PHOTO (MRV-9.7): uploaded files on the real media volume, linked in the product save, served to everyone');
+const compose = (args) => execSync(`docker compose -f deploy/docker-compose.yml ${args}`, { cwd: ROOT, encoding: 'utf8' });
+const volumeFiles = () => compose('exec -T api sh -c "ls -1 /media"').split('\n').map((x) => x.trim()).filter(Boolean).sort();
+const volumeCount = () => volumeFiles().length;
+const uploadRows = () => Number(sql('select count(*) from product_photo_uploads'));
+const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = (buf) => { let c = 0xFFFFFFFF; for (const b of buf) c = crcTable[(c ^ b) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+const pngChunk = (type, data) => { const t = Buffer.from(type, 'ascii'); const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data]))); return Buffer.concat([len, t, data, crc]); };
+const makePng = (w, h) => { const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; return Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(Buffer.alloc((w + 1) * h))), pngChunk('IEND', Buffer.alloc(0))]); };
+const jpegSeg = (marker, body) => Buffer.concat([Buffer.from([0xFF, marker]), Buffer.from([(body.length + 2) >> 8, (body.length + 2) & 0xFF]), body]);
+const makeJpeg = (w, h, comment = null) => { const frame = Buffer.from([8, h >> 8, h & 0xFF, w >> 8, w & 0xFF, 1, 1, 0x11, 0]); const blocks = Math.ceil(w / 8) * Math.ceil(h / 8);
+  return Buffer.concat([Buffer.from([0xFF, 0xD8]), ...(comment ? [jpegSeg(0xFE, Buffer.from(comment))] : []), jpegSeg(0xDB, Buffer.concat([Buffer.from([0]), Buffer.alloc(64, 1)])), jpegSeg(0xC0, frame), jpegSeg(0xC4, Buffer.concat([Buffer.from([0x00, 1]), Buffer.alloc(15), Buffer.from([0])])), jpegSeg(0xC4, Buffer.concat([Buffer.from([0x10, 1]), Buffer.alloc(15), Buffer.from([0])])), jpegSeg(0xDA, Buffer.from([1, 1, 0x00, 0, 63, 0])), Buffer.alloc(Math.ceil(blocks * 2 / 8)), Buffer.from([0xFF, 0xD9])]); };
+const makeWebp = (w, h) => { const body = Buffer.alloc(20); body[3] = 0x9D; body[4] = 0x01; body[5] = 0x2A; body.writeUInt16LE(w, 6); body.writeUInt16LE(h, 8); const chunk = Buffer.concat([Buffer.from('VP8 '), Buffer.from([20, 0, 0, 0]), body]); const size = Buffer.alloc(4); size.writeUInt32LE(chunk.length + 4); return Buffer.concat([Buffer.from('RIFF'), size, Buffer.from('WEBP'), chunk]); };
+const uploadPhoto = async (token, bytes, name = 'foto.png', type = 'image/png') => {
+  const form = new FormData(); form.append('photo', new Blob([bytes], { type }), name);
+  let res;
+  try { res = await fetch(`${API}/api/admin/media/product-photos`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form }); }
+  catch (e) { return { status: 'reset', json: null, text: String(e.cause?.code ?? e), headers: new Headers() }; } // the server answered 413 and closed while a huge body was still being written
+  const text = await res.text(); let json = null; try { json = JSON.parse(text); } catch { /* not json */ }
+  return { status: res.status, json, text, headers: res.headers };
+};
+const nameOf = (previewUrl) => previewUrl.split('/').pop();
+
+const photoBefore = { files: volumeCount(), rows: uploadRows() };
+const png = makePng(400, 400), jpeg = makeJpeg(640, 480), webp = makeWebp(800, 600);
+const upPng = await uploadPhoto(admin, png, 'Minha Foto.exe', 'text/html');
+const upJpeg = await uploadPhoto(admin, jpeg, 'a.jpg', 'image/jpeg');
+const upWebp = await uploadPhoto(admin, webp, 'a.webp', 'image/webp');
+ok('a valid PNG, JPEG and WebP are accepted (200) whatever their name or content type says, and answer a token and a preview address', [upPng, upJpeg, upWebp].every((u) => u.status === 200 && /^[0-9a-f]{32}$/.test(u.json?.photoToken ?? '') && u.json?.previewUrl?.startsWith('/api/public/media/products/')), JSON.stringify([upPng.status, upJpeg.status, upWebp.status]));
+ok('...stored under random names with the real extension on the media volume (never the original name)', volumeCount() === photoBefore.files + 3 && [upPng, upJpeg, upWebp].every((u, i) => nameOf(u.json.previewUrl).endsWith(['.png', '.jpg', '.webp'][i]) && volumeFiles().includes(nameOf(u.json.previewUrl))) && !volumeFiles().some((f) => /Minha|exe/i.test(f)));
+ok('...and the bytes on the volume are the bytes sent', compose(`exec -T api sh -c "sha256sum /media/${nameOf(upPng.json.previewUrl)}"`).split(' ')[0] === crypto.createHash('sha256').update(png).digest('hex'));
+ok('...three waiting upload rows', uploadRows() === photoBefore.rows + 3);
+
+const servedPng = await fetch(API + upPng.json.previewUrl);
+const servedBytes = Buffer.from(await servedPng.arrayBuffer());
+ok('anyone (no sign-in) gets the photo: 200, the same bytes, image/png, nosniff, a one-year immutable public cache, a CSP that runs nothing',
+  servedPng.status === 200 && servedBytes.equals(png) && servedPng.headers.get('content-type') === 'image/png' && servedPng.headers.get('x-content-type-options') === 'nosniff'
+  && servedPng.headers.get('cache-control') === 'public, max-age=31536000, immutable' && /default-src 'none'/.test(servedPng.headers.get('content-security-policy') ?? ''));
+
+const refusedBefore = { files: volumeCount(), rows: uploadRows() };
+const refused = {
+  svg: await uploadPhoto(admin, Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><script>alert(1)</script></svg>'), 'a.svg', 'image/svg+xml'),
+  gif: await uploadPhoto(admin, Buffer.concat([Buffer.from('GIF89a'), Buffer.from([0x90, 1, 0x90, 1, 0x80, 0, 0]), Buffer.alloc(40), Buffer.from([0x3B])]), 'a.gif', 'image/gif'),
+  polyglot: await uploadPhoto(admin, makeJpeg(400, 400, '<script>alert(1)</script>'), 'a.jpg', 'image/jpeg'),
+  appended: await uploadPhoto(admin, Buffer.concat([png, Buffer.from('PK\x03\x04 zip data')]), 'a.png', 'image/png'),
+  fakeJpg: await uploadPhoto(admin, Buffer.from('<html><script>alert(1)</script></html>'), 'a.jpg', 'image/jpeg'),
+  small: await uploadPhoto(admin, makePng(399, 400), 'a.png', 'image/png'),
+  huge: await uploadPhoto(admin, makeJpeg(6001, 400), 'a.jpg', 'image/jpeg'),
+  empty: await uploadPhoto(admin, Buffer.alloc(0), 'a.png', 'image/png'),
+};
+ok('SVG, GIF, a JPEG with a script in a comment, a PNG with a zip appended, an HTML file called jpg, a 399-pixel and a 6001-pixel photo and an empty file are all refused (400) on the photo field in Portuguese', Object.values(refused).every((x) => x.status === 400 && x.json?.length === 1 && x.json[0].field === 'photo' && /foto|imagem|Escolha/.test(x.json[0].message)), JSON.stringify(Object.entries(refused).map(([k, v]) => [k, v.status])));
+ok('...none of them echoes the file name or content, and none left a file or a row', !JSON.stringify(Object.values(refused).map((x) => x.text)).includes('alert(1)') && volumeCount() === refusedBefore.files && uploadRows() === refusedBefore.rows);
+const over5 = await uploadPhoto(admin, Buffer.concat([makeJpeg(400, 400), Buffer.alloc(5 * 1024 * 1024)]), 'a.jpg', 'image/jpeg');
+const over6 = await uploadPhoto(admin, Buffer.alloc(7 * 1024 * 1024), 'a.jpg', 'image/jpeg');
+ok('a file over 5 MB is refused (400, 5 MB message) and a request over 6 MB is cut off (413), neither stored', over5.status === 400 && /5 MB/.test(over5.json?.[0]?.message ?? '') && (over6.status === 413 || over6.status === 'reset') && volumeCount() === refusedBefore.files, `${over5.status}/${over6.status}`);
+ok('only an admin can upload: anonymous 401, a customer 403, an employee 403', (await uploadPhoto(undefined, png)).status === 401 && (await uploadPhoto(clientA.token, png)).status === 403 && (await uploadPhoto(emp, png)).status === 403);
+
+const traversal = ['..%2f..%2fappsettings.json', '%2e%2e%2f%2e%2e%2fetc%2fpasswd', '..%5c..%5cappsettings.json', '%2fetc%2fpasswd', '....//....//x', `${nameOf(upPng.json.previewUrl).toUpperCase()}`, `${upPng.json.photoToken}`, `${upPng.json.photoToken}.svg`, `${upPng.json.photoToken}.png%00.jpg`, 'secret.txt', '.hidden'];
+const traversalStatuses = [];
+for (const t of traversal) traversalStatuses.push((await fetch(`${API}/api/public/media/products/${t}`)).status);
+ok(`names that are not stored photos (traversal in several encodings, a backslash, an absolute path, upper case, no extension, a wrong extension, a null byte) never serve anything (statuses ${[...new Set(traversalStatuses)].sort().join(',')})`, traversalStatuses.every((st) => st === 404 || st === 400));
+ok('...the same names through the list of media on disk: nothing outside /media was exposed (the traversal answers carried no file content)', (await Promise.all(traversal.slice(0, 4).map(async (t) => (await fetch(`${API}/api/public/media/products/${t}`)).text()))).every((x) => !/root:|ConnectionStrings|Jwt/.test(x)));
+
+section('PRODUCT PHOTO: linking in the product save, replacing, removing, and what a failure leaves behind');
+const photoSku = `PHO-${crypto.randomUUID().slice(0, 8)}`;
+const withPhoto = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(photoSku, { photoToken: upPng.json.photoToken }) });
+const photoPath = upPng.json.previewUrl;
+ok('creating with the token links the photo in the same save: 201, image_url is the relative media path, the upload row is spent', withPhoto.status === 201 && sql(`select image_url from products where id='${withPhoto.json?.id}'`) === photoPath && sql(`select count(*) from product_photo_uploads where token='${upPng.json.photoToken}'`) === '0', String(withPhoto.status));
+ok('...the creation audit entry records the photo path', sql(`select count(*) from audit_log_entries where entity_id='${withPhoto.json?.id}' and details->>'data' like '%${nameOf(photoPath)}%'`) !== '0');
+const reuse = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`PHO-${crypto.randomUUID().slice(0, 8)}`, { photoToken: upPng.json.photoToken }) });
+ok('a token works once: a second product with it is refused (400, photo field) and not created', reuse.status === 400 && reuse.json?.some((p) => p.field === 'photo'));
+const photoListed = (await call("GET", "/api/products")).json.find((p) => p.id === withPhoto.json?.id);
+ok('the storefront list carries the photo path and the description for the card', photoListed?.imageUrl === photoPath && photoListed?.description === "Criado pelo formulario guiado", JSON.stringify(photoListed));
+
+const atomicPhotoSku = `PHA-${crypto.randomUUID().slice(0, 8)}`;
+const refusedWithToken = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(atomicPhotoSku, { photoToken: upJpeg.json.photoToken, prices: [{ pricingTierId: crypto.randomUUID(), unitPrice: 6 }] }) });
+ok('a create refused for another reason does not spend the token or touch the file: it can be used afterwards', refusedWithToken.status === 400 && sql(`select count(*) from product_photo_uploads where token='${upJpeg.json.photoToken}'`) === '1' && volumeFiles().includes(nameOf(upJpeg.json.previewUrl)));
+
+// Ten simultaneous creates of one SKU, each with its own uploaded photo: one wins and consumes its token; the nine losers fail in the save and must leave their own token and file alone.
+const racers = [];
+for (let i = 0; i < 10; i++) racers.push(await uploadPhoto(admin, makePng(420 + i, 420), 'r.png', 'image/png'));
+const raceSku = `RACE-${crypto.randomUUID().slice(0, 8)}`;
+const race = await burst(10, (i) => call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(raceSku, { photoToken: racers[i].json.photoToken }) }));
+const winnerIndex = race.findIndex((x) => x.status === 201);
+ok(`10 simultaneous creates of one SKU with 10 photos: one 201, nine 409, no 500 (statuses ${[...new Set(race.map((x) => x.status))].sort().join(',')})`, race.filter((x) => x.status === 201).length === 1 && race.every((x) => x.status === 201 || x.status === 409));
+ok('...the winner linked only its photo; the nine losers\' tokens and files are untouched (the link rolled back with the product)', winnerIndex >= 0
+  && sql(`select image_url from products where lower(sku)=lower('${raceSku}')`) === racers[winnerIndex].json.previewUrl
+  && racers.every((u, i) => sql(`select count(*) from product_photo_uploads where token='${u.json.photoToken}'`) === (i === winnerIndex ? '0' : '1') && volumeFiles().includes(nameOf(u.json.previewUrl))));
+
+const sharedToken = await uploadPhoto(admin, makePng(430, 430));
+const sameToken = await burst(6, (i) => call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`TKN-${i}-${crypto.randomUUID().slice(0, 6)}`, { photoToken: sharedToken.json.photoToken, prices: [], stock: [] }) }));
+ok(`6 simultaneous creates with ONE token (different SKUs): exactly one 201 links the photo, the rest are refused 400 on photo, no 500 (statuses ${[...new Set(sameToken.map((x) => x.status))].sort().join(',')})`, sameToken.filter((x) => x.status === 201).length === 1 && sameToken.filter((x) => x.status !== 201).every((x) => x.status === 400 && x.json?.some((p) => p.field === 'photo')) && sql(`select count(*) from products where image_url='${sharedToken.json.previewUrl}'`) === '1');
+
+const photoEdit = (extra = {}) => ({ sku: photoSku, name: 'Produto guiado', description: 'Criado pelo formulario guiado', categoryId: cat.soft.id, isActive: true, attributes: { Marca: 'Cola', 'Quantidade por caixa': '12' }, ...extra });
+const replaced = await call('PUT', `/api/admin/products/${withPhoto.json.id}`, { token: admin, body: photoEdit({ photoToken: upJpeg.json.photoToken }) });
+ok('editing with a new token replaces the photo (204), spends the token and deletes the previous file from the volume', replaced.status === 204 && sql(`select image_url from products where id='${withPhoto.json.id}'`) === upJpeg.json.previewUrl && !volumeFiles().includes(nameOf(photoPath)) && volumeFiles().includes(nameOf(upJpeg.json.previewUrl)) && (await fetch(API + photoPath)).status === 404 && (await fetch(API + upJpeg.json.previewUrl)).status === 200);
+ok('an edit with neither a token nor removePhoto keeps the photo', (await call('PUT', `/api/admin/products/${withPhoto.json.id}`, { token: admin, body: photoEdit({ name: 'Renomeado com foto' }) })).status === 204 && sql(`select image_url from products where id='${withPhoto.json.id}'`) === upJpeg.json.previewUrl);
+ok('a token together with removePhoto is refused (400, photo field) and changes nothing', await (async () => { const x = await call('PUT', `/api/admin/products/${withPhoto.json.id}`, { token: admin, body: photoEdit({ name: 'Renomeado com foto', photoToken: upWebp.json.photoToken, removePhoto: true }) }); return x.status === 400 && x.json?.some((p) => p.field === 'photo') && sql(`select count(*) from product_photo_uploads where token='${upWebp.json.photoToken}'`) === '1'; })());
+const deactivatedWithPhoto = await call('PUT', `/api/admin/products/${withPhoto.json.id}`, { token: admin, body: photoEdit({ name: 'Renomeado com foto', isActive: false }) });
+ok('the IsActive-only exception still holds and leaves the photo as it was', deactivatedWithPhoto.status === 204 && sql(`select image_url from products where id='${withPhoto.json.id}'`) === upJpeg.json.previewUrl);
+const removed = await call('PUT', `/api/admin/products/${withPhoto.json.id}`, { token: admin, body: photoEdit({ name: 'Renomeado com foto', isActive: false, removePhoto: true }) });
+ok('removePhoto clears the column and deletes the file from the volume', removed.status === 204 && sql(`select coalesce(image_url, 'none') from products where id='${withPhoto.json.id}'`) === 'none' && !volumeFiles().includes(nameOf(upJpeg.json.previewUrl)));
+const deletedPhoto = await uploadPhoto(admin, makePng(500, 500)); const deletableSku = `PHD-${crypto.randomUUID().slice(0, 8)}`;
+const deletable = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(deletableSku, { photoToken: deletedPhoto.json.photoToken, prices: [], stock: [] }) });
+ok('deleting a product deletes its photo file', deletable.status === 201 && volumeFiles().includes(nameOf(deletedPhoto.json.previewUrl)) && (await call('DELETE', `/api/admin/products/${deletable.json.id}`, { token: admin })).status === 204 && !volumeFiles().includes(nameOf(deletedPhoto.json.previewUrl)));
+
+const qPhoto = await uploadPhoto(admin, makePng(450, 450)); const qSku = `PHQ-${crypto.randomUUID().slice(0, 8)}`;
+const qProduct = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(qSku, { photoToken: qPhoto.json.photoToken, prices: [{ pricingTierId: standard.id, unitPrice: 9 }], stock: [{ warehouseId: wh1.id, qtyOnHand: 20 }] }) });
+const qQuote = await call('POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: qProduct.json.id, qty: 2 }] } });
+const qOrder = await call('POST', '/api/employee/orders', { token: emp, body: { clientId: clientA.id, deliveryAddressKey: (await call('GET', '/api/client/profile', { token: clientA.token })).json.addresses[0].key, lineItems: [{ productId: qProduct.json.id, qty: 1 }] } });
+ok('quote lines and order lines carry the product photo path (for the basket and the portals)', qQuote.status === 201 && qQuote.json?.lineItems?.[0]?.imageUrl === qPhoto.json.previewUrl && qOrder.status === 201 && qOrder.json?.lineItems?.[0]?.imageUrl === qPhoto.json.previewUrl, JSON.stringify([qQuote.status, qOrder.status, qOrder.text?.slice(0, 120)]));
+
+section('PRODUCT PHOTO: the volume survives a restart, and the cleanup removes what nothing refers to');
+const stale = await uploadPhoto(admin, makePng(410, 410)); const keptWaiting = await uploadPhoto(admin, makePng(411, 411));
+sql(`update product_photo_uploads set created_at = now() - interval '2 hours' where token='${stale.json.photoToken}'`);
+const orphanName = `${crypto.randomBytes(16).toString('hex')}.png`;
+compose(`exec -T api sh -c "cp /media/${nameOf(qPhoto.json.previewUrl)} /media/${orphanName} && touch -d '3 hours ago' /media/${orphanName}"`);
+const expiredToken = await call('POST', '/api/admin/products/with-setup', { token: admin, body: setupBody(`PHE-${crypto.randomUUID().slice(0, 8)}`, { photoToken: stale.json.photoToken }) });
+ok('an upload older than an hour can no longer be linked (400, photo field)', expiredToken.status === 400 && expiredToken.json?.some((p) => p.field === 'photo'));
+compose('restart api');
+for (let i = 0; i < 60; i++) { try { if ((await fetch(`${API}/health`)).status === 200) break; } catch { /* not up yet */ } await new Promise((r) => setTimeout(r, 1000)); }
+ok('after the API container restarts the linked photos are still on the volume and still served', (await fetch(API + qPhoto.json.previewUrl)).status === 200 && volumeFiles().includes(nameOf(qPhoto.json.previewUrl)));
+let cleaned = false;
+for (let i = 0; i < 30 && !cleaned; i++) { cleaned = sql(`select count(*) from product_photo_uploads where token='${stale.json.photoToken}'`) === '0'; if (!cleaned) await new Promise((r) => setTimeout(r, 1000)); }
+ok('...the cleanup that runs at start removed the expired upload (row and file) and the old file nothing refers to', cleaned && !volumeFiles().includes(nameOf(stale.json.previewUrl)) && !volumeFiles().includes(orphanName));
+ok('...and kept the photo still waiting for its product, and every photo a product points at', sql(`select count(*) from product_photo_uploads where token='${keptWaiting.json.photoToken}'`) === '1' && volumeFiles().includes(nameOf(keptWaiting.json.previewUrl)) && volumeFiles().includes(nameOf(qPhoto.json.previewUrl)) && volumeFiles().includes(nameOf(racers[winnerIndex].json.previewUrl)));
+ok('every product photo path in the database has its file on the volume (no dangling link)', sql(`select image_url from products where image_url is not null`).split('\n').filter(Boolean).every((p) => volumeFiles().includes(nameOf(p))));
 
 section('AUDIT TRAIL');
 const audit = (await call('GET', '/api/admin/audit-log?pageSize=500', { token: admin })).json;

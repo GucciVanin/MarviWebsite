@@ -15,6 +15,7 @@ import type { Quote } from '../../shared/models/quote.model';
 import { CustomerLookup } from '../../shared/ui/customer-lookup/customer-lookup';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
+import { ProductPhoto } from '../../shared/ui/product-photo/product-photo';
 import { ProductPicker } from '../../shared/ui/product-picker/product-picker';
 import type { PagedResult } from '../../shared/models/paged.model';
 import { ClientProfile, ClientSummary, EmployeeService, InventoryRecord } from './api/employee.service';
@@ -22,12 +23,13 @@ import { ClientProfile, ClientSummary, EmployeeService, InventoryRecord } from '
 interface OrderLine {
   productId: string;
   name: string;
+  imageUrl: string | null;
   qty: number;
 }
 
 @Component({
   selector: 'app-employee-portal',
-  imports: [FormsModule, RouterLink, CustomerLookup, ErrorAlert, LoadState, ProductPicker, DeliveryPicker, DeliveryTo, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
+  imports: [FormsModule, RouterLink, CustomerLookup, ErrorAlert, LoadState, ProductPicker, ProductPhoto, DeliveryPicker, DeliveryTo, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
   templateUrl: './employee-portal.html',
 })
 export class EmployeePortal implements OnInit {
@@ -131,7 +133,7 @@ export class EmployeePortal implements OnInit {
     this.orderLines.update((lines) =>
       lines.some((l) => l.productId === product.id)
         ? lines.map((l) => (l.productId === product.id ? { ...l, qty: l.qty + 1 } : l))
-        : [...lines, { productId: product.id, name: product.name, qty: 1 }],
+        : [...lines, { productId: product.id, name: product.name, imageUrl: product.imageUrl, qty: 1 }],
     );
   }
 

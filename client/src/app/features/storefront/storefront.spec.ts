@@ -341,16 +341,16 @@ describe('Storefront (public catalog)', () => {
 
   // ---- layout and art refresh (MRV-7.4)
 
-  it('shows each product as a card with decorative art, code chip, price and a stock badge', async () => {
+  it('shows each product as a card with a photo box (a neutral placeholder when there is no photo), code chip, price and a stock badge', async () => {
     const { root, loadWith } = setup();
     await loadWith({ products: [product('1', 'Cola 2L', 12.5), product('2', 'Água', 3)] });
 
     const cards = Array.from(root.querySelectorAll('[data-testid="product"]'));
     expect(cards.length).toBe(2);
     for (const card of cards) {
-      expect(card.querySelector('.product__art')?.getAttribute('aria-hidden')).toBe('true');
-      expect(card.querySelector('.product__art svg')).not.toBeNull();
-      expect(card.querySelector('img')).toBeNull(); // art is inline SVG: no remote or stock images
+      expect(card.querySelector('app-product-photo .photo, app-product-photo.photo')).not.toBeNull();
+      expect(card.querySelector('app-product-photo svg')?.getAttribute('aria-hidden')).toBe('true');
+      expect(card.querySelector('img')).toBeNull(); // no photo uploaded: nothing remote is drawn
       expect(card.querySelector('h3')).not.toBeNull();
     }
     expect(cards[0].querySelector('.chip--tag')?.textContent).toContain('SKU-1');
@@ -415,5 +415,77 @@ describe('Storefront (public catalog)', () => {
     expect(cta.classList).toContain('btn--primary');
     expect(cta.classList).toContain('btn--lg');
     expect(root.querySelectorAll('h1').length).toBe(1);
+  });
+
+  // ---- MRV-9.7: the product photo, the description and the attributes on the card
+
+  const PHOTO = '/api/public/media/products/0123456789abcdef0123456789abcdef.jpg';
+
+  it('shows the product photo on its card with the name as alt text, and a same-size placeholder when there is none', async () => {
+    const { root, loadWith } = setup();
+    await loadWith({ products: [product('1', 'Cola 2L', 12.5, { imageUrl: PHOTO }), product('2', 'Água 500ml', 3)] });
+
+    const cards = root.querySelectorAll('[data-testid="product"]');
+    const photo = cards[0].querySelector('img')!;
+    expect(photo.getAttribute('src')).toBe(PHOTO);
+    expect(photo.getAttribute('alt')).toBe('Cola 2L');
+    expect(photo.getAttribute('width')).toBe('320');
+    expect(photo.getAttribute('height')).toBe('240');
+    expect(cards[1].querySelector('img')).toBeNull();
+    expect(cards[1].querySelector('app-product-photo')!.className).toBe(cards[0].querySelector('app-product-photo')!.className);
+  });
+
+  it('loads the first row eagerly and the rest lazily', async () => {
+    const { root, loadWith } = setup();
+    await loadWith({ products: Array.from({ length: 6 }, (_, i) => product(String(i), `Produto ${i}`, 5, { imageUrl: PHOTO })) });
+
+    const loading = Array.from(root.querySelectorAll('[data-testid="product"] img')).map((i) => i.getAttribute('loading'));
+    expect(loading).toEqual(['eager', 'eager', 'eager', 'eager', 'lazy', 'lazy']);
+  });
+
+  it('shows the description and the attributes the admin entered, labelled and as plain text', async () => {
+    const { root, loadWith } = setup();
+    await loadWith({
+      products: [product('1', 'Cola 2L', 12.5, {
+        description: 'Refrigerante <b>gelado</b>',
+        attributes: { Marca: 'Cola', 'Quantidade por caixa': '12', Volume: '2 L' },
+      })],
+    });
+
+    const card = root.querySelector('[data-testid="product"]')!;
+    expect(card.querySelector('[data-testid="product-description"]')!.textContent).toBe('Refrigerante <b>gelado</b>');
+    expect(card.querySelector('[data-testid="product-description"] b')).toBeNull(); // escaped, not interpreted
+    const specs = Array.from(card.querySelectorAll('[data-testid="product-specs"] dt')).map((dt) => [dt.textContent, dt.nextElementSibling!.textContent]);
+    expect(specs).toEqual([['Marca', 'Cola'], ['Quantidade por caixa', '12'], ['Volume', '2 L']]);
+    expect(card.querySelector('[data-testid="product-more"]')).toBeNull();
+  });
+
+  it('keeps the first four attributes on the card and puts the rest and a long description behind "Ver detalhes"', async () => {
+    const { root, loadWith } = setup();
+    const attributes = Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`Atributo ${i + 1}`, `valor ${i + 1}`]));
+    await loadWith({ products: [product('1', 'Cola 2L', 12.5, { attributes, description: 'd'.repeat(200) })] });
+
+    const card = root.querySelector('[data-testid="product"]')!;
+    expect(card.querySelectorAll('[data-testid="product-specs"] dt').length).toBe(4);
+    const more = card.querySelector('[data-testid="product-more"]')!;
+    expect(more.querySelector('summary')!.textContent).toBe('Ver detalhes');
+    expect(more.querySelectorAll('dt').length).toBe(3);
+    expect(more.querySelector('p')!.textContent).toBe('d'.repeat(200));
+  });
+
+  it('shows no description or attributes block for a product that has none', async () => {
+    const { root, loadWith } = setup();
+    await loadWith({ products: [product('1', 'Cola 2L', 12.5)] });
+
+    expect(root.querySelector('[data-testid="product-description"]')).toBeNull();
+    expect(root.querySelector('[data-testid="product-specs"]')).toBeNull();
+  });
+
+  it('shows the category on the card and hides a clamped long description from screen readers (its full text is behind "Ver detalhes")', async () => {
+    const { root, loadWith } = setup();
+    await loadWith({ products: [product('1', 'Cola 2L', 12.5, { categoryName: 'Refrigerantes', description: 'd'.repeat(200) })] });
+
+    expect(root.querySelector('[data-testid="product-category"]')!.textContent).toContain('Refrigerantes');
+    expect(root.querySelector('[data-testid="product-description"]')!.getAttribute('aria-hidden')).toBe('true');
   });
 });

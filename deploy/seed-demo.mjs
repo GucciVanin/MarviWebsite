@@ -14,9 +14,11 @@
 //   the wholesale market has the Receita's alphanumeric CNPJ example). The numbers are the usual public test numbers, not real people or companies.
 //
 // Catalog: 4 categories, 8 products (one without a price, one out of stock), prices in two tiers, stock in two warehouses
-// with coverage areas, and one running deal.
+// with coverage areas, and one running deal. Six products have a photo (a flat-colour PNG made here, uploaded through the real
+// endpoint like an admin would, MRV-9.7); two have none, so the placeholder shows too. Some have a description and extra attributes.
 
 import { readFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 
 const API = 'http://localhost:8080';
 // The stack uses deploy/.env when it exists (that is where the admin the API really seeds comes from), else the example values.
@@ -58,6 +60,29 @@ for (const [order, name] of [[1, 'Cervejas'], [2, 'Refrigerantes'], [3, 'Águas'
   category[name] = await call('POST', '/api/admin/categories', admin, { name, sortOrder: order, isActive: true });
 }
 
+// ---- product photos (MRV-9.7): a flat-colour 480 x 480 PNG per product, made here (no files in the repository)
+const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+const pngChunk = (type, data) => {
+  const t = Buffer.from(type, 'ascii');
+  const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])));
+  return Buffer.concat([length, t, data, crc]);
+};
+const flatPng = (width, height, [r, g, b]) => {
+  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 2; // 8-bit RGB
+  const rows = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) { const at = y * (width * 3 + 1) + 1 + x * 3; rows[at] = r; rows[at + 1] = g; rows[at + 2] = b; }
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), pngChunk('IHDR', header), pngChunk('IDAT', deflateSync(rows)), pngChunk('IEND', Buffer.alloc(0))]);
+};
+const uploadPhoto = async (token, bytes, name) => {
+  const form = new FormData();
+  form.append('photo', new Blob([bytes], { type: 'image/png' }), name);
+  const res = await fetch(`${API}/api/admin/media/product-photos`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+  if (res.status !== 200) throw new Error(`photo upload -> ${res.status} ${(await res.text()).slice(0, 200)}`);
+  return (await res.json()).photoToken;
+};
+
 // ---- warehouses and coverage
 const sp = await call('POST', '/api/admin/warehouses', admin, { name: 'CD São Paulo', address: 'Av. Industrial, 100, São Paulo, SP', latitude: -23.5505, longitude: -46.6333 });
 const campinas = await call('POST', '/api/admin/warehouses', admin, { name: 'CD Campinas', address: 'Rod. dos Bandeirantes, km 90, Campinas, SP', latitude: -22.9099, longitude: -47.0626 });
@@ -68,7 +93,7 @@ for (const warehouse of [sp, campinas]) {
 // ---- products: sku, name, category, Standard price, Atacado price, stock in São Paulo / Campinas, attributes
 const products = {};
 const catalog = [
-  ['CERV-LAGER-600', 'Cerveja Lager 600ml', 'Cervejas', 9.0, 7.8, 200, 150, { Marca: 'Serra Azul', Volume: '600 ml' }],
+  ['CERV-LAGER-600', 'Cerveja Lager 600ml', 'Cervejas', 9.0, 7.8, 200, 150, { Marca: 'Serra Azul', Volume: '600 ml', 'Teor alcoólico': '4,8%', 'Quantidade por caixa': '12', Unidade: 'Garrafa', Origem: 'Serra Gaúcha', Certificação: 'SIF' }],
   ['CERV-PILSEN-350', 'Cerveja Pilsen 350ml', 'Cervejas', 4.2, 3.6, 300, 0, { Marca: 'Serra Azul', Volume: '350 ml' }],
   ['REFRI-COLA-2L', 'Refrigerante Cola 2L', 'Refrigerantes', 8.5, 7.4, 150, 80, { Volume: '2 L' }],
   ['REFRI-LARANJA-2L', 'Refrigerante Laranja 2L', 'Refrigerantes', 7.9, 6.9, 0, 0, { Volume: '2 L' }],
@@ -77,9 +102,14 @@ const catalog = [
   ['ENERG-250', 'Energético 250ml', 'Energéticos', 6.5, 5.6, 120, 60, { Volume: '250 ml' }],
   ['MIXER-TONICA', 'Água Tônica 350ml (sem preço cadastrado)', 'Águas', null, null, 40, 0, { Volume: '350 ml' }],
 ];
+const colours = { Cervejas: [201, 138, 16], Refrigerantes: [216, 32, 47], Águas: [58, 130, 214], Energéticos: [28, 138, 84] };
+const descriptions = { 'CERV-LAGER-600': 'Cerveja lager de corpo leve e final seco, ideal para bares e restaurantes. Vendida em caixas fechadas, direto do centro de distribuição mais próximo da sua loja.', 'REFRI-COLA-2L': 'Refrigerante sabor cola, garrafa PET de 2 litros.' };
+const withoutPhoto = new Set(['ENERG-250', 'MIXER-TONICA']);
 for (const [sku, name, categoryName, standardPrice, atacadoPrice, stockSp, stockCampinas, attributes] of catalog) {
   // The one way to create a product (MRV-9.8); the prices and stock below are set through their own endpoints so the reorder point can be given.
-  const product = await call('POST', '/api/admin/products/with-setup', admin, { sku, name, description: null, categoryId: category[categoryName].id, imageUrl: null, isActive: true, attributes, prices: [], stock: [] });
+  // The photo is uploaded first and linked by its token in the same save (MRV-9.7).
+  const photoToken = withoutPhoto.has(sku) ? null : await uploadPhoto(admin, flatPng(480, 480, colours[categoryName]), `${sku}.png`);
+  const product = await call('POST', '/api/admin/products/with-setup', admin, { sku, name, description: descriptions[sku] ?? null, categoryId: category[categoryName].id, photoToken, isActive: true, attributes, prices: [], stock: [] });
   products[sku] = product;
   if (standardPrice !== null) {
     await call('PUT', `/api/admin/products/${product.id}/pricing`, admin, { pricingTierId: standard.id, unitPrice: standardPrice, minQty: 1 });

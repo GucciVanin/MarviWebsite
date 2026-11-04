@@ -244,4 +244,26 @@ describe('AdminCatalog', () => {
     expect(alert.textContent).toContain('conflito');
     expect(alert.querySelector('small')?.textContent).toContain('Deactivate it instead');
   });
+
+  // ---- MRV-9.7: a small thumbnail in the product table
+
+  it('shows a small photo (or the placeholder) at the start of each product row, with the name as alt text and a named column', async () => {
+    const photo = '/api/public/media/products/0123456789abcdef0123456789abcdef.jpg';
+    TestBed.configureTestingModule({ imports: [AdminCatalog], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
+    const fixture = TestBed.createComponent(AdminCatalog);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/admin/categories').flush([category('c1', 'Refrigerantes')]);
+    http.expectOne('/api/admin/products').flush([product('p1', 'COLA-1', 'Cola 2L', 'c1', { imageUrl: photo }), product('p2', 'AGUA-1', 'Água')]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const rows = root.querySelectorAll('[data-testid="products"] tbody tr');
+    expect(rows[0].querySelector('td:first-child img')!.getAttribute('src')).toBe(photo);
+    expect(rows[0].querySelector('td:first-child img')!.getAttribute('alt')).toBe('Cola 2L');
+    expect(rows[0].querySelector('td:first-child img')!.getAttribute('width')).toBe('48');
+    expect(rows[1].querySelector('td:first-child img')).toBeNull();
+    expect(root.querySelector('[data-testid="products"] thead th:first-child')!.textContent!.trim()).toBe('Foto');
+  });
 });

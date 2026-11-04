@@ -84,7 +84,7 @@ describe('Product panel (MRV-9.5)', () => {
     expect(panel.getAttribute('aria-labelledby')).toBe(heading.id);
     expect(heading.textContent).toContain('Novo produto');
     expect(document.activeElement).toBe(heading);
-    for (const id of ['productSku', 'productName', 'productCategory', 'productDescription', 'productImage', 'productActive']) {
+    for (const id of ['productSku', 'productName', 'productCategory', 'productDescription', 'productPhoto', 'productActive']) {
       expect(input(id), id).toBeTruthy();
       expect(root.querySelector(`label[for="${id}"]`), `label of ${id}`).toBeTruthy();
     }
@@ -149,13 +149,12 @@ describe('Product panel (MRV-9.5)', () => {
     expect(document.activeElement).toBe(root.querySelector('#productSku'));
   });
 
-  it('refuses a bad price, quantity, image address and repeated attribute name before sending', async () => {
+  it('refuses a bad price, quantity and repeated attribute name before sending', async () => {
     const { http, root, settle, openNew, button, type, hint, fillRequired } = setup();
     await openNew();
     await fillRequired();
     await type('price-0', '1,234');
     await type('qty-1', '-3');
-    await type('productImage', 'http://exemplo.com/a.png');
     button('add-attribute').click();
     await settle();
     button('add-attribute').click();
@@ -171,7 +170,6 @@ describe('Product panel (MRV-9.5)', () => {
     http.expectNone('/api/admin/products/with-setup');
     expect(hint('price-0-hint')).toContain('maior que zero');
     expect(hint('qty-1-hint')).toContain('0 a 1.000.000');
-    expect(hint('productImage-hint')).toContain('https://');
     expect(root.querySelector('[data-testid="attributes-problem"]')!.textContent).toContain('mesmo nome');
   });
 
@@ -182,7 +180,6 @@ describe('Product panel (MRV-9.5)', () => {
     await openNew();
     await fillRequired();
     await type('productDescription', ' Garrafa PET ');
-    await type('productImage', 'https://cdn.exemplo.com/cola.png');
     button('add-attribute').click();
     await settle();
     button('add-attribute').click();
@@ -201,7 +198,7 @@ describe('Product panel (MRV-9.5)', () => {
     const post = http.expectOne('/api/admin/products/with-setup');
     expect(post.request.method).toBe('POST');
     expect(post.request.body).toEqual({
-      sku: 'COLA-1', name: 'Cola 2L', description: 'Garrafa PET', categoryId: 'c1', imageUrl: 'https://cdn.exemplo.com/cola.png', isActive: true,
+      sku: 'COLA-1', name: 'Cola 2L', description: 'Garrafa PET', categoryId: 'c1', photoToken: null, isActive: true,
       attributes: { Marca: 'Cola' },
       prices: [{ pricingTierId: 't1', unitPrice: 12.5 }, { pricingTierId: 't2', unitPrice: null }],
       stock: [{ warehouseId: 'w1', qtyOnHand: null }, { warehouseId: 'w2', qtyOnHand: 0 }],
@@ -268,12 +265,12 @@ describe('Product panel (MRV-9.5)', () => {
     button('save-product').click();
     fixture.detectChanges();
     http.expectOne('/api/admin/products/with-setup').flush(
-      [{ field: 'imageUrl', message: 'O endereço da imagem deve começar com https://.' }, { field: 'prices[1]', message: 'A faixa de preço não existe.' }],
+      [{ field: 'name', message: 'O nome deve ter de 2 a 200 caracteres, sem caracteres de controle.' }, { field: 'prices[1]', message: 'A faixa de preço não existe.' }],
       { status: 400, statusText: 'Bad Request' },
     );
     await settle();
 
-    expect(hint('productImage-hint')).toContain('https://');
+    expect(hint('productName-hint')).toContain('2 a 200');
     expect(hint('price-1-hint')).toContain('não existe');
     expect(root.querySelector('[data-testid="fix-fields"]')).not.toBeNull();
     expect(root.querySelector('#price-1')!.getAttribute('aria-invalid')).toBe('true');
@@ -396,23 +393,6 @@ describe('Product panel (MRV-9.5)', () => {
     expect(input('productSku').value).toBe('REF-005');
   });
 
-  it('previews an https image address and says so when it cannot be shown; nothing is previewed for another scheme', async () => {
-    const { fixture, root, settle, openNew, type } = setup();
-    await openNew();
-    expect(root.querySelector('[data-testid="image-preview"]')).toBeNull();
-
-    await type('productImage', 'http://exemplo.com/a.png');
-    expect(root.querySelector('[data-testid="image-preview"]')).toBeNull();
-
-    await type('productImage', 'https://exemplo.com/a.png');
-    const img = root.querySelector<HTMLImageElement>('[data-testid="image-preview"] img')!;
-    expect(img.getAttribute('src')).toBe('https://exemplo.com/a.png');
-    expect(img.getAttribute('alt')).toBe('Prévia da imagem');
-    img.dispatchEvent(new Event('error'));
-    fixture.detectChanges();
-    expect(root.querySelector('[data-testid="image-preview"]')!.textContent).toContain('Não foi possível mostrar a prévia');
-  });
-
   it('says so when there are no tiers or warehouses to fill in, and still creates the product', async () => {
     const { http, fixture, root, settle, button, fillRequired } = setup();
     button('new-product').click();
@@ -434,7 +414,7 @@ describe('Product panel (MRV-9.5)', () => {
   it('edits a product in the same panel, pre-filled, with its attributes as rows, and links to the Preços and Operação tabs instead of price and stock tables', async () => {
     const attributes = { Marca: 'Água de Côco', 'Quantidade por caixa': '12' };
     const { fixture, http, root, settle, button, type, input, editFirst } = setup([
-      product('p1', 'COLA-1', 'Cola 2L', { attributes, description: 'PET', imageUrl: 'https://a.com/x.png', isActive: false }),
+      product('p1', 'COLA-1', 'Cola 2L', { attributes, description: 'PET', imageUrl: '/api/public/media/products/0123456789abcdef0123456789abcdef.jpg', isActive: false }),
     ]);
     await settle();
 
@@ -445,7 +425,7 @@ describe('Product panel (MRV-9.5)', () => {
     expect(root.querySelector('#product-panel-title')!.textContent).toContain('Editar produto');
     expect(input('productSku').value).toBe('COLA-1');
     expect(input('productDescription').value).toBe('PET');
-    expect(input('productImage').value).toBe('https://a.com/x.png');
+    expect(root.querySelector('[data-testid="photo-preview"] img')!.getAttribute('src')).toBe('/api/public/media/products/0123456789abcdef0123456789abcdef.jpg');
     expect(input('productActive').checked).toBe(false);
     expect(input('attr-key-0').value).toBe('Marca');
     expect(input('attr-value-1').value).toBe('12');
@@ -460,7 +440,7 @@ describe('Product panel (MRV-9.5)', () => {
     const put = http.expectOne('/api/admin/products/p1');
     expect(put.request.method).toBe('PUT');
     expect(put.request.body).toEqual({
-      sku: 'COLA-1', name: 'Cola 2 litros', description: 'PET', categoryId: 'c1', imageUrl: 'https://a.com/x.png', isActive: false, attributes,
+      sku: 'COLA-1', name: 'Cola 2 litros', description: 'PET', categoryId: 'c1', isActive: false, attributes, photoToken: null, removePhoto: false,
     });
     put.flush(null, { status: 204, statusText: 'No Content' });
     http.expectOne('/api/admin/products').flush([]);
@@ -496,11 +476,11 @@ describe('Product panel (MRV-9.5)', () => {
     button('save-product').click();
     fixture.detectChanges();
     http.expectOne('/api/admin/products/p1').flush(
-      [{ field: 'imageUrl', message: 'O endereço da imagem deve começar com https://.' }, { field: 'attributes', message: 'Use no máximo 30 atributos.' }],
+      [{ field: 'description', message: 'A descrição deve ter no máximo 2.000 caracteres, sem caracteres de controle.' }, { field: 'attributes', message: 'Use no máximo 30 atributos.' }],
       { status: 400, statusText: 'Bad Request' },
     );
     await settle();
-    expect(hint('productImage-hint')).toContain('https://');
+    expect(hint('productDescription-hint')).toContain('2.000');
 
     button('save-product').click();
     fixture.detectChanges();
@@ -510,7 +490,7 @@ describe('Product panel (MRV-9.5)', () => {
   });
 
   it('sends a deactivation of a product that breaks the rules as it is: only "Ativo" changed, the same exception as the API', async () => {
-    const stored = product('p1', 'old code!', 'Antigo', { description: 'd'.repeat(2500), imageUrl: 'http://velho.com/a.png', attributes: { Marca: 'A', marca: 'B' } });
+    const stored = product('p1', 'old code!', 'Antigo', { description: 'd'.repeat(2500), attributes: { Marca: 'A', marca: 'B' } });
     const { fixture, http, settle, button, input, editFirst } = setup([stored]);
     await settle();
     await editFirst();
@@ -522,7 +502,7 @@ describe('Product panel (MRV-9.5)', () => {
     fixture.detectChanges();
 
     const put = http.expectOne('/api/admin/products/p1');
-    expect(put.request.body).toMatchObject({ sku: 'old code!', name: 'Antigo', description: 'd'.repeat(2500), imageUrl: 'http://velho.com/a.png', isActive: false });
+    expect(put.request.body).toMatchObject({ sku: 'old code!', name: 'Antigo', description: 'd'.repeat(2500), isActive: false });
   });
 
   it('shows no product id anywhere in the panel', async () => {
@@ -531,5 +511,282 @@ describe('Product panel (MRV-9.5)', () => {
     await openNew();
 
     expect(root.textContent).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  });
+
+  // ---- MRV-9.7: the product photo
+
+  const PHOTO_URL = '/api/public/media/products/0123456789abcdef0123456789abcdef.png';
+  const PHOTO_URL_2 = '/api/public/media/products/fedcba9876543210fedcba9876543210.webp';
+
+  /** Puts a file in the chooser the way the browser does and fires its change event. */
+  async function pick(root: HTMLElement, settle: () => Promise<void>, file: File) {
+    const el = root.querySelector<HTMLInputElement>('#productPhoto')!;
+    Object.defineProperty(el, 'files', { configurable: true, value: [file] }); // jsdom has no DataTransfer to build a FileList with
+    el.dispatchEvent(new Event('change'));
+    await settle();
+    await new Promise((resolve) => setTimeout(resolve));
+    await settle();
+  }
+  const png = (name = 'cola.png', size = 1024) => new File([new Uint8Array(size)], name, { type: 'image/png' });
+
+  it('replaces the image address with a labelled file chooser that accepts only JPEG, PNG and WebP, and says what it expects', async () => {
+    const { root, openNew, input, hint } = setup();
+    await openNew();
+
+    expect(root.querySelector('#productImage')).toBeNull();
+    const chooser = input('productPhoto');
+    expect(chooser.type).toBe('file');
+    expect(chooser.accept).toContain('image/jpeg');
+    expect(chooser.accept).toContain('image/webp');
+    expect(root.querySelector('label[for="productPhoto"]')!.textContent).toContain('Escolher foto');
+    expect(root.querySelector('fieldset[data-testid="photo-field"] legend')!.textContent).toContain('Foto do produto');
+    expect(hint('productPhoto-hint')).toContain('5 MB');
+    expect(root.querySelector('[data-testid="photo-preview"] [data-has-photo="false"]')).not.toBeNull(); // the neutral placeholder, same box
+    expect(root.querySelector('[data-testid="remove-photo"]')).toBeNull();
+  });
+
+  it('uploads the chosen file, previews it from the same-origin address the API answered, and sends its token with the product', async () => {
+    const { fixture, http, root, settle, openNew, button, fillRequired } = setup();
+    await openNew();
+    await fillRequired();
+
+    await pick(root, settle, png('cola.png', 2048));
+    expect(root.querySelector('[data-testid="photo-preview"]')!.getAttribute('aria-busy')).toBe('true');
+    expect(root.querySelector('#productPhoto')!.getAttribute('aria-disabled')).toBe('true');
+    expect(button('save-product').disabled).toBe(true); // the product waits for its photo
+    expect(button('save-and-another').disabled).toBe(true);
+    const upload = http.expectOne('/api/admin/media/product-photos');
+    expect(upload.request.method).toBe('POST');
+    expect(upload.request.body).toBeInstanceOf(FormData);
+    expect((upload.request.body as FormData).get('photo')).toBeInstanceOf(File);
+    expect(root.querySelector('[data-testid="photo-status"]')!.textContent).toContain('Enviando');
+    upload.flush({ photoToken: '0123456789abcdef0123456789abcdef', previewUrl: PHOTO_URL });
+    await settle();
+
+    const img = root.querySelector<HTMLImageElement>('[data-testid="photo-preview"] img')!;
+    expect(img.getAttribute('src')).toBe(PHOTO_URL); // not a blob: or data: address, so the CSP is untouched
+    expect(img.getAttribute('alt')).toBe('Cola 2L');
+    expect(root.querySelector('[data-testid="photo-status"]')!.textContent).toContain('cola.png (2 KB)');
+    expect(root.querySelector('label[for="productPhoto"]')!.textContent).toContain('Trocar foto');
+
+    button('save-product').click();
+    fixture.detectChanges();
+    const post = http.expectOne('/api/admin/products/with-setup');
+    expect(post.request.body).toMatchObject({ photoToken: '0123456789abcdef0123456789abcdef' });
+    expect(post.request.body).not.toHaveProperty('imageUrl');
+    post.flush(product('p9', 'COLA-1', 'Cola 2L'));
+    await settle();
+    http.expectOne('/api/admin/products').flush([]);
+    http.expectOne('/api/admin/categories').flush([]);
+    await settle();
+  });
+
+  it('refuses a file of the wrong type or over 5 MB before uploading, in Portuguese, and names no file', async () => {
+    const { http, root, settle, openNew, hint } = setup();
+    await openNew();
+
+    await pick(root, settle, new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' }));
+    expect(hint('productPhoto-hint')).toBe('Use uma foto JPEG, PNG ou WebP.');
+    await pick(root, settle, new File([new Uint8Array(1)], 'a.gif', { type: 'image/gif' }));
+    expect(hint('productPhoto-hint')).toBe('Use uma foto JPEG, PNG ou WebP.');
+    await pick(root, settle, new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'grande.jpg', { type: 'image/jpeg' }));
+    expect(hint('productPhoto-hint')).toBe('A foto deve ter no máximo 5 MB.');
+    expect(root.querySelector('#productPhoto')!.getAttribute('aria-invalid')).toBe('true');
+    http.expectNone('/api/admin/media/product-photos');
+    expect(root.textContent).not.toContain('grande.jpg');
+  });
+
+  it('refuses a photo smaller than 400 or larger than 6000 pixels when the browser can read its size, and leaves the call to the API when it cannot', async () => {
+    const { http, root, settle, openNew, hint } = setup();
+    await openNew();
+    const sizes = [{ width: 300, height: 900, close: () => undefined }, { width: 7000, height: 800, close: () => undefined }];
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => sizes.shift()));
+
+    await pick(root, settle, png());
+    expect(hint('productPhoto-hint')).toBe('A foto deve ter pelo menos 400 x 400 pixels.');
+    await pick(root, settle, png());
+    expect(hint('productPhoto-hint')).toBe('A foto deve ter no máximo 6000 x 6000 pixels.');
+    http.expectNone('/api/admin/media/product-photos');
+
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => { throw new Error('cannot decode'); }));
+    await pick(root, settle, png());
+    http.expectOne('/api/admin/media/product-photos').flush([{ field: 'photo', message: 'O arquivo não é uma imagem válida. Escolha outra foto.' }], { status: 400, statusText: 'Bad Request' });
+    await settle();
+    expect(hint('productPhoto-hint')).toBe('O arquivo não é uma imagem válida. Escolha outra foto.');
+    vi.unstubAllGlobals();
+  });
+
+  it('shows the API refusal of an upload, keeps the form usable and shows no photo', async () => {
+    const { http, root, settle, openNew, hint, button } = setup();
+    await openNew();
+
+    await pick(root, settle, png());
+    http.expectOne('/api/admin/media/product-photos').flush([{ field: 'photo', message: 'Use uma foto JPEG, PNG ou WebP.' }], { status: 400, statusText: 'Bad Request' });
+    await settle();
+
+    expect(hint('productPhoto-hint')).toBe('Use uma foto JPEG, PNG ou WebP.');
+    expect(root.querySelector('[data-testid="photo-preview"] [data-has-photo="false"]')).not.toBeNull();
+    expect(root.querySelector('#productPhoto')!.getAttribute('aria-disabled')).toBeNull();
+    expect(button('save-product').disabled).toBe(false);
+  });
+
+  it('removes a photo just uploaded (back to none) with the button, and returns focus to the chooser', async () => {
+    const { fixture, http, root, settle, openNew, button, fillRequired } = setup();
+    await openNew();
+    await fillRequired();
+    await pick(root, settle, png());
+    http.expectOne('/api/admin/media/product-photos').flush({ photoToken: '0123456789abcdef0123456789abcdef', previewUrl: PHOTO_URL });
+    await settle();
+
+    button('remove-photo').click();
+    await settle();
+
+    expect(root.querySelector('[data-testid="photo-preview"] [data-has-photo="false"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="remove-photo"]')).toBeNull();
+    button('save-product').click();
+    fixture.detectChanges();
+    expect(http.expectOne('/api/admin/products/with-setup').request.body).toMatchObject({ photoToken: null });
+  });
+
+  it('on an edit shows the current photo, replaces it with a token, and sends removePhoto only when it was removed', async () => {
+    const { fixture, http, root, settle, button, editFirst } = setup([product('p1', 'COLA-1', 'Cola 2L', { imageUrl: PHOTO_URL })]);
+    await settle();
+    await editFirst();
+
+    expect(root.querySelector('[data-testid="photo-preview"] img')!.getAttribute('src')).toBe(PHOTO_URL);
+    expect(root.querySelector('[data-testid="photo-status"]')!.textContent).toContain('foto atual');
+    expect(root.querySelector('label[for="productPhoto"]')!.textContent).toContain('Trocar foto');
+
+    await pick(root, settle, png('nova.png'));
+    http.expectOne('/api/admin/media/product-photos').flush({ photoToken: 'fedcba9876543210fedcba9876543210', previewUrl: PHOTO_URL_2 });
+    await settle();
+    expect(root.querySelector('[data-testid="photo-preview"] img')!.getAttribute('src')).toBe(PHOTO_URL_2);
+
+    button('remove-photo').click(); // drops the new file: the stored photo shows again
+    await settle();
+    expect(root.querySelector('[data-testid="photo-preview"] img')!.getAttribute('src')).toBe(PHOTO_URL);
+
+    button('remove-photo').click(); // now marks the stored photo for removal
+    await settle();
+    expect(root.querySelector('[data-testid="photo-preview"] [data-has-photo="false"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="photo-status"]')!.textContent).toContain('será removida');
+
+    button('save-product').click();
+    fixture.detectChanges();
+    const put = http.expectOne('/api/admin/products/p1');
+    expect(put.request.body).toMatchObject({ photoToken: null, removePhoto: true });
+    put.flush(null, { status: 204, statusText: 'No Content' });
+    http.expectOne('/api/admin/products').flush([]);
+    http.expectOne('/api/admin/categories').flush([]);
+    await settle();
+  });
+
+  it('sends a replacement as photoToken with removePhoto false, and a form with no photo change sends neither', async () => {
+    const { fixture, http, root, settle, button, type, editFirst } = setup([product('p1', 'COLA-1', 'Cola 2L', { imageUrl: PHOTO_URL })]);
+    await settle();
+    await editFirst();
+    await type('productName', 'Cola 2 litros');
+    button('save-product').click();
+    fixture.detectChanges();
+    const first = http.expectOne('/api/admin/products/p1');
+    expect(first.request.body).toMatchObject({ photoToken: null, removePhoto: false });
+    first.flush([{ field: 'name', message: 'x' }], { status: 400, statusText: 'Bad Request' });
+    await settle();
+
+    await pick(root, settle, png('nova.png'));
+    http.expectOne('/api/admin/media/product-photos').flush({ photoToken: 'fedcba9876543210fedcba9876543210', previewUrl: PHOTO_URL_2 });
+    await settle();
+    button('save-product').click();
+    fixture.detectChanges();
+    expect(http.expectOne('/api/admin/products/p1').request.body).toMatchObject({ photoToken: 'fedcba9876543210fedcba9876543210', removePhoto: false });
+  });
+
+  it('treats a changed photo as a real edit: a form that differs in "Ativo" and the photo is validated, not sent as an activation-only edit', async () => {
+    const { fixture, http, root, settle, button, input, editFirst } = setup([product('p1', 'x', 'Antigo', { imageUrl: PHOTO_URL })]);
+    await settle();
+    await editFirst();
+    input('productActive').click();
+    await pick(root, settle, png());
+    http.expectOne('/api/admin/media/product-photos').flush({ photoToken: 'fedcba9876543210fedcba9876543210', previewUrl: PHOTO_URL_2 });
+    await settle();
+
+    button('save-product').click();
+    fixture.detectChanges();
+
+    http.expectNone('/api/admin/products/p1'); // the SKU "x" breaks the rules: the form says so instead of sending
+    expect(root.querySelector('[data-testid="fix-fields"]')).not.toBeNull();
+  });
+
+  it('shows the API message when a photo token is refused at save and asks for the file again', async () => {
+    const { fixture, http, root, settle, openNew, button, fillRequired, hint } = setup();
+    await openNew();
+    await fillRequired();
+    await pick(root, settle, png());
+    http.expectOne('/api/admin/media/product-photos').flush({ photoToken: '0123456789abcdef0123456789abcdef', previewUrl: PHOTO_URL });
+    await settle();
+
+    button('save-product').click();
+    fixture.detectChanges();
+    http.expectOne('/api/admin/products/with-setup').flush([{ field: 'photo', message: 'A foto enviada expirou, já foi usada ou não é sua. Envie a foto de novo.' }], { status: 400, statusText: 'Bad Request' });
+    await settle();
+
+    expect(hint('productPhoto-hint')).toContain('expirou');
+    expect(root.querySelector('[data-testid="photo-preview"] [data-has-photo="false"]')).not.toBeNull(); // the dead token is dropped
+  });
+
+  it('says to wait when another file is chosen during an upload', async () => {
+    const { http, root, settle, openNew, hint } = setup();
+    await openNew();
+    await pick(root, settle, png());
+    const first = http.expectOne('/api/admin/media/product-photos');
+
+    await pick(root, settle, png('outra.png'));
+    expect(hint('productPhoto-hint')).toBe('Aguarde o envio da foto atual.');
+    http.expectNone('/api/admin/media/product-photos');
+    first.flush({ photoToken: '0123456789abcdef0123456789abcdef', previewUrl: PHOTO_URL });
+    await settle();
+  });
+
+  it('shows a failure that names no field (a 500, a 429, a lost connection) instead of saying nothing, and frees the form', async () => {
+    const { http, root, settle, openNew, hint, button } = setup();
+    await openNew();
+
+    await pick(root, settle, png());
+    http.expectOne('/api/admin/media/product-photos').flush('x', { status: 500, statusText: 'Server Error' });
+    await settle();
+    expect(hint('productPhoto-hint')).not.toContain('JPEG, PNG ou WebP, até 5 MB');
+    expect(hint('productPhoto-hint').length).toBeGreaterThan(10);
+    expect(button('save-product').disabled).toBe(false);
+
+    await pick(root, settle, png());
+    http.expectOne('/api/admin/media/product-photos').error(new ProgressEvent('error'), { status: 0 });
+    await settle();
+    expect(hint('productPhoto-hint')).not.toContain('JPEG, PNG ou WebP, até 5 MB');
+  });
+
+  it('waits for a photo that is still uploading before saving, and sends its token once it is ready', async () => {
+    const { fixture, http, root, settle, openNew, button, fillRequired } = setup();
+    await openNew();
+    await fillRequired();
+    await pick(root, settle, png()); // upload in flight
+    const upload = http.expectOne('/api/admin/media/product-photos');
+
+    button('save-and-another').click(); // blocked: the product waits
+    fixture.detectChanges();
+    http.expectNone('/api/admin/products/with-setup');
+    upload.flush({ photoToken: '0123456789abcdef0123456789abcdef', previewUrl: PHOTO_URL });
+    await settle();
+    expect(root.querySelector('[data-testid="photo-preview"] img')!.getAttribute('src')).toBe(PHOTO_URL);
+
+    button('save-and-another').click();
+    fixture.detectChanges();
+    const post = http.expectOne('/api/admin/products/with-setup');
+    expect(post.request.body).toMatchObject({ photoToken: '0123456789abcdef0123456789abcdef' });
+    post.flush(product('p9', 'COLA-1', 'Cola 2L'));
+    await settle();
+    http.expectOne('/api/admin/products').flush([]);
+    http.expectOne('/api/admin/categories').flush([]);
+    await settle();
+    expect(root.querySelector('[data-testid="photo-preview"] [data-has-photo="false"]')).not.toBeNull(); // the next product starts with no photo
   });
 });

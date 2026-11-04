@@ -6,11 +6,12 @@ import { confirmedDelete, formFeedback } from '../../../shared/crud/admin-crud';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { AdminService, CategoryAdmin, ProductAdmin } from '../api/admin.service';
+import { ProductPhoto } from '../../../shared/ui/product-photo/product-photo';
 import { ProductPanel, ProductSaved } from './product-panel';
 
 @Component({
   selector: 'app-admin-catalog',
-  imports: [FormsModule, ErrorAlert, LoadState, ProductPanel],
+  imports: [FormsModule, ErrorAlert, LoadState, ProductPanel, ProductPhoto],
   templateUrl: './admin-catalog.html',
 })
 export class AdminCatalog implements OnInit {

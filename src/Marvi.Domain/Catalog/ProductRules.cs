@@ -17,7 +17,6 @@ public sealed record ProductInput(
     string? Sku,
     string? Name,
     string? Description,
-    string? ImageUrl,
     IReadOnlyDictionary<string, string>? Attributes,
     IReadOnlyList<ProductPrice>? Prices,
     IReadOnlyList<ProductStock>? Stock,
@@ -28,14 +27,13 @@ public sealed record ProductPlan(
     string Sku,
     string Name,
     string? Description,
-    string? ImageUrl,
     Dictionary<string, string> Attributes,
     List<ProductPrice> Prices,
     List<ProductStock> Stock);
 
 /// <summary>
 /// THE product validator (MRV-9.8): create (<c>POST with-setup</c>), edit (<c>PUT</c>) and the CSV import all call it, and nothing else
-/// decides whether a product is acceptable. SKU, name, description, https image, structured attributes, prices and opening stock.
+/// decides whether a product is acceptable. (The photo is not text: an uploaded file is checked by <see cref="ProductPhotoRules"/> and linked by token, MRV-9.7.) SKU, name, description, structured attributes, prices and opening stock.
 /// Messages are pt-BR, name the field and never echo the value. Checks that need the database (the SKU is free, the category, tier and
 /// warehouse exist) stay in the callers. The client mirrors the numbers (<c>product-rules.ts</c>) and a contract file keeps the two equal.
 /// </summary>
@@ -46,7 +44,6 @@ public static partial class ProductRules
     public const int MaxNameLength = 200;
     public const int MinNameLength = 2;
     public const int MaxDescriptionLength = 2000;
-    public const int MaxImageUrlLength = 500;
     public const int MaxAttributes = 30;
     public const int MaxAttributeKeyLength = 60;
     public const int MaxAttributeValueLength = 200;
@@ -82,12 +79,11 @@ public static partial class ProductRules
         }
 
         var description = CheckDescription(input.Description, problems);
-        var imageUrl = CheckImageUrl(input.ImageUrl, problems);
         var attributes = CheckAttributes(input.Attributes, problems);
         var prices = CheckPrices(input.Prices, problems);
         var stock = CheckStock(input.Stock, problems);
 
-        return problems.Count > before ? null : new ProductPlan(sku, name, description, imageUrl, attributes, prices, stock);
+        return problems.Count > before ? null : new ProductPlan(sku, name, description, attributes, prices, stock);
     }
 
     public static string? CheckDescription(string? description, List<ProductProblem> problems)
@@ -101,29 +97,6 @@ public static partial class ProductRules
         if (text.Length > MaxDescriptionLength || text.Any(c => c is not ('\n' or '\r' or '\t') && ClientAddressRules.HasForbiddenCharacters(c.ToString())))
         {
             problems.Add(new("description", $"A descrição deve ter no máximo {MaxDescriptionLength} caracteres, sem caracteres de controle."));
-        }
-
-        return text;
-    }
-
-    /// <summary>An https address (the only kind a browser should load for a product photo), at most 500 characters, without credentials in it.</summary>
-    public static string? CheckImageUrl(string? imageUrl, List<ProductProblem> problems)
-    {
-        var text = imageUrl?.Trim();
-        if (string.IsNullOrEmpty(text))
-        {
-            return null;
-        }
-
-        var valid = text.Length <= MaxImageUrlLength
-            && !text.Any(c => char.IsWhiteSpace(c) || char.IsControl(c))
-            && Uri.TryCreate(text, UriKind.Absolute, out var uri)
-            && uri.Scheme == Uri.UriSchemeHttps
-            && !string.IsNullOrEmpty(uri.Host)
-            && string.IsNullOrEmpty(uri.UserInfo);
-        if (!valid)
-        {
-            problems.Add(new("imageUrl", $"O endereço da imagem deve começar com https:// e ter no máximo {MaxImageUrlLength} caracteres."));
         }
 
         return text;

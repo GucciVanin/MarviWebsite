@@ -11,6 +11,7 @@ import { BrlPipe } from '../../shared/format/brl.pipe';
 import { DocumentNumberPipe } from '../../shared/format/number.pipes';
 import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import type { ProductListItem } from '../../shared/models/catalog.model';
+import { ProductPhoto } from '../../shared/ui/product-photo/product-photo';
 import { ProductPicker } from '../../shared/ui/product-picker/product-picker';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../shared/ui/load-state/load-state';
@@ -22,12 +23,13 @@ import { ClientProfileCard } from './profile/client-profile';
 interface BasketLine {
   productId: string;
   name: string;
+  imageUrl: string | null;
   qty: number;
 }
 
 @Component({
   selector: 'app-client-portal',
-  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, BrlPipe, PtDatePipe, DocumentNumberPipe, ClientProfileCard, DeliveryPicker, DeliveryTo],
+  imports: [FormsModule, ErrorAlert, LoadState, ProductPicker, ProductPhoto, BrlPipe, PtDatePipe, DocumentNumberPipe, ClientProfileCard, DeliveryPicker, DeliveryTo],
   templateUrl: './client-portal.html',
 })
 export class ClientPortal implements OnInit {
@@ -86,7 +88,7 @@ export class ClientPortal implements OnInit {
     this.basket.update((lines) =>
       lines.some((l) => l.productId === product.id)
         ? lines.map((l) => (l.productId === product.id ? { ...l, qty: l.qty + 1 } : l))
-        : [...lines, { productId: product.id, name: product.name, qty: 1 }],
+        : [...lines, { productId: product.id, name: product.name, imageUrl: product.imageUrl, qty: 1 }],
     );
   }
 

@@ -1,15 +1,16 @@
 import { Component, ElementRef, Injector, OnInit, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, finalize, tap } from 'rxjs';
 import { PT } from '../../../core/i18n/pt-br';
 import { action } from '../../../core/http/action';
 import { fieldProblems } from '../../../core/http/api-error';
 import { loadable } from '../../../core/http/loadable';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
+import { ProductPhoto } from '../../../shared/ui/product-photo/product-photo';
 import { AdminService, CategoryAdmin, PricingTier, ProductAdmin, Warehouse } from '../api/admin.service';
-import { AttributeRow, PRODUCT_LIMITS, attributesOf, isActivationOnly, parsePrice, parseQuantity, rowsOf, suggestSku, validateProduct } from './product-rules';
+import { AttributeRow, PRODUCT_LIMITS, attributesOf, formatBytes, isActivationOnly, parsePrice, parseQuantity, photoDimensionsProblem, photoFileProblem, rowsOf, suggestSku, validateProduct } from './product-rules';
 
 /** What the panel tells the page when a product was saved: its name and code for the notice, and whether to stay open for another. */
 export interface ProductSaved {
@@ -27,7 +28,7 @@ export interface ProductSaved {
  */
 @Component({
   selector: 'app-product-panel',
-  imports: [RouterLink, ErrorAlert, LoadState],
+  imports: [RouterLink, ErrorAlert, LoadState, ProductPhoto],
   templateUrl: './product-panel.html',
 })
 export class ProductPanel implements OnInit {
@@ -56,19 +57,48 @@ export class ProductPanel implements OnInit {
   protected readonly name = signal('');
   protected readonly categoryId = signal('');
   protected readonly description = signal('');
-  protected readonly imageUrl = signal('');
   protected readonly active = signal(true);
   protected readonly rows = signal<AttributeRow[]>([]);
   protected readonly prices = signal<string[]>([]);
   protected readonly quantities = signal<string[]>([]);
   protected readonly clientProblems = signal<Record<string, string>>({});
-  protected readonly imageBroken = signal(false);
+  // The photo (MRV-9.7). A chosen file is uploaded at once and shown from the server's own (same-origin) address; it joins the product when the
+  // product is saved, by the token. On an edit the stored photo is shown until a new file replaces it or "Remover foto" clears it.
+  protected readonly storedPhoto = signal<string | null>(null);
+  protected readonly pendingPhoto = signal<{ token: string; url: string; name: string; size: number } | null>(null);
+  protected readonly photoRemoved = signal(false);
+  protected readonly photoUpload = action();
+  /** True from the moment a file is chosen until its upload ends (reading its size counts): saving waits for it. */
+  protected readonly photoWorking = signal(false);
+  // Bumped when the form is reset: an upload that finishes after that belongs to a form that is gone.
+  private formGeneration = 0;
+  protected readonly savingBlocked = computed(() => this.request.busy() || this.photoWorking());
+  protected readonly photoMessage = signal('');
   protected readonly createdBefore = signal(false);
   // A connection failure leaves it unknown whether the product was created: a retry that finds the code taken is then told so.
   private maybeCreated = false;
 
   protected readonly creating = computed(() => this.product() === null);
-  protected readonly previewable = computed(() => !this.clientProblems()['imageUrl'] && /^https:\/\//i.test(this.imageUrl().trim()));
+  /** The photo the form shows now: the one just uploaded, else the stored one unless it was removed. */
+  protected readonly shownPhoto = computed(() => this.pendingPhoto()?.url ?? (this.photoRemoved() ? null : this.storedPhoto()));
+  protected readonly photoChanged = computed(() => this.pendingPhoto() !== null || (this.photoRemoved() && this.storedPhoto() !== null));
+  protected readonly photoStatus = computed(() => {
+    const pending = this.pendingPhoto();
+    if (this.photoWorking()) {
+      return this.t.photoUploading;
+    }
+    if (pending) {
+      return this.t.photoReady(pending.name, formatBytes(pending.size));
+    }
+    if (this.photoRemoved()) {
+      return this.t.photoRemoved;
+    }
+    return this.storedPhoto() ? this.t.photoCurrent : '';
+  });
+  /** The problem to show under the chooser: the form's own, the upload's, or the one the product save named on the photo. */
+  protected readonly photoProblem = computed(
+    () => this.photoMessage() || this.photoUpload.error()?.fields?.find((p) => p.field === 'photo')?.message || this.photoUpload.error()?.message || this.serverProblems()['photo'] || '',
+  );
   protected readonly serverProblems = computed(() => {
     const found: Record<string, string> = {};
     for (const problem of this.request.error()?.fields ?? []) {
@@ -118,7 +148,7 @@ export class ProductPanel implements OnInit {
     this.name.set(product.name);
     this.categoryId.set(product.categoryId ?? '');
     this.description.set(product.description ?? '');
-    this.imageUrl.set(product.imageUrl ?? '');
+    this.storedPhoto.set(product.imageUrl);
     this.active.set(product.isActive);
     this.rows.set(rowsOf(product.attributes));
   }
@@ -168,24 +198,86 @@ export class ProductPanel implements OnInit {
     afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[data-testid="add-attribute"]')?.focus(), { injector: this.injector });
   }
 
+  /** A file was chosen: checked here for the obvious (type, size, pixels), then uploaded; the API checks the real bytes again. */
+  protected async choosePhoto(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ''; // the same file can be chosen again after a refusal
+    if (!file) {
+      return;
+    }
+    if (this.photoWorking()) {
+      this.photoMessage.set(this.t.photoWait); // the picker can open while an upload runs (aria-disabled does not stop it)
+      return;
+    }
+    this.photoUpload.reset();
+    this.photoMessage.set('');
+    const obvious = photoFileProblem(file);
+    if (obvious) {
+      this.photoMessage.set(obvious);
+      return;
+    }
+    const generation = this.formGeneration;
+    this.photoWorking.set(true);
+    const sides = await this.sidesOf(file);
+    const outOfRange = sides ? photoDimensionsProblem(sides.width, sides.height) : '';
+    if (outOfRange || generation !== this.formGeneration) {
+      this.photoMessage.set(generation === this.formGeneration ? outOfRange : '');
+      this.photoWorking.set(false);
+      return;
+    }
+    this.photoUpload.run(this.admin.uploadProductPhoto(file).pipe(finalize(() => { if (generation === this.formGeneration) { this.photoWorking.set(false); } })), (uploaded) => {
+      if (generation !== this.formGeneration) {
+        return; // the form was reset while the file was on its way
+      }
+      this.pendingPhoto.set({ token: uploaded.photoToken, url: uploaded.previewUrl, name: file.name, size: file.size });
+      this.photoRemoved.set(false);
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#productPhoto')?.focus(), { injector: this.injector });
+    });
+  }
+
+  // The size in pixels, read without drawing the file anywhere (the CSP allows no blob: images). null when the browser cannot say: the API decides then.
+  private async sidesOf(file: File): Promise<{ width: number; height: number } | null> {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const sides = { width: bitmap.width, height: bitmap.height };
+      bitmap.close();
+      return sides;
+    } catch {
+      return null;
+    }
+  }
+
+  /** "Remover foto": drops the file just uploaded (the stored photo shows again) or, with none pending, marks the stored one for removal. */
+  protected removePhoto(): void {
+    this.photoUpload.reset();
+    this.photoMessage.set('');
+    if (this.pendingPhoto()) {
+      this.pendingPhoto.set(null);
+    } else if (this.storedPhoto()) {
+      this.photoRemoved.set(true);
+    }
+    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#productPhoto')?.focus(), { injector: this.injector });
+  }
+
   protected suggest(): void {
     const category = this.categories().find((c) => c.id === this.categoryId());
     this.setSku(suggestSku(category?.name ?? '', this.existingSkus()));
   }
 
   protected save(again = false): void {
-    if (this.request.busy()) {
-      return; // a second click while the first is on its way must not create a second product
+    if (this.savingBlocked()) {
+      return; // a second click, or a photo still on its way (it would be left out of the product) while the first is on its way must not create a second product
     }
     this.request.reset();
     const draft = {
-      sku: this.sku(), name: this.name(), categoryId: this.categoryId(), description: this.description(), imageUrl: this.imageUrl(),
+      sku: this.sku(), name: this.name(), categoryId: this.categoryId(), description: this.description(),
       attributes: this.rows(), prices: this.priceRows().map((_, i) => this.priceText(i)), quantities: this.stockRows().map((_, i) => this.quantityText(i)),
     };
     // One rule set for a new product and an edit (the API's `ProductRules`). The one exception mirrors the API: a form that differs from the
     // stored product only in "Ativo" is sent as it is, so a product that breaks the rules can still be deactivated.
     const stored = this.product();
-    const problems = stored && isActivationOnly(stored, draft, this.active()) ? {} : validateProduct(draft);
+    const problems = stored && isActivationOnly(stored, draft, this.active(), this.photoChanged()) ? {} : validateProduct(draft);
     this.clientProblems.set(problems);
     if (Object.keys(problems).length > 0) {
       this.focusFirstProblem();
@@ -199,19 +291,25 @@ export class ProductPanel implements OnInit {
       name,
       description: this.description().trim() || null,
       categoryId: this.categoryId() || null,
-      imageUrl: this.imageUrl().trim() || null,
       isActive: this.active(),
       attributes: attributesOf(this.rows()),
     };
     const editing = this.product();
+    const photo = {
+      photoToken: this.pendingPhoto()?.token ?? null,
+      ...(editing ? { removePhoto: this.photoRemoved() && !this.pendingPhoto() } : {}),
+    };
     const call: Observable<unknown> = editing
-      ? this.admin.updateProduct(editing.id, base)
+      ? this.admin.updateProduct(editing.id, { ...base, ...photo })
       : this.admin.createProductWithSetup({
           ...base,
+          ...photo,
           prices: this.priceRows().map((tier, i) => ({ pricingTierId: tier.id, unitPrice: parsePrice(this.priceText(i)) })),
           stock: this.stockRows().map((warehouse, i) => ({ warehouseId: warehouse.id, qtyOnHand: parseQuantity(this.quantityText(i)) })),
         });
     this.request.run(call.pipe(tap({ error: (failure: unknown) => this.noteFailure(failure) })), (result) => {
+      this.pendingPhoto.set(null);
+      this.photoRemoved.set(false);
       this.maybeCreated = false;
       this.createdBefore.set(false);
       this.saved.emit({ id: editing ? editing.id : ((result as ProductAdmin | null)?.id ?? null), name, sku, created: !editing, again });
@@ -227,6 +325,9 @@ export class ProductPanel implements OnInit {
     if (!(failure instanceof HttpErrorResponse)) {
       return;
     }
+    if (failure.status === 400 && fieldProblems(failure.error)?.some((p) => p.field === 'photo')) {
+      this.pendingPhoto.set(null); // the token expired or was used: the file must be sent again
+    }
     if (failure.status === 0) {
       this.maybeCreated = true;
     } else if (this.maybeCreated && failure.status === 409 && fieldProblems(failure.error)?.some((p) => p.field === 'sku')) {
@@ -237,16 +338,20 @@ export class ProductPanel implements OnInit {
   }
 
   private reset(): void {
+    this.formGeneration++;
+    this.photoWorking.set(false);
     this.sku.set('');
     this.name.set('');
     this.description.set('');
-    this.imageUrl.set('');
+    this.pendingPhoto.set(null);
+    this.photoRemoved.set(false);
+    this.photoMessage.set('');
+    this.photoUpload.reset();
     this.active.set(true);
     this.rows.set([]);
     this.prices.set([]);
     this.quantities.set([]);
     this.clientProblems.set({});
-    this.imageBroken.set(false);
     afterNextRender(() => this.heading().nativeElement.focus(), { injector: this.injector });
   }
 

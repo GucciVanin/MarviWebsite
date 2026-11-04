@@ -22,8 +22,9 @@ const cases: EndpointCase<AdminService>[] = [
   { name: 'deleteProductPrice', call: (s) => s.deleteProductPrice('p1', 't1', 6), method: 'DELETE', url: '/api/admin/products/p1/pricing/t1/6' },
   { name: 'getProducts', call: (s) => s.getProducts(), method: 'GET', url: '/api/admin/products', response: [{ id: 'p1' }] },
   { name: 'getProduct', call: (s) => s.getProduct('p1'), method: 'GET', url: '/api/admin/products/p1', response: { id: 'p1' } },
-  { name: 'createProductWithSetup', call: (s) => s.createProductWithSetup({ sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', imageUrl: null, isActive: true, attributes: { volume: '350ml' }, prices: [{ pricingTierId: 't1', unitPrice: 9.9 }], stock: [{ warehouseId: 'w1', qtyOnHand: 4 }] }), method: 'POST', url: '/api/admin/products/with-setup', body: { sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', imageUrl: null, isActive: true, attributes: { volume: '350ml' }, prices: [{ pricingTierId: 't1', unitPrice: 9.9 }], stock: [{ warehouseId: 'w1', qtyOnHand: 4 }] }, response: { id: 'p1' } },
-  { name: 'updateProduct', call: (s) => s.updateProduct('p1', { sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', imageUrl: null, isActive: true, attributes: { volume: '350ml' } }), method: 'PUT', url: '/api/admin/products/p1', body: { sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', imageUrl: null, isActive: true, attributes: { volume: '350ml' } } },
+  { name: 'createProductWithSetup', call: (s) => s.createProductWithSetup({ sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', isActive: true, attributes: { volume: '350ml' }, prices: [{ pricingTierId: 't1', unitPrice: 9.9 }], stock: [{ warehouseId: 'w1', qtyOnHand: 4 }] }), method: 'POST', url: '/api/admin/products/with-setup', body: { sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', isActive: true, attributes: { volume: '350ml' }, prices: [{ pricingTierId: 't1', unitPrice: 9.9 }], stock: [{ warehouseId: 'w1', qtyOnHand: 4 }] }, response: { id: 'p1' } },
+  { name: 'updateProduct', call: (s) => s.updateProduct('p1', { sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', isActive: true, attributes: { volume: '350ml' } }), method: 'PUT', url: '/api/admin/products/p1', body: { sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', isActive: true, attributes: { volume: '350ml' } } },
+  { name: 'updateProduct with a photo', call: (s) => s.updateProduct('p1', { sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', isActive: true, attributes: {}, photoToken: '0123456789abcdef0123456789abcdef', removePhoto: false }), method: 'PUT', url: '/api/admin/products/p1', body: { sku: 'A1', name: 'Cerveja', description: null, categoryId: 'c1', isActive: true, attributes: {}, photoToken: '0123456789abcdef0123456789abcdef', removePhoto: false } },
   { name: 'deleteProduct', call: (s) => s.deleteProduct('p1'), method: 'DELETE', url: '/api/admin/products/p1' },
   { name: 'getDeals', call: (s) => s.getDeals(), method: 'GET', url: '/api/admin/deals', response: [{ id: 'd1' }] },
   { name: 'getDeal', call: (s) => s.getDeal('d1'), method: 'GET', url: '/api/admin/deals/d1', response: { id: 'd1' } },
@@ -78,6 +79,32 @@ describe('AdminService', () => {
       expect(results).toEqual([]);
       expect(errors).toHaveLength(1);
       expect(errors[0]).toBeInstanceOf(HttpErrorResponse);
+      expect(statusOf(errors[0])).toBe(status);
+    });
+  });
+
+  describe('uploadProductPhoto (MRV-9.7)', () => {
+    it('posts the file as multipart form data under the name "photo" and hands back the token and the preview address', () => {
+      const results: unknown[] = [];
+      service.uploadProductPhoto(new File([new Uint8Array(3)], 'a.png', { type: 'image/png' })).subscribe((r) => results.push(r));
+
+      const request = http.expectOne('/api/admin/media/product-photos');
+      expect(request.request.method).toBe('POST');
+      const body = request.request.body as FormData;
+      expect(body).toBeInstanceOf(FormData);
+      expect((body.get('photo') as File).name).toBe('a.png');
+      const answer = { photoToken: '0123456789abcdef0123456789abcdef', previewUrl: '/api/public/media/products/0123456789abcdef0123456789abcdef.png' };
+      request.flush(answer);
+      expect(results).toEqual([answer]);
+    });
+
+    it.each(ERROR_STATUSES)('passes on an HTTP %i failure', (status) => {
+      const errors: unknown[] = [];
+      service.uploadProductPhoto(new File(['x'], 'a.png')).subscribe({ error: (e) => errors.push(e) });
+
+      fail(http.expectOne('/api/admin/media/product-photos'), status);
+
+      expect(errors).toHaveLength(1);
       expect(statusOf(errors[0])).toBe(status);
     });
   });
