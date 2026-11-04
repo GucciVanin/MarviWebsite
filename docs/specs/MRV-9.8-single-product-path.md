@@ -10,6 +10,7 @@
 - One domain class (`ProductRules`, today `ProductSetupRules`) is the only validator; create, update and import all call it.
 - Endpoints: **create** = `POST /api/admin/products/with-setup` (the legacy `POST /api/admin/products` is removed); **edit** = `PUT /api/admin/products/{id}` validated by the same rules over the whole product (the "validate only changed fields" leniency from MRV-9.5 is removed). One narrow, documented exception keeps broken old data manageable: a `PUT` whose only difference from the stored product is `IsActive` is accepted without re-validating the rest, so a product can always be deactivated. The Reviewer may challenge this.
 - The CSV import is brought under the same rules: a row that breaks them is reported per row in the dry run and the real import and is not saved; the import template documents the limits.
+- Captain amendment (2026-11-03, from Worker report): a category is required on create, edit and import alike (same input, same verdict); the data check lists stored products without one. The import keeps the MRV-2.1 contract that a file with any bad row imports nothing; bad rows are listed per row.
 - The strict SKU rule (3-40; letters, digits, `- _ .`; unique ignoring case) applies everywhere. Products already stored with a longer or different SKU, a long description, too many attributes or an http image are listed by a one-off data check (admin-only endpoint or documented SQL, whichever is smaller) to be fixed before the first production migration; nothing is silently rewritten.
 
 ## Acceptance criteria

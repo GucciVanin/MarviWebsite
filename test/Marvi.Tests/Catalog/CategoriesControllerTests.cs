@@ -145,18 +145,25 @@ public class CategoriesControllerTests : IClassFixture<MarviApiFactory>
     }
 
     [Fact]
-    public async Task Products_RejectUnknownCategory_ButAllowNone()
+    public async Task Products_RejectUnknownAndMissingCategories_OnCreateAndEdit_Alike()
     {
         var admin = await LoginAsAdminAsync();
-        var attributes = new Dictionary<string, string>();
+        var category = await CreateCategoryAsync(admin, $"Cat-{Guid.NewGuid():N}");
 
-        var unknown = await admin.PostAsJsonAsync("/api/admin/products",
-            new UpsertProductRequest($"SKU-{Guid.NewGuid():N}", "Widget", null, Guid.NewGuid(), null, true, attributes));
-        var none = await admin.PostAsJsonAsync("/api/admin/products",
-            new UpsertProductRequest($"SKU-{Guid.NewGuid():N}", "Widget", null, null, null, true, attributes));
+        var unknown = await admin.PostProductAsync(categoryId: Guid.NewGuid());
+        var createNone = await admin.PostAsJsonAsync("/api/admin/products/with-setup", new CreateProductWithSetupRequest($"SKU-{Guid.NewGuid():N}", "Widget", null, null, null, true, new(), [], []));
+        var created = await admin.PostProductAsync(categoryId: category.Id);
+        var createdProduct = (await created.Content.ReadFromJsonAsync<ProductAdminDto>())!;
+        var (id, sku) = (createdProduct.Id, createdProduct.Sku);
+        var editUnknown = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku, "Widget", null, Guid.NewGuid(), null, true, new()));
+        var editNone = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku, "Widget", null, null, null, true, new()));
 
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
-        Assert.Equal(HttpStatusCode.Created, none.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, editUnknown.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, createNone.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, editNone.StatusCode);
+        Assert.Equal(category.Id, (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{id}"))!.CategoryId);
     }
 
     private static async Task<CategoryAdminDto> CreateCategoryAsync(HttpClient admin, string name, int sortOrder = 0, bool isActive = true)
@@ -168,8 +175,7 @@ public class CategoriesControllerTests : IClassFixture<MarviApiFactory>
 
     private static async Task<Guid> CreateProductAsync(HttpClient admin, Guid categoryId, bool isActive)
     {
-        var response = await admin.PostAsJsonAsync("/api/admin/products",
-            new UpsertProductRequest($"SKU-{Guid.NewGuid():N}", "Widget", null, categoryId, null, isActive, new Dictionary<string, string>()));
+        var response = await admin.PostProductAsync(categoryId: categoryId, isActive: isActive);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProductAdminDto>())!.Id;
     }

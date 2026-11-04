@@ -470,8 +470,8 @@ describe('Product panel (MRV-9.5)', () => {
     expect(root.querySelector('[data-testid="product-panel"]')).toBeNull();
   });
 
-  it('lets a product with an old-style code be edited without touching its code', async () => {
-    const { fixture, http, settle, button, type, editFirst } = setup([product('p1', 'old code!', 'Antigo')]);
+  it('applies the same SKU rule to an edit: a stored code that breaks it must be corrected before anything is sent', async () => {
+    const { fixture, http, settle, button, type, editFirst, hint } = setup([product('p1', 'old code!', 'Antigo')]);
     await settle();
     await editFirst();
 
@@ -479,7 +479,50 @@ describe('Product panel (MRV-9.5)', () => {
     button('save-product').click();
     fixture.detectChanges();
 
-    expect(http.expectOne('/api/admin/products/p1').request.body).toMatchObject({ sku: 'old code!', name: 'Antigo 2' });
+    http.expectNone('/api/admin/products/p1');
+    expect(hint('productSku-hint')).toContain('3 a 40');
+    await type('productSku', 'OLD-1');
+    button('save-product').click();
+    fixture.detectChanges();
+    expect(http.expectOne('/api/admin/products/p1').request.body).toMatchObject({ sku: 'OLD-1', name: 'Antigo 2' });
+  });
+
+  it('shows the API field messages of a refused edit next to their fields, like a refused create (409 on the code too)', async () => {
+    const { fixture, http, settle, button, type, editFirst, hint } = setup([product('p1', 'COLA-1', 'Cola 2L')]);
+    await settle();
+    await editFirst();
+
+    await type('productName', 'Cola 2 litros');
+    button('save-product').click();
+    fixture.detectChanges();
+    http.expectOne('/api/admin/products/p1').flush(
+      [{ field: 'imageUrl', message: 'O endereço da imagem deve começar com https://.' }, { field: 'attributes', message: 'Use no máximo 30 atributos.' }],
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await settle();
+    expect(hint('productImage-hint')).toContain('https://');
+
+    button('save-product').click();
+    fixture.detectChanges();
+    http.expectOne('/api/admin/products/p1').flush([{ field: 'sku', message: 'SKU já existe.' }], { status: 409, statusText: 'Conflict' });
+    await settle();
+    expect(hint('productSku-hint')).toBe('SKU já existe.');
+  });
+
+  it('sends a deactivation of a product that breaks the rules as it is: only "Ativo" changed, the same exception as the API', async () => {
+    const stored = product('p1', 'old code!', 'Antigo', { description: 'd'.repeat(2500), imageUrl: 'http://velho.com/a.png', attributes: { Marca: 'A', marca: 'B' } });
+    const { fixture, http, settle, button, input, editFirst } = setup([stored]);
+    await settle();
+    await editFirst();
+
+    const active = input('productActive');
+    active.click();
+    await settle();
+    button('save-product').click();
+    fixture.detectChanges();
+
+    const put = http.expectOne('/api/admin/products/p1');
+    expect(put.request.body).toMatchObject({ sku: 'old code!', name: 'Antigo', description: 'd'.repeat(2500), imageUrl: 'http://velho.com/a.png', isActive: false });
   });
 
   it('shows no product id anywhere in the panel', async () => {

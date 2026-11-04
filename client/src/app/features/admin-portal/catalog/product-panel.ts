@@ -9,7 +9,7 @@ import { loadable } from '../../../core/http/loadable';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { AdminService, CategoryAdmin, PricingTier, ProductAdmin, Warehouse } from '../api/admin.service';
-import { AttributeRow, PRODUCT_LIMITS, attributesOf, parsePrice, parseQuantity, rowsOf, suggestSku, validateProduct } from './product-rules';
+import { AttributeRow, PRODUCT_LIMITS, attributesOf, isActivationOnly, parsePrice, parseQuantity, rowsOf, suggestSku, validateProduct } from './product-rules';
 
 /** What the panel tells the page when a product was saved: its name and code for the notice, and whether to stay open for another. */
 export interface ProductSaved {
@@ -106,11 +106,6 @@ export class ProductPanel implements OnInit {
     this.warehouses.load();
   }
 
-  private original() {
-    const product = this.product();
-    return product ? { description: product.description ?? '', imageUrl: product.imageUrl ?? '', attributes: rowsOf(product.attributes) } : undefined;
-  }
-
   /** The code was edited: a lost connection says nothing about the new code. */
   protected setSku(value: string): void {
     this.sku.set(value);
@@ -183,13 +178,14 @@ export class ProductPanel implements OnInit {
       return; // a second click while the first is on its way must not create a second product
     }
     this.request.reset();
-    const problems = validateProduct(
-      {
-        sku: this.sku(), name: this.name(), categoryId: this.categoryId(), description: this.description(), imageUrl: this.imageUrl(),
-        attributes: this.rows(), prices: this.priceRows().map((_, i) => this.priceText(i)), quantities: this.stockRows().map((_, i) => this.quantityText(i)),
-      },
-      { creating: this.creating(), originalSku: this.product()?.sku, original: this.original() },
-    );
+    const draft = {
+      sku: this.sku(), name: this.name(), categoryId: this.categoryId(), description: this.description(), imageUrl: this.imageUrl(),
+      attributes: this.rows(), prices: this.priceRows().map((_, i) => this.priceText(i)), quantities: this.stockRows().map((_, i) => this.quantityText(i)),
+    };
+    // One rule set for a new product and an edit (the API's `ProductRules`). The one exception mirrors the API: a form that differs from the
+    // stored product only in "Ativo" is sent as it is, so a product that breaks the rules can still be deactivated.
+    const stored = this.product();
+    const problems = stored && isActivationOnly(stored, draft, this.active()) ? {} : validateProduct(draft);
     this.clientProblems.set(problems);
     if (Object.keys(problems).length > 0) {
       this.focusFirstProblem();

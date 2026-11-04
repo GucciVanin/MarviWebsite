@@ -11,8 +11,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Marvi.Api.Features.Catalog;
 
 /// <summary>
-/// Imports products from a CSV file (MRV-2.1). The file is checked as a whole by <see cref="ProductImportPlanner"/>: with any
-/// error nothing is stored and every problem is reported. A valid file is stored in one save together with its audit entry.
+/// Imports products from a CSV file (MRV-2.1). The file is checked as a whole by <see cref="ProductImportPlanner"/>, which runs every
+/// row through <see cref="ProductRules"/> like create and edit do (MRV-9.8): with any error (a row that breaks a rule included) nothing
+/// is stored and every problem is reported with its line, SKU and field. A valid file is stored in one save together with its audit entry.
 /// Rows match existing products by SKU (ignoring case); a blank cell leaves an existing value as it is.
 /// </summary>
 [ApiController]
@@ -79,13 +80,17 @@ public class AdminProductImportController : ControllerBase
         var tiers = await _dbContext.PricingTiers.Select(t => new { t.Name, t.Id }).ToListAsync();
         var (categoryIds, ambiguousCategories) = NamesToIds(categories.Select(c => (c.Name, c.Id)));
         var (tierIds, ambiguousTiers) = NamesToIds(tiers.Select(t => (t.Name, t.Id)));
-        var catalog = new ImportCatalog(categoryIds, tierIds, defaultTier?.Id ?? Guid.Empty, CanImportStock: stockWarehouse.HasValue, ambiguousCategories, ambiguousTiers);
+        // What the stored products keep when a cell is blank: the planner checks each row as the product would be stored.
+        var stored = await _dbContext.Products.AsNoTracking().Select(p => new { p.Sku, p.Description, p.ImageUrl, p.Attributes, p.CategoryId }).ToListAsync();
+        var existingProducts = stored.GroupBy(p => p.Sku, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => new ExistingProduct(g.First().Description, g.First().ImageUrl, g.First().Attributes, g.First().CategoryId), StringComparer.OrdinalIgnoreCase);
+        var catalog = new ImportCatalog(categoryIds, tierIds, defaultTier?.Id ?? Guid.Empty, CanImportStock: stockWarehouse.HasValue, ambiguousCategories, ambiguousTiers, existingProducts);
 
         var plan = ProductImportPlanner.Plan(text, catalog);
         if (!plan.IsValid)
         {
             return BadRequest(new ProductImportReportDto(dryRun, Applied: false, Rows: 0, Created: 0, Updated: 0,
-                plan.Errors.Select(e => new ProductImportErrorDto(e.Line, e.Message)).ToList()));
+                plan.Errors.Select(e => new ProductImportErrorDto(e.Line, e.Message, e.Sku, e.Field)).ToList()));
         }
 
         var skus = plan.Products.Select(p => p.Sku.ToLowerInvariant()).ToList();
@@ -135,14 +140,8 @@ public class AdminProductImportController : ControllerBase
 
             if (row.Attributes.Count > 0)
             {
-                // A new dictionary, so the change to the jsonb column is noticed.
-                var merged = new Dictionary<string, string>(product.Attributes);
-                foreach (var (name, value) in row.Attributes)
-                {
-                    merged[name] = value;
-                }
-
-                product.Attributes = merged;
+                // The planner already merged the stored attributes with the row's (ignoring case); a new dictionary, so the change to the jsonb column is noticed.
+                product.Attributes = new Dictionary<string, string>(row.Attributes);
             }
 
             foreach (var (tierId, price) in row.Prices)

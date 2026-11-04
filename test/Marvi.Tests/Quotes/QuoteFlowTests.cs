@@ -195,8 +195,7 @@ public class QuoteFlowTests : IClassFixture<MarviApiFactory>
 
     private static async Task<Guid> CreateProductAsync(HttpClient admin)
     {
-        var response = await admin.PostAsJsonAsync("/api/admin/products",
-            new UpsertProductRequest($"SKU-{Guid.NewGuid():N}", "Widget", null, null, null, true, new Dictionary<string, string>()));
+        var response = await admin.PostProductAsync();
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProductAdminDto>())!.Id;
     }

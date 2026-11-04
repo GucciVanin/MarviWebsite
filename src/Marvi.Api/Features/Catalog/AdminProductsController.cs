@@ -47,50 +47,6 @@ public class AdminProductsController : ControllerBase
         return Ok(ToDto(product));
     }
 
-    [HttpPost]
-    public async Task<ActionResult<ProductAdminDto>> CreateProduct(UpsertProductRequest request)
-    {
-        var invalid = await ValidateAsync(request, existingId: null);
-        if (invalid is not null)
-        {
-            return invalid.ToResult(this);
-        }
-
-        if (!await CategoryExistsAsync(request.CategoryId))
-        {
-            return BadRequest("Unknown category.");
-        }
-
-        var contentProblems = new List<ProductSetupProblem>();
-        var description = ProductSetupRules.CheckDescription(request.Description, contentProblems);
-        var imageUrl = ProductSetupRules.CheckImageUrl(request.ImageUrl, contentProblems);
-        var attributes = ProductSetupRules.CheckAttributes(request.Attributes, contentProblems);
-        if (contentProblems.Count > 0)
-        {
-            return BadRequest(contentProblems);
-        }
-
-        var product = new Product
-        {
-            Id = Guid.NewGuid(),
-            Sku = AdminInput.Clean(request.Sku),
-            Name = AdminInput.Clean(request.Name),
-            Description = description,
-            CategoryId = request.CategoryId,
-            ImageUrl = imageUrl,
-            IsActive = request.IsActive,
-            Attributes = attributes
-        };
-
-        _dbContext.Products.Add(product);
-        if (!await _auditLogger.TrySaveAsync(AuditActions.Create, nameof(Product), product.Id, AuditedProduct(product)))
-        {
-            return Conflict("The product conflicts with existing data (duplicate SKU, or its category was just removed).");
-        }
-
-        return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, ToDto(product));
-    }
-
     /// <summary>
     /// The guided "Novo produto" (MRV-9.5): the product, a price per tier (the rows that have one) and an opening quantity per warehouse, in ONE
     /// save with one audit entry per row, so a half-created product never exists. Everything is checked before anything is staged; problems come
@@ -100,7 +56,7 @@ public class AdminProductsController : ControllerBase
     [EnableRateLimiting(RateLimiting.ProductSetupPolicy)]
     public async Task<IActionResult> CreateProductWithSetup(CreateProductWithSetupRequest request)
     {
-        var problems = new List<ProductSetupProblem>();
+        var problems = new List<ProductProblem>();
         for (var i = 0; i < (request.Prices?.Count ?? 0); i++)
         {
             if (request.Prices![i] is null)
@@ -122,17 +78,13 @@ public class AdminProductsController : ControllerBase
             return BadRequest(problems);
         }
 
-        var plan = ProductSetupRules.Check(
-            new ProductSetupInput(
+        var plan = ProductRules.Check(
+            new ProductInput(
                 request.Sku, request.Name, request.Description, request.ImageUrl, request.Attributes,
-                request.Prices?.Select(p => new ProductSetupPrice(p.PricingTierId, p.UnitPrice)).ToList(),
-                request.Stock?.Select(s => new ProductSetupStock(s.WarehouseId, s.QtyOnHand)).ToList()),
+                request.Prices?.Select(p => new ProductPrice(p.PricingTierId, p.UnitPrice)).ToList(),
+                request.Stock?.Select(s => new ProductStock(s.WarehouseId, s.QtyOnHand)).ToList(),
+                request.CategoryId),
             problems);
-        if (request.CategoryId is null)
-        {
-            problems.Add(new("categoryId", "Escolha a categoria do produto."));
-        }
-
         if (plan is null || problems.Count > 0)
         {
             return BadRequest(problems);
@@ -183,18 +135,18 @@ public class AdminProductsController : ControllerBase
         {
             // A race the checks above could not see: the same SKU saved a moment ago (a double click, a retry), or something chosen was just removed.
             var taken = await _dbContext.Products.AsNoTracking().AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, plan.Sku));
-            return Conflict(new[] { taken ? SkuTaken : new ProductSetupProblem("form", "Algo escolhido foi removido enquanto você preenchia. Recarregue a página e tente de novo.") });
+            return Conflict(new[] { taken ? SkuTaken : new ProductProblem("form", "Algo escolhido foi removido enquanto você preenchia. Recarregue a página e tente de novo.") });
         }
 
         return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, ToDto(product));
     }
 
-    private static readonly ProductSetupProblem SkuTaken = new("sku", "SKU já existe.");
+    private static readonly ProductProblem SkuTaken = new("sku", "SKU já existe.");
 
     // The category, every priced tier and every stocked warehouse must exist; a problem names the row of the form.
-    private async Task<List<ProductSetupProblem>> UnknownReferencesAsync(CreateProductWithSetupRequest request, ProductSetupPlan plan)
+    private async Task<List<ProductProblem>> UnknownReferencesAsync(CreateProductWithSetupRequest request, ProductPlan plan)
     {
-        var problems = new List<ProductSetupProblem>();
+        var problems = new List<ProductProblem>();
         if (!await _dbContext.Categories.AnyAsync(c => c.Id == request.CategoryId))
         {
             problems.Add(new("categoryId", "A categoria escolhida não existe."));
@@ -217,8 +169,14 @@ public class AdminProductsController : ControllerBase
         return problems;
     }
 
+    /// <summary>
+    /// Edits a product. The WHOLE product is checked by <see cref="ProductRules"/>, the same rules as create and the import (MRV-9.8): a product
+    /// that holds something the rules now refuse must be fixed to be saved. One exception keeps broken old data manageable: a request whose only
+    /// difference from the stored product is <c>IsActive</c> is accepted as it is, so any product can be deactivated (or reactivated) without
+    /// being corrected first. Problems come back by field (<c>[{ field, message }]</c>).
+    /// </summary>
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> UpdateProduct(Guid id, UpsertProductRequest request)
+    public async Task<IActionResult> UpdateProduct(Guid id, UpdateProductRequest request)
     {
         var product = await _dbContext.Products.FirstOrDefaultAsync(p => p.Id == id);
         if (product is null)
@@ -226,47 +184,71 @@ public class AdminProductsController : ControllerBase
             return NotFound();
         }
 
-        var invalid = await ValidateAsync(request, existingId: id);
-        if (invalid is not null)
+        if (IsOnlyActivationChange(product, request))
         {
-            return invalid.ToResult(this);
+            product.IsActive = request.IsActive;
+        }
+        else
+        {
+            var problems = new List<ProductProblem>();
+            var plan = ProductRules.Check(
+                new ProductInput(request.Sku, request.Name, request.Description, request.ImageUrl, request.Attributes, Prices: null, Stock: null, request.CategoryId),
+                problems);
+            if (plan is null)
+            {
+                return BadRequest(problems);
+            }
+
+            if (request.CategoryId is { } categoryId && !await _dbContext.Categories.AnyAsync(c => c.Id == categoryId))
+            {
+                return BadRequest(new[] { new ProductProblem("categoryId", "A categoria escolhida não existe.") });
+            }
+
+            if (await _dbContext.Products.Where(p => p.Id != id).AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, plan.Sku)))
+            {
+                return Conflict(new[] { SkuTaken });
+            }
+
+            product.Sku = plan.Sku;
+            product.Name = plan.Name;
+            product.Description = plan.Description;
+            product.CategoryId = request.CategoryId;
+            product.ImageUrl = plan.ImageUrl;
+            product.IsActive = request.IsActive;
+            product.Attributes = plan.Attributes;
         }
 
-        if (!await CategoryExistsAsync(request.CategoryId))
-        {
-            return BadRequest("Unknown category.");
-        }
-
-        // A product made before these rules (or by the CSV import) may hold a value they refuse. Editing the name, the category or the active flag
-        // must still work, so a field is checked only when its submitted value differs from the stored one; an unchanged value is kept as stored.
-        var contentProblems = new List<ProductSetupProblem>();
-        var description = AdminInput.Clean(request.Description) == AdminInput.Clean(product.Description)
-            ? product.Description
-            : ProductSetupRules.CheckDescription(request.Description, contentProblems);
-        var imageUrl = AdminInput.Clean(request.ImageUrl) == AdminInput.Clean(product.ImageUrl)
-            ? product.ImageUrl
-            : ProductSetupRules.CheckImageUrl(request.ImageUrl, contentProblems);
-        var attributes = SameAttributes(request.Attributes, product.Attributes)
-            ? product.Attributes
-            : ProductSetupRules.CheckAttributes(request.Attributes, contentProblems);
-        if (contentProblems.Count > 0)
-        {
-            return BadRequest(contentProblems);
-        }
-
-        product.Sku = AdminInput.Clean(request.Sku);
-        product.Name = AdminInput.Clean(request.Name);
-        product.Description = description;
-        product.CategoryId = request.CategoryId;
-        product.ImageUrl = imageUrl;
-        product.IsActive = request.IsActive;
-        product.Attributes = attributes;
         if (!await _auditLogger.TrySaveAsync(AuditActions.Update, nameof(Product), id, AuditedProduct(product)))
         {
-            return Conflict("The product conflicts with existing data (duplicate SKU, or its category was just removed).");
+            // A race the checks above could not see: the same SKU taken a moment ago, or the category removed.
+            var taken = await _dbContext.Products.AsNoTracking().AnyAsync(p => p.Id != id && p.Sku.ToLower() == product.Sku.ToLower());
+            return Conflict(new[] { taken ? SkuTaken : new ProductProblem("form", "Algo escolhido foi removido enquanto você preenchia. Recarregue a página e tente de novo.") });
         }
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Read-only data check (MRV-9.8): every stored product run through <see cref="ProductRules"/>, listing the ones that break them (SKU, name,
+    /// description, image, attributes) with the field messages. Nothing is changed. Run it, and fix what it lists, before the first production
+    /// migration (docs/operations.md section 8).
+    /// </summary>
+    [HttpGet("data-check")]
+    public async Task<ActionResult<ProductDataCheckDto>> DataCheck()
+    {
+        var products = await _dbContext.Products.AsNoTracking().OrderBy(p => p.Sku).ToListAsync();
+        var broken = new List<BrokenProductDto>();
+        foreach (var product in products)
+        {
+            var problems = new List<ProductProblem>();
+            ProductRules.Check(new ProductInput(product.Sku, product.Name, product.Description, product.ImageUrl, product.Attributes, Prices: null, Stock: null, product.CategoryId), problems);
+            if (problems.Count > 0)
+            {
+                broken.Add(new BrokenProductDto(product.Id, product.Sku, product.Name, problems));
+            }
+        }
+
+        return Ok(new ProductDataCheckDto(products.Count, broken.Count, broken));
     }
 
     [HttpDelete("{id:guid}")]
@@ -298,33 +280,15 @@ public class AdminProductsController : ControllerBase
     }
 
 
-    // SKU and name are required and bounded; the SKU is unique ignoring case (also enforced by an index, which turns a
-    // race into a conflict through TrySaveAsync).
-    private async Task<InputProblem?> ValidateAsync(UpsertProductRequest request, Guid? existingId)
-    {
-        var sku = AdminInput.Clean(request.Sku);
-        var name = AdminInput.Clean(request.Name);
-        if (AdminInput.IsBlank(sku) || AdminInput.IsBlank(name))
-        {
-            return InputProblem.BadRequest("SKU and name are required.");
-        }
-
-        if (AdminInput.ExceedsLength(sku, ProductRules.MaxSkuLength) || AdminInput.ExceedsLength(name, ProductRules.MaxNameLength))
-        {
-            return InputProblem.BadRequest($"SKU is limited to {ProductRules.MaxSkuLength} characters and name to {ProductRules.MaxNameLength}.");
-        }
-
-        if (await _dbContext.Products.Where(p => p.Id != existingId).AnyAsync(AdminInput.EqualsIgnoreCase<Product>(p => p.Sku, sku)))
-        {
-            return InputProblem.Conflict("A product with this SKU already exists.");
-        }
-
-        return null;
-    }
-
-    // A product may have no category; when it has one, it must be a real category.
-    private async Task<bool> CategoryExistsAsync(Guid? categoryId) =>
-        categoryId is null || await _dbContext.Categories.AnyAsync(c => c.Id == categoryId);
+    // The request differs from the stored product in IsActive and in nothing else (the one edit that skips the rules, see UpdateProduct).
+    private static bool IsOnlyActivationChange(Product product, UpdateProductRequest request) =>
+        request.IsActive != product.IsActive
+        && AdminInput.Clean(request.Sku) == AdminInput.Clean(product.Sku)
+        && AdminInput.Clean(request.Name) == AdminInput.Clean(product.Name)
+        && AdminInput.Clean(request.Description) == AdminInput.Clean(product.Description)
+        && AdminInput.Clean(request.ImageUrl) == AdminInput.Clean(product.ImageUrl)
+        && request.CategoryId == product.CategoryId
+        && SameAttributes(request.Attributes, product.Attributes);
 
     // Same attributes once cleaned (names and values trimmed, blank rows dropped): what the SPA sends back for an unchanged product.
     private static bool SameAttributes(Dictionary<string, string>? submitted, Dictionary<string, string>? stored)

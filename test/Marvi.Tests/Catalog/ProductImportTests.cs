@@ -51,6 +51,7 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
     public async Task Import_CreatesProducts_WithCategoryPricesStockAndAttributes()
     {
         var admin = await _factory.AdminAsync();
+        await admin.EnsureTestCategoryAsync(); // every product needs a category: a new CSV row names one
         await _factory.RegisterClientAsync(); // makes sure the default pricing tier exists
         var category = await CreateCategoryAsync(admin, Unique("Cervejas"));
         var warehouse = await CreateWarehouseAsync(admin);
@@ -85,8 +86,9 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
     public async Task Importing_TheSameFileTwice_ChangesNothingTheSecondTime()
     {
         var admin = await _factory.AdminAsync();
+        await admin.EnsureTestCategoryAsync(); // every product needs a category: a new CSV row names one
         var sku = Unique("TWICE");
-        var csv = $"sku,name,description\n{sku},Alpha,First\n";
+        var csv = $"sku,name,description,category\n{sku},Alpha,First,Test products\n";
 
         var first = await ReportAsync(await ImportAsync(admin, csv));
         var second = await ReportAsync(await ImportAsync(admin, csv));
@@ -100,13 +102,14 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
     public async Task Reimporting_UpdatesBySku_IgnoringCase_AndBlankCellsLeaveExistingValuesAlone()
     {
         var admin = await _factory.AdminAsync();
+        await admin.EnsureTestCategoryAsync(); // every product needs a category: a new CSV row names one
         var category = await CreateCategoryAsync(admin, Unique("Aguas"));
         var sku = Unique("keep");
         await ImportAsync(admin, $"sku,name,description,category,attr_Marca\n{sku},Water,Still,{category.Name},Acme\n");
         var original = (await FindProductAsync(admin, sku))!;
         // Deactivate through the admin API: an import must not reactivate it.
         (await admin.PutAsJsonAsync($"/api/admin/products/{original.Id}",
-            new UpsertProductRequest(sku, original.Name, original.Description, original.CategoryId, null, false, original.Attributes))).EnsureSuccessStatusCode();
+            new UpdateProductRequest(sku, original.Name, original.Description, original.CategoryId, null, false, original.Attributes))).EnsureSuccessStatusCode();
 
         var report = await ReportAsync(await ImportAsync(admin, $"sku,name,description,category,attr_Marca,attr_Cor\n{sku.ToUpperInvariant()},Sparkling Water,,,,Blue\n"));
 
@@ -125,9 +128,10 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
     public async Task AFileWithAnyError_ImportsNothing_AndReportsEveryProblemWithItsLine()
     {
         var admin = await _factory.AdminAsync();
+        await admin.EnsureTestCategoryAsync(); // every product needs a category: a new CSV row names one
         var good = Unique("GOOD");
 
-        var response = await ImportAsync(admin, $"sku,name,price\n{good},Fine,5\n{Unique("BAD")},,abc\n");
+        var response = await ImportAsync(admin, $"sku,name,price,category\n{good},Fine,5,Test products\n{Unique("BAD")},,abc,Test products\n");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var report = await ReportAsync(response);
@@ -140,11 +144,12 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
     public async Task ADryRun_ReportsWhatWouldHappen_WithoutChangingAnything()
     {
         var admin = await _factory.AdminAsync();
+        await admin.EnsureTestCategoryAsync(); // every product needs a category: a new CSV row names one
         var existing = Unique("OLD");
         var fresh = Unique("NEW");
-        await ImportAsync(admin, $"sku,name\n{existing},Old\n");
+        await ImportAsync(admin, $"sku,name,category\n{existing},Old,Test products\n");
 
-        var response = await ImportAsync(admin, $"sku,name\n{existing},Renamed\n{fresh},Brand new\n", "?dryRun=true");
+        var response = await ImportAsync(admin, $"sku,name,category\n{existing},Renamed,\n{fresh},Brand new,Test products\n", "?dryRun=true");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var report = await ReportAsync(response);
@@ -159,7 +164,8 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
     public async Task TheImport_IsAudited()
     {
         var admin = await _factory.AdminAsync();
-        await ImportAsync(admin, $"sku,name\n{Unique("AUD")},Audited\n");
+        await admin.EnsureTestCategoryAsync(); // every product needs a category: a new CSV row names one
+        await ImportAsync(admin, $"sku,name,category\n{Unique("AUD")},Audited,Test products\n");
 
         var entries = (await admin.GetFromJsonAsync<List<AuditLogEntryDto>>("/api/admin/audit-log?pageSize=200"))!;
 
@@ -173,14 +179,15 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
     {
         await using var factory = new MarviApiFactory(); // a pristine database: no warehouse yet
         var admin = await factory.AdminAsync();
-        var csv = $"sku,name,stock\n{Unique("STK")},Stocked,5\n";
+        await admin.EnsureTestCategoryAsync(); // every product needs a category: a new CSV row names one
+        var csv = $"sku,name,stock,category\n{Unique("STK")},Stocked,5,Test products\n";
 
         var none = await ImportAsync(admin, csv);
         var unknown = await ImportAsync(admin, csv, $"?warehouseId={Guid.NewGuid()}");
         var onlyOne = await CreateWarehouseAsync(admin);
         var implied = await ImportAsync(admin, csv); // exactly one warehouse: it is the one
         await CreateWarehouseAsync(admin);
-        var ambiguous = await ImportAsync(admin, $"sku,name,stock\n{Unique("STK")},Stocked,5\n");
+        var ambiguous = await ImportAsync(admin, $"sku,name,stock,category\n{Unique("STK")},Stocked,5,Test products\n");
 
         Assert.Equal(HttpStatusCode.BadRequest, none.StatusCode);
         Assert.Contains("stock needs a warehouse", (await ReportAsync(none)).Errors.Single().Message);
@@ -194,6 +201,7 @@ public class ProductImportTests : IClassFixture<MarviApiFactory>
     public async Task ARequestWithoutAFile_IsRefused()
     {
         var admin = await _factory.AdminAsync();
+        await admin.EnsureTestCategoryAsync(); // every product needs a category: a new CSV row names one
 
         var response = await admin.PostAsync("/api/admin/products/import", new MultipartFormDataContent());
 

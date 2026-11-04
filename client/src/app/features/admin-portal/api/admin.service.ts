@@ -14,10 +14,12 @@ export interface CreateEmployeeRequest {
   hireDate: string;
 }
 
-/** One problem in an import file. Line 1 is the header; a row's line is where it starts in the file. */
+/** One problem in an import file. Line 1 is the header; a row's line is where it starts in the file. A problem about one row also names its SKU and the field. */
 export interface ProductImportError {
   line: number;
   message: string;
+  sku?: string | null;
+  field?: string | null;
 }
 
 /** What an import did, or would do (`dryRun`). `applied` is false for a dry run and for a file with errors, which imports nothing. */
@@ -58,7 +60,8 @@ export interface ProductAdmin {
   attributes: Record<string, string>;
 }
 
-export interface UpsertProductRequest {
+/** An edit of a product (`PUT`): the whole product, checked by the same rules as a new one (MRV-9.8). */
+export interface UpdateProductRequest {
   sku: string;
   name: string;
   description: string | null;
@@ -69,7 +72,7 @@ export interface UpsertProductRequest {
 }
 
 /** The guided "Novo produto" (MRV-9.5): the product plus a price per tier and a quantity per warehouse; a row with null is skipped. */
-export interface CreateProductWithSetupRequest extends UpsertProductRequest {
+export interface CreateProductWithSetupRequest extends UpdateProductRequest {
   prices: { pricingTierId: string; unitPrice: number | null }[];
   stock: { warehouseId: string; qtyOnHand: number | null }[];
 }
@@ -316,15 +319,11 @@ export class AdminService {
     return this.http.get<ProductAdmin>(`/api/admin/products/${id}`);
   }
 
-  createProduct(request: UpsertProductRequest): Observable<ProductAdmin> {
-    return this.http.post<ProductAdmin>('/api/admin/products', request);
-  }
-
   createProductWithSetup(request: CreateProductWithSetupRequest): Observable<ProductAdmin> {
     return this.http.post<ProductAdmin>('/api/admin/products/with-setup', request);
   }
 
-  updateProduct(id: string, request: UpsertProductRequest): Observable<void> {
+  updateProduct(id: string, request: UpdateProductRequest): Observable<void> {
     return this.http.put<void>(`/api/admin/products/${id}`, request);
   }
 

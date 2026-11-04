@@ -632,7 +632,7 @@ export const PT = {
   },
   adminImport: {
     title: 'Importar produtos',
-    hint: 'Envie um arquivo CSV (separado por vírgula ou ponto e vírgula, em UTF-8) com uma linha por produto. Colunas: sku e name (obrigatórias), description, category, price, stock, attr_<nome> e tier_<nome>. Produtos existentes são atualizados pelo sku; uma célula vazia mantém o valor atual.',
+    hint: 'Envie um arquivo CSV (separado por vírgula ou ponto e vírgula, em UTF-8) com uma linha por produto. Colunas: sku e name (obrigatórias), description, category, price, stock, attr_<nome> e tier_<nome>. Produtos existentes são atualizados pelo sku; uma célula vazia mantém o valor atual. Cada linha segue as mesmas regras do cadastro de produto: sku de 3 a 40 caracteres (letras, números, hífen, sublinhado ou ponto), nome de 2 a 200 caracteres, categoria (obrigatória), descrição de até 2.000, até 30 atributos (nome até 60 caracteres, valor até 200, sem repetir o nome) e preços acima de zero. Uma linha que não segue as regras é listada com sua linha, sku e campo, e nada é importado.',
     file: 'Arquivo CSV',
     warehouse: 'Depósito do estoque',
     warehouseAuto: 'Automático (se houver um só depósito)',
@@ -654,6 +654,8 @@ export const PT = {
     refused: 'Nada foi importado. Corrija os problemas abaixo e tente de novo.',
     problems: 'Problemas encontrados',
     line: 'Linha',
+    sku: 'sku',
+    field: 'campo',
   },
   adminInbox: {
     title: 'Pendências',

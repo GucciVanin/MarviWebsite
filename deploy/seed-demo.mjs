@@ -78,7 +78,8 @@ const catalog = [
   ['MIXER-TONICA', 'Água Tônica 350ml (sem preço cadastrado)', 'Águas', null, null, 40, 0, { Volume: '350 ml' }],
 ];
 for (const [sku, name, categoryName, standardPrice, atacadoPrice, stockSp, stockCampinas, attributes] of catalog) {
-  const product = await call('POST', '/api/admin/products', admin, { sku, name, description: null, categoryId: category[categoryName].id, imageUrl: null, isActive: true, attributes });
+  // The one way to create a product (MRV-9.8); the prices and stock below are set through their own endpoints so the reorder point can be given.
+  const product = await call('POST', '/api/admin/products/with-setup', admin, { sku, name, description: null, categoryId: category[categoryName].id, imageUrl: null, isActive: true, attributes, prices: [], stock: [] });
   products[sku] = product;
   if (standardPrice !== null) {
     await call('PUT', `/api/admin/products/${product.id}/pricing`, admin, { pricingTierId: standard.id, unitPrice: standardPrice, minQty: 1 });

@@ -72,9 +72,39 @@ public static class TestClients
 
     public static async Task<Guid> CreateProductAsync(this HttpClient admin, string? sku = null, string name = "Widget", Guid? categoryId = null)
     {
-        var response = await admin.PostAsJsonAsync("/api/admin/products",
-            new UpsertProductRequest(sku ?? $"SKU-{Guid.NewGuid():N}", name, null, categoryId, null, true, new Dictionary<string, string>()));
+        var response = await admin.PostProductAsync(sku, name, categoryId);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProductAdminDto>())!.Id;
+    }
+
+    /// <summary>
+    /// The one way to create a product (MRV-9.8): <c>POST /api/admin/products/with-setup</c> with no prices and no stock. A product needs a
+    /// category there, so without one the shared "Test products" category is used (see <see cref="EnsureTestCategoryAsync"/>).
+    /// </summary>
+    public static async Task<HttpResponseMessage> PostProductAsync(this HttpClient admin, string? sku = null, string name = "Widget", Guid? categoryId = null,
+        bool isActive = true, string? description = null, string? imageUrl = null, Dictionary<string, string>? attributes = null) =>
+        await admin.PostAsJsonAsync("/api/admin/products/with-setup",
+            new CreateProductWithSetupRequest(sku ?? $"SKU-{Guid.NewGuid():N}", name, description, categoryId ?? await admin.EnsureTestCategoryAsync(), imageUrl,
+                isActive, attributes ?? new Dictionary<string, string>(), [], []));
+
+    /// <summary>The category that products made by <see cref="PostProductAsync"/> go in when a test does not care (created on first use).</summary>
+    public static async Task<Guid> EnsureTestCategoryAsync(this HttpClient admin)
+    {
+        const string name = "Test products";
+        async Task<Guid?> FindAsync() =>
+            (await admin.GetFromJsonAsync<List<CategoryAdminDto>>("/api/admin/categories"))!.FirstOrDefault(c => c.Name == name)?.Id;
+
+        if (await FindAsync() is { } existing)
+        {
+            return existing;
+        }
+
+        var response = await admin.PostAsJsonAsync("/api/admin/categories", new UpsertCategoryRequest(name, 0, true));
+        if (response.IsSuccessStatusCode)
+        {
+            return (await response.Content.ReadFromJsonAsync<CategoryAdminDto>())!.Id;
+        }
+
+        return await FindAsync() ?? throw new InvalidOperationException("Could not create the test category.");
     }
 }

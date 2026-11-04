@@ -1,10 +1,13 @@
 import { PT } from '../../../core/i18n/pt-br';
 
-/** The limits of the guided product form (MRV-9.5); the API checks the same ones (`ProductSetupRules`). */
+/**
+ * The limits of the product form. The API checks the same ones in `ProductRules` for create, edit and the CSV import (MRV-9.8): one rule set.
+ * `product-rules.contract.json` holds the numbers and a table of cases; the API test and `product-rules.contract.spec.ts` both read it, so a
+ * change on one side only fails a test. Change a rule: `ProductRules.cs`, this file and the contract together.
+ */
 export const PRODUCT_LIMITS = {
   skuMin: 3,
   skuMax: 40,
-  legacySkuMax: 64,
   nameMin: 2,
   nameMax: 200,
   description: 2000,
@@ -33,28 +36,27 @@ export interface ProductDraft {
   quantities: readonly string[];
 }
 
-export interface ProductChecks {
-  /** A new product (SKU format and category are required) or an edit (a SKU kept as it was is accepted, whatever its shape). */
-  creating: boolean;
-  originalSku?: string;
-  /** The stored description, image and attributes of the product being edited: a field left as it was is not checked (old products may hold what the rules now refuse). */
-  original?: { description: string; imageUrl: string; attributes: readonly AttributeRow[] };
+/** The stored product an edit starts from. */
+export interface StoredProduct {
+  sku: string;
+  name: string;
+  categoryId: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  attributes: Record<string, string> | null | undefined;
 }
 
 const SKU_SHAPE = /^[A-Za-z0-9._-]+$/;
 const PRICE_SHAPE = /^\d+([.,]\d{1,2})?$/;
 const QUANTITY_SHAPE = /^\d+$/;
 const MAX_PRICE = 9_999_999_999_999_999.99;
-/** True for a control character, a line or paragraph separator or an invisible format character (zero-width, bidi), as the API refuses them. */
+/** A control character, a line or paragraph separator or an invisible format character (zero-width, bidi, soft hyphen): the API refuses all of them (`ClientAddressRules.HasForbiddenCharacters`). */
+const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+
+/** True when a UTF-16 unit of `text` is one of those (the API looks at units too); `allowNewlines` lets a description keep line feeds, returns and tabs. */
 function hasInvisible(text: string, allowNewlines = false): boolean {
-  return Array.from(text).some((ch) => {
-    const code = ch.codePointAt(0)!;
-    if (allowNewlines && (code === 10 || code === 13 || code === 9)) {
-      return false;
-    }
-    return code < 32 || (code >= 127 && code <= 159) || code === 0x2028 || code === 0x2029 || (code >= 0x200b && code <= 0x200f) ||
-      (code >= 0x202a && code <= 0x202e) || (code >= 0x2060 && code <= 0x2064) || code === 0xfeff;
-  });
+  return Array.from({ length: text.length }, (_, i) => text[i]).some((ch) => !(allowNewlines && (ch === '\n' || ch === '\r' || ch === '\t')) && INVISIBLE.test(ch));
 }
 
 /** A price as typed ("12,50" or "12.5"): the number, null when empty, NaN when it is not a price. */
@@ -84,43 +86,52 @@ function sortedRows(rows: readonly AttributeRow[]): AttributeRow[] {
   return [...rows].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
+/**
+ * True when the form differs from the stored product in "Ativo" and in nothing else. The API accepts exactly that edit without checking the
+ * rest (so a product that breaks the rules can always be deactivated); the form must not block it either.
+ */
+export function isActivationOnly(stored: StoredProduct, draft: ProductDraft, active: boolean): boolean {
+  const same = (a: string | null | undefined, b: string) => (a ?? '').trim() === b.trim();
+  return active !== stored.isActive
+    && same(stored.sku, draft.sku)
+    && same(stored.name, draft.name)
+    && same(stored.description, draft.description)
+    && same(stored.imageUrl, draft.imageUrl)
+    && (stored.categoryId ?? '') === draft.categoryId
+    && JSON.stringify(sortedRows(filledAttributes(rowsOf(stored.attributes)))) === JSON.stringify(sortedRows(filledAttributes(draft.attributes)));
+}
+
 /** Rows with a name or a value (a row with neither is not saved), trimmed. */
 export function filledAttributes(rows: readonly AttributeRow[]): AttributeRow[] {
   return rows.map((r) => ({ key: r.key.trim(), value: r.value.trim() })).filter((r) => r.key || r.value);
 }
 
 /** The problems to show next to each control, by field name (`sku`, `name`, `categoryId`, `description`, `imageUrl`, `attributes`, `prices[i]`, `stock[i]`). Empty when the form is fine. */
-export function validateProduct(draft: ProductDraft, checks: ProductChecks): Record<string, string> {
+export function validateProduct(draft: ProductDraft): Record<string, string> {
   const t = PT.adminCatalog.rules;
   const problems: Record<string, string> = {};
   const sku = draft.sku.trim();
   const name = draft.name.trim();
 
-  const keptSku = !checks.creating && sku !== '' && sku === checks.originalSku;
-  if (!keptSku) {
-    const max = checks.creating ? PRODUCT_LIMITS.skuMax : PRODUCT_LIMITS.legacySkuMax;
-    if (sku.length < PRODUCT_LIMITS.skuMin || sku.length > max || !SKU_SHAPE.test(sku)) {
-      problems['sku'] = t.sku;
-    }
+  if (sku.length < PRODUCT_LIMITS.skuMin || sku.length > PRODUCT_LIMITS.skuMax || !SKU_SHAPE.test(sku)) {
+    problems['sku'] = t.sku;
   }
   if (name.length < PRODUCT_LIMITS.nameMin || name.length > PRODUCT_LIMITS.nameMax || hasInvisible(name)) {
     problems['name'] = t.name;
   }
-  if (checks.creating && !draft.categoryId) {
+  if (!draft.categoryId) {
     problems['categoryId'] = t.category;
   }
   const description = draft.description.trim();
-  const o = checks.original;
-  const sameAttributes = !!o && JSON.stringify(sortedRows(filledAttributes(o.attributes))) === JSON.stringify(sortedRows(filledAttributes(draft.attributes)));
-  if (!(o && o.description.trim() === description) && (description.length > PRODUCT_LIMITS.description || hasInvisible(description, true))) {
+  if (description.length > PRODUCT_LIMITS.description || hasInvisible(description, true)) {
     problems['description'] = t.description;
   }
   const image = draft.imageUrl.trim();
-  if (image && !(o && o.imageUrl.trim() === image) && !isHttpsUrl(image)) {
+  if (image && !isHttpsUrl(image)) {
     problems['imageUrl'] = t.imageUrl;
   }
 
-  const rows = sameAttributes ? [] : filledAttributes(draft.attributes);
+  const rows = filledAttributes(draft.attributes);
   const seen = new Set<string>();
   for (const row of rows) {
     if (!row.key || row.key.length > PRODUCT_LIMITS.attributeKey || hasInvisible(row.key)) {

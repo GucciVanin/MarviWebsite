@@ -26,9 +26,6 @@ public class AdminInputPolicyTests : IClassFixture<MarviApiFactory>
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
 
-    private static UpsertProductRequest Product(string sku, string name, Guid? categoryId = null) =>
-        new(sku, name, null, categoryId, null, true, new());
-
     private static async Task<string> BodyAsync(HttpResponseMessage response) => await response.Content.ReadAsStringAsync();
 
     // ---- products
@@ -39,31 +36,31 @@ public class AdminInputPolicyTests : IClassFixture<MarviApiFactory>
         var admin = await _factory.AdminAsync();
         var sku = Unique("SKU");
 
-        var created = await admin.PostAsJsonAsync("/api/admin/products", Product($"  {sku}  ", "  Widget  "));
+        var created = await admin.PostProductAsync($"  {sku}  ", "  Widget  ");
         var dto = (await created.Content.ReadFromJsonAsync<ProductAdminDto>())!;
 
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         Assert.Equal(sku, dto.Sku);
         Assert.Equal("Widget", dto.Name);
 
-        var blank = await admin.PostAsJsonAsync("/api/admin/products", Product("  ", "Widget"));
+        var blank = await admin.PostProductAsync("  ", "Widget");
         Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
-        Assert.Equal("SKU and name are required.", await BodyAsync(blank));
+        Assert.Equal("sku", (await blank.Content.ReadFromJsonAsync<List<ProductProblem>>())!.Single().Field);
     }
 
     [Fact]
-    public async Task Products_LimitSkuTo64_AndNameTo200_AfterTrimming()
+    public async Task Products_LimitSkuTo40_AndNameTo200_AfterTrimming()
     {
         var admin = await _factory.AdminAsync();
 
-        var atLimit = await admin.PostAsJsonAsync("/api/admin/products", Product(new string('s', 64), new string('n', 200)));
-        var skuTooLong = await admin.PostAsJsonAsync("/api/admin/products", Product(new string('t', 65), "Widget"));
-        var nameTooLong = await admin.PostAsJsonAsync("/api/admin/products", Product(Unique("SKU"), new string('n', 201)));
-        var paddedStillFits = await admin.PostAsJsonAsync("/api/admin/products", Product("  " + new string('u', 64) + "  ", "Widget"));
+        var atLimit = await admin.PostProductAsync(new string('s', 40), new string('n', 200));
+        var skuTooLong = await admin.PostProductAsync(new string('t', 41), "Widget");
+        var nameTooLong = await admin.PostProductAsync(Unique("SKU"), new string('n', 201));
+        var paddedStillFits = await admin.PostProductAsync("  " + new string('u', 40) + "  ", "Widget");
 
         Assert.Equal(HttpStatusCode.Created, atLimit.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, skuTooLong.StatusCode);
-        Assert.Equal("SKU is limited to 64 characters and name to 200.", await BodyAsync(skuTooLong));
+        Assert.Equal("sku", (await skuTooLong.Content.ReadFromJsonAsync<List<ProductProblem>>())!.Single().Field);
         Assert.Equal(HttpStatusCode.BadRequest, nameTooLong.StatusCode);
         Assert.Equal(HttpStatusCode.Created, paddedStillFits.StatusCode);
     }
@@ -73,13 +70,13 @@ public class AdminInputPolicyTests : IClassFixture<MarviApiFactory>
     {
         var admin = await _factory.AdminAsync();
         var sku = Unique("sku");
-        var id = (await (await admin.PostAsJsonAsync("/api/admin/products", Product(sku, "A"))).Content.ReadFromJsonAsync<ProductAdminDto>())!.Id;
+        var id = (await (await admin.PostProductAsync(sku, "AA")).Content.ReadFromJsonAsync<ProductAdminDto>())!.Id;
 
-        var duplicate = await admin.PostAsJsonAsync("/api/admin/products", Product(sku.ToUpperInvariant(), "B"));
-        var selfUpdate = await admin.PutAsJsonAsync($"/api/admin/products/{id}", Product(sku.ToUpperInvariant(), "A2"));
+        var duplicate = await admin.PostProductAsync(sku.ToUpperInvariant(), "BB");
+        var selfUpdate = await admin.PutAsJsonAsync($"/api/admin/products/{id}", new UpdateProductRequest(sku.ToUpperInvariant(), "AA2", null, await admin.EnsureTestCategoryAsync(), null, true, new()));
 
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
-        Assert.Equal("A product with this SKU already exists.", await BodyAsync(duplicate));
+        Assert.Equal("sku", (await duplicate.Content.ReadFromJsonAsync<List<ProductProblem>>())!.Single().Field);
         Assert.Equal(HttpStatusCode.NoContent, selfUpdate.StatusCode);
     }
 
@@ -196,7 +193,7 @@ public class AdminInputPolicyTests : IClassFixture<MarviApiFactory>
     {
         var admin = await _factory.AdminAsync();
         var withProduct = (await (await admin.PostAsJsonAsync("/api/admin/categories", new UpsertCategoryRequest(Unique("A"), 1, true))).Content.ReadFromJsonAsync<CategoryAdminDto>())!.Id;
-        await admin.PostAsJsonAsync("/api/admin/products", Product(Unique("SKU"), "In category", withProduct));
+        await admin.PostProductAsync(Unique("SKU"), "In category", withProduct);
         var withDeal = (await (await admin.PostAsJsonAsync("/api/admin/categories", new UpsertCategoryRequest(Unique("B"), 1, true))).Content.ReadFromJsonAsync<CategoryAdminDto>())!.Id;
         var now = DateTime.UtcNow;
         (await admin.PostAsJsonAsync("/api/admin/deals", new UpsertDealRequest(Unique("Deal"), DiscountType.Percent, 5m, now.AddDays(-1), now.AddDays(1), [], [withDeal], 1))).EnsureSuccessStatusCode();

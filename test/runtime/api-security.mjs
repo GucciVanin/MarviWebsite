@@ -69,7 +69,13 @@ const area2 = await mk('/api/admin/coverage-areas', { warehouseId: wh2.id, type:
 
 const prod = {};
 const defineProduct = async (key, sku, name, categoryId, active, attributes, prices) => {
-  const p = await mk('/api/admin/products', { sku, name, description: `${name} - descrição`, categoryId, imageUrl: null, isActive: active, attributes });
+  // The one way to create a product is with-setup (MRV-9.8), and it needs a category: a product without one is made in a category and then edited to have none.
+  const p = await mk('/api/admin/products/with-setup', { sku, name, description: `${name} - descrição`, categoryId: categoryId ?? cat.soft.id, imageUrl: null, isActive: active, attributes, prices: [], stock: [] });
+  if (categoryId === null) {
+    // No API path leaves a product without a category any more (MRV-9.8: the category is a rule like the others); this fixture stands for a product stored before the rule.
+    sql(`update products set category_id = null where id = '${p.id}'`);
+    p.categoryId = null;
+  }
   prod[key] = p;
   for (const [tier, minQty, unitPrice] of prices) {
     await call('PUT', `/api/admin/products/${p.id}/pricing`, { token: admin, body: { pricingTierId: tier.id, unitPrice, minQty } });
@@ -535,7 +541,7 @@ ok('a typo in a column name is an error, not ignored', (await importCsv('sku,nam
 const ambiguousPrice = await importCsv(`sku;name;price\nAMB-${impSku};Ambiguous;1.234\n`);
 ok('a Brazilian thousands price such as 1.234 is refused as ambiguous, never stored as 1.234 (400)', ambiguousPrice.status === 400 && ambiguousPrice.json.errors[0].message.includes('at most 2 decimals')
   && sql(`select count(*) from products where sku='AMB-' || '${impSku}'`) === '0');
-const excelTrailing = await importCsv(`sku;name;price;\nXL-${impSku};Excel export;1.234,00;\n`);
+const excelTrailing = await importCsv(`sku;name;price;category;\nXL-${impSku};Excel export;1.234,00;Cervejas;\n`);
 ok('an Excel export with a trailing separator on every line imports (1.234,00 = R$ 1234)', excelTrailing.status === 200 && excelTrailing.json.created === 1
   && sql(`select unit_price from product_pricings pp join products p on p.id = pp.product_id where p.sku='XL-${impSku}'`) === '1234.00');
 ok('the import is in the audit log', (await call('GET', '/api/admin/audit-log?pageSize=200', { token: admin })).json.some((e) => e.action === 'Import' && e.details.data.includes('"Created":1') && e.details.data.includes(impSku)));
@@ -623,17 +629,18 @@ ok('a client cannot reach employee endpoints and an employee cannot reach client
 
 section('INPUT POLICY: trimming, limits, duplicates ignoring case, delete protection (on real Postgres)');
 const policySku = `Pol-${crypto.randomUUID().slice(0, 8)}`;
-const policyProduct = await call('POST', '/api/admin/products', { token: admin, body: { sku: `  ${policySku}  `, name: '  Policy product  ', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
+const newProduct = (sku, name, extra = {}) => ({ sku, name, description: null, categoryId: cat.soft.id, imageUrl: null, isActive: true, attributes: {}, prices: [], stock: [], ...extra });
+const policyProduct = await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(`  ${policySku}  `, '  Policy product  ') });
 ok('product SKU and name are stored trimmed', policyProduct.status === 201 && policyProduct.json.sku === policySku && policyProduct.json.name === 'Policy product', JSON.stringify(policyProduct.json));
-const policyDuplicate = await call('POST', '/api/admin/products', { token: admin, body: { sku: policySku.toUpperCase(), name: 'Other', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
+const policyDuplicate = await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(policySku.toUpperCase(), 'Other') });
 ok('a SKU differing only by case is refused (409) by the database comparison', policyDuplicate.status === 409, String(policyDuplicate.status));
-ok('a 65-character SKU is refused (400)', (await call('POST', '/api/admin/products', { token: admin, body: { sku: 'x'.repeat(65), name: 'Long', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).status === 400);
+ok('a 41-character SKU is refused (400): one limit for every way in', (await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct('x'.repeat(41), 'Long') })).status === 400);
 const policyCatName = `Pol cat ${crypto.randomUUID().slice(0, 8)}`;
 const policyCat = (await call('POST', '/api/admin/categories', { token: admin, body: { name: `  ${policyCatName}  `, sortOrder: 1, isActive: true } })).json;
 ok('category name is stored trimmed', policyCat?.name === policyCatName);
 ok('a category name differing only by case is refused (409)', (await call('POST', '/api/admin/categories', { token: admin, body: { name: policyCatName.toUpperCase(), sortOrder: 1, isActive: true } })).status === 409);
 ok('a 201-character category name is refused (400)', (await call('POST', '/api/admin/categories', { token: admin, body: { name: 'c'.repeat(201), sortOrder: 1, isActive: true } })).status === 400);
-await call('POST', '/api/admin/products', { token: admin, body: { sku: `PolC-${crypto.randomUUID().slice(0, 8)}`, name: 'In category', description: null, categoryId: policyCat.id, imageUrl: null, isActive: true, attributes: {} } });
+await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(`PolC-${crypto.randomUUID().slice(0, 8)}`, 'In category', { categoryId: policyCat.id }) });
 ok('a category that still has products cannot be deleted (409)', (await call('DELETE', `/api/admin/categories/${policyCat.id}`, { token: admin })).status === 409);
 ok('a product on quotes cannot be deleted (409)', (await call('DELETE', `/api/admin/products/${prod.cola.id}`, { token: admin })).status === 409);
 ok('a warehouse with stock cannot be deleted (409)', (await call('DELETE', `/api/admin/warehouses/${wh1.id}`, { token: admin })).status === 409);
@@ -690,7 +697,7 @@ const stockList = (await call('GET', '/api/employee/inventory', { token: emp }))
 ok('every record carries its warehouse\'s name', stockList.length > 0 && stockList.every((r) => r.warehouseName === (r.warehouseId === wh1.id ? wh1.name : r.warehouseId === wh2.id ? wh2.name : null)));
 
 section('STOCK: in stock = on hand minus reserved, summed over warehouses; list and detail agree');
-const stockProduct = (await call('POST', '/api/admin/products', { token: admin, body: { sku: `STK-${crypto.randomUUID().slice(0, 8)}`, name: 'Stock product', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).json;
+const stockProduct = (await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(`STK-${crypto.randomUUID().slice(0, 8)}`, 'Stock product') })).json;
 const inStockList = async () => (await call('GET', '/api/products')).json.find((p) => p.id === stockProduct.id)?.inStock;
 const inStockDetail = async () => (await call('GET', `/api/products/${stockProduct.id}`)).json?.inStock;
 ok('a product with no stock record is not in stock (list and detail)', (await inStockList()) === false && (await inStockDetail()) === false);
@@ -720,7 +727,7 @@ ok('a polygon coverage area can be stored and does not break the coverage check 
 section('RACES: concurrent admin writes never end in a 500 (the database decides, the API answers 409)');
 const burst = (n, fn) => Promise.all(Array.from({ length: n }, (_, i) => fn(i)));
 const noServerErrors = (name, results) => ok(`${name}: no 500s (statuses ${[...new Set(results.map((r) => r.status))].sort().join(',')})`, results.every((r) => r.status < 500));
-const raceProduct = (await call('POST', '/api/admin/products', { token: admin, body: { sku: `RACE-${crypto.randomUUID().slice(0, 8)}`, name: 'Race product', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } })).json;
+const raceProduct = (await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(`RACE-${crypto.randomUUID().slice(0, 8)}`, 'Race product') })).json;
 
 const priceRace = await burst(12, () => call('PUT', `/api/admin/products/${raceProduct.id}/pricing`, { token: admin, body: { pricingTierId: wholesale.id, unitPrice: 5, minQty: 1 } }));
 noServerErrors('12 simultaneous price upserts for one product, tier and minimum quantity', priceRace);
@@ -782,6 +789,57 @@ const withoutSetup = await call('POST', '/api/admin/products/with-setup', { toke
 const aloneItem = (await call('GET', '/api/products')).json.find((p) => p.id === withoutSetup.json?.id);
 ok('a product with no prices and no stock is created and shows "on request" (price null) and out of stock', withoutSetup.status === 201 && aloneItem && aloneItem.price === null && aloneItem.inStock === false, JSON.stringify(aloneItem));
 
+section('ONE PATH FOR PRODUCTS (MRV-9.8): create, edit and import decide through the same rules (on real Postgres)');
+const legacyCreate = await call('POST', '/api/admin/products', { token: admin, body: newProduct(`OLD-${crypto.randomUUID().slice(0, 8)}`, 'Velho') });
+ok('the old create endpoint is gone (404/405) and stored nothing', [404, 405].includes(legacyCreate.status) && sql(`select count(*) from products where name='Velho'`) === '0', String(legacyCreate.status));
+const pathBefore = { products: countOf('products'), prices: countOf('product_pricings'), stock: countOf('inventory_records'), audit: countOf('audit_log_entries') };
+const atomicSku = `ATOM-${crypto.randomUUID().slice(0, 8)}`;
+const atomic = await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(atomicSku, 'Atomico', { prices: [{ pricingTierId: standard.id, unitPrice: 5 }, { pricingTierId: crypto.randomUUID(), unitPrice: 6 }], stock: [{ warehouseId: wh1.id, qtyOnHand: 4 }] }) });
+ok('create stays all or nothing: a bad row (unknown tier) refuses the whole request (400) before anything is stored (the rollback of a failing save is covered by the burst of simultaneous submits above and ProductWithSetupTests.AFailingSave_...)',
+  atomic.status === 400 && sql(`select count(*) from products where sku='${atomicSku}'`) === '0' && countOf('product_pricings') === pathBefore.prices && countOf('inventory_records') === pathBefore.stock && countOf('audit_log_entries') === pathBefore.audit, String(atomic.status));
+
+const editSku = `EDT-${crypto.randomUUID().slice(0, 8)}`;
+const editProduct = (await call('POST', '/api/admin/products/with-setup', { token: admin, body: newProduct(editSku, 'Editavel', { description: 'curta' }) })).json;
+const putBody = (extra = {}) => ({ sku: editSku, name: 'Editavel', description: 'curta', categoryId: cat.soft.id, imageUrl: null, isActive: true, attributes: {}, ...extra });
+const editBad = await call('PUT', `/api/admin/products/${editProduct.id}`, { token: admin, body: putBody({ name: 'Renomeado', imageUrl: 'http://exemplo.com/a.png', description: 'd'.repeat(2001) }) });
+ok('edit refuses invalid data with the same field messages as create (400, imageUrl and description named)',
+  editBad.status === 400 && editBad.json?.some((p) => p.field === 'imageUrl') && editBad.json?.some((p) => p.field === 'description'), JSON.stringify(editBad.json));
+ok('...and stored nothing of it', sql(`select name || '/' || coalesce(image_url, '-') || '/' || length(coalesce(description, ''))  from products where id='${editProduct.id}'`) === 'Editavel/-/5');
+const editTaken = await call('PUT', `/api/admin/products/${editProduct.id}`, { token: admin, body: putBody({ sku: 'BEER-001' }) });
+ok('...a SKU another product has is a 409 on the sku field', editTaken.status === 409 && editTaken.json?.[0]?.field === 'sku', String(editTaken.status));
+ok('...an edit with no category is refused too (400, categoryId named), like a create', await (async () => { const r = await call('PUT', `/api/admin/products/${editProduct.id}`, { token: admin, body: putBody({ categoryId: null }) }); return r.status === 400 && r.json?.some((p) => p.field === 'categoryId'); })());
+ok('...a valid edit is saved (204)', (await call('PUT', `/api/admin/products/${editProduct.id}`, { token: admin, body: putBody({ name: 'Renomeado' }) })).status === 204 && sql(`select name from products where id='${editProduct.id}'`) === 'Renomeado');
+
+// A product that breaks the rules, built straight in the database (an older version of the code, a restore): it can still be deactivated,
+// but any other change is validated as a whole.
+const brokenSku = `BRK-${crypto.randomUUID().slice(0, 8)}`;
+const brokenId = crypto.randomUUID();
+sql(`insert into products (id, sku, name, description, image_url, is_active, attributes) values ('${brokenId}', '${brokenSku}', 'Quebrado', 'desc', 'http://exemplo.com/a.png', true, '{}')`);
+const brokenPut = (extra = {}) => ({ sku: brokenSku, name: 'Quebrado', description: 'desc', categoryId: null, imageUrl: 'http://exemplo.com/a.png', isActive: true, attributes: {}, ...extra });
+ok('a product that breaks the rules: a rename together with the active flag is validated and refused (400)', (await call('PUT', `/api/admin/products/${brokenId}`, { token: admin, body: brokenPut({ name: 'Outro', isActive: false }) })).status === 400);
+ok('...an edit that changes nothing is validated too (400)', (await call('PUT', `/api/admin/products/${brokenId}`, { token: admin, body: brokenPut() })).status === 400);
+ok('...only the active flag changing is accepted (204) and nothing else moves', (await call('PUT', `/api/admin/products/${brokenId}`, { token: admin, body: brokenPut({ isActive: false }) })).status === 204
+  && sql(`select is_active || '/' || name || '/' || image_url from products where id='${brokenId}'`) === 'false/Quebrado/http://exemplo.com/a.png');
+const check = await call('GET', '/api/admin/products/data-check', { token: admin });
+const checkRow = check.json?.products?.find((p) => p.id === brokenId);
+const noCatImport = await importCsv(`sku,name\nNOC-${crypto.randomUUID().slice(0, 8)},Sem categoria\n`);
+ok('import refuses a NEW product with no category (400, line 2, field category) like create', noCatImport.status === 400 && noCatImport.json?.errors?.[0]?.field === 'category' && noCatImport.json.errors[0].line === 2, JSON.stringify(noCatImport.json));
+ok('the data check lists it with its fields (imageUrl and categoryId), changes nothing, and does not list a valid product', check.status === 200 && checkRow?.problems?.some((p) => p.field === 'imageUrl') && checkRow.problems.some((p) => p.field === 'categoryId')
+  && !check.json.products.some((p) => p.id === editProduct.id) && sql(`select image_url from products where id='${brokenId}'`) === 'http://exemplo.com/a.png');
+
+const impBadSku = `IMB-${crypto.randomUUID().slice(0, 8)}`;
+const impGoodSku = `IMG-${crypto.randomUUID().slice(0, 8)}`;
+const badRowCsv = `sku,name,description,category\n${impGoodSku},Bom,ok,Cervejas\n${impBadSku},Ruim,"${'x'.repeat(2001)}",Cervejas\n`;
+for (const query of ['?dryRun=true', '']) {
+  const badRow = await importCsv(badRowCsv, query);
+  const failure = badRow.json?.errors?.[0];
+  ok(`import rejects a row that breaks the product rules${query ? ' in the dry run' : ''}: 400 naming line 3, the SKU and the field, and the good row is not saved either`,
+    badRow.status === 400 && badRow.json.errors.length === 1 && failure.line === 3 && failure.sku === impBadSku && failure.field === 'description'
+    && sql(`select count(*) from products where sku in ('${impGoodSku}', '${impBadSku}')`) === '0', JSON.stringify(badRow.json));
+}
+ok('import refuses a row for the stored product that breaks the rules, and leaves it as it was', (await importCsv(`sku,name\n${brokenSku},Novo nome\n`)).status === 400 && sql(`select name from products where id='${brokenId}'`) === 'Quebrado');
+sql(`delete from products where id='${brokenId}'`);
+
 section('SECURITY: authorization matrix (every endpoint x every role)');
 const ID = crypto.randomUUID();
 const tokens = { anon: undefined, client: clientA.token, employee: emp, admin };
@@ -794,7 +852,7 @@ const endpoints = [
   ['GET', `/api/admin/deals/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/deals/${ID}`, { name: 'x', discountType: 'Percent', discountValue: 1, startDate: iso(0), endDate: iso(1), productIds: [], categoryIds: [], minQty: 1 }, ['admin']], ['DELETE', `/api/admin/deals/${ID}`, undefined, ['admin']],
   ['GET', '/api/admin/pricing-tiers', undefined, ['admin']], ['POST', '/api/admin/pricing-tiers', { name: 'Q', isDefault: false }, ['admin']], ['PUT', `/api/admin/pricing-tiers/${ID}`, { name: 'Q', isDefault: false }, ['admin']],
   ['GET', `/api/admin/products/${ID}/pricing`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}/pricing`, { pricingTierId: ID, unitPrice: 1, minQty: 1 }, ['admin']], ['DELETE', `/api/admin/products/${ID}/pricing/${ID}/1`, undefined, ['admin']],
-  ['GET', '/api/admin/products', undefined, ['admin']], ['POST', '/api/admin/products', { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} }, ['admin']],
+  ['GET', '/api/admin/products', undefined, ['admin']], ['GET', '/api/admin/products/data-check', undefined, ['admin']],
   ['POST', '/api/admin/products/with-setup', { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {}, prices: [], stock: [] }, ['admin']],
   ['GET', `/api/admin/products/${ID}`, undefined, ['admin']], ['PUT', `/api/admin/products/${ID}`, { sku: 'S', name: 'N', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} }, ['admin']], ['DELETE', `/api/admin/products/${ID}`, undefined, ['admin']],
   ['GET', '/api/admin/coverage-areas', undefined, ['admin']], ['POST', '/api/admin/coverage-areas', { warehouseId: ID, type: 'Radius', radiusMiles: 1, polygonGeoJson: null }, ['admin']],
@@ -912,12 +970,13 @@ await expectNot500('malformed json', 'POST', '/api/auth/login', { raw: '{"email"
 await expectNot500('empty body', 'POST', '/api/quotes', { token: clientA.token, raw: '', headers: { 'Content-Type': 'application/json' } });
 await expectNot500('wrong content type', 'POST', '/api/auth/login', { raw: 'email=a&password=b', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 await expectNot500('json array instead of object', 'POST', '/api/auth/login', { raw: '[1,2,3]', headers: { 'Content-Type': 'application/json' } });
-await expectNot500('null body', 'POST', '/api/admin/products', { token: admin, raw: 'null', headers: { 'Content-Type': 'application/json' } });
-await expectNot500('empty object product', 'POST', '/api/admin/products', { token: admin, body: {} });
+await expectNot500('null body (edit)', 'PUT', `/api/admin/products/${prod.cola.id}`, { token: admin, raw: 'null', headers: { 'Content-Type': 'application/json' } });
+await expectNot500('empty object (edit)', 'PUT', `/api/admin/products/${prod.cola.id}`, { token: admin, body: {} });
 await expectNot500('null body (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, raw: 'null', headers: { 'Content-Type': 'application/json' } });
 await expectNot500('wrong types (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, body: { sku: 5, name: [], prices: 'x', stock: [{ warehouseId: 'nope', qtyOnHand: 1.5 }], attributes: { a: null } } });
 await expectNot500('empty object (guided create)', 'POST', '/api/admin/products/with-setup', { token: admin, body: {} });
-await expectNot500('wrong types', 'POST', '/api/admin/products', { token: admin, body: { sku: 5, name: [], isActive: 'yes', attributes: 'x' } });
+await expectNot500('wrong types (edit)', 'PUT', `/api/admin/products/${prod.cola.id}`, { token: admin, body: { sku: 5, name: [], isActive: 'yes', attributes: 'x' } });
+await expectNot500('the removed create endpoint', 'POST', '/api/admin/products', { token: admin, body: {} });
 await expectNot500('enum garbage', 'POST', '/api/admin/deals', { token: admin, body: { name: 'x', discountType: 'Bogus', discountValue: 1, startDate: iso(0), endDate: iso(1), productIds: [], categoryIds: [], minQty: 1 } });
 await expectNot500('negative quantity', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: -1 }] } });
 await expectNot500('zero quantity', 'POST', '/api/quotes', { token: clientA.token, body: { lineItems: [{ productId: prod.cola.id, qty: 0 }] } });
@@ -957,9 +1016,10 @@ await mustBe400('radius area with negative radius', 'POST', '/api/admin/coverage
 await mustBe400('radius area with no radius', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: wh1.id, type: 'Radius', radiusMiles: null, polygonGeoJson: null } });
 await mustBe400('coverage area for unknown warehouse', 'POST', '/api/admin/coverage-areas', { token: admin, body: { warehouseId: crypto.randomUUID(), type: 'Radius', radiusMiles: 5, polygonGeoJson: null } });
 await mustBe400('approve with unknown tier', 'PUT', `/api/admin/clients/${clientP.id}/approve`, { token: admin, body: { pricingTierId: crypto.randomUUID() } });
-await mustBe400('product with blank SKU', 'POST', '/api/admin/products', { token: admin, body: { sku: '  ', name: 'x', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
-await mustBe400('product with blank name', 'POST', '/api/admin/products', { token: admin, body: { sku: 'OK-1', name: '', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
-await mustBe400('product with a duplicate SKU', 'POST', '/api/admin/products', { token: admin, body: { sku: 'BEER-001', name: 'Duplicate', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
+await mustBe400('product with blank SKU', 'POST', '/api/admin/products/with-setup', { token: admin, body: newProduct('  ', 'x') });
+await mustBe400('product with blank name', 'POST', '/api/admin/products/with-setup', { token: admin, body: newProduct('OK-1', '') });
+await mustBe400('product with a duplicate SKU', 'POST', '/api/admin/products/with-setup', { token: admin, body: newProduct('BEER-001', 'Duplicate') });
+await mustBe400('an edit with a blank SKU', 'PUT', `/api/admin/products/${prod.cola.id}`, { token: admin, body: { sku: '  ', name: 'x', description: null, categoryId: null, imageUrl: null, isActive: true, attributes: {} } });
 await mustBe400('negative unit price', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: standard.id, unitPrice: -1, minQty: 1 } });
 await mustBe400('pricing with min quantity 0', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: standard.id, unitPrice: 1, minQty: 0 } });
 await mustBe400('pricing for an unknown tier', 'PUT', `/api/admin/products/${prod.cola.id}/pricing`, { token: admin, body: { pricingTierId: crypto.randomUUID(), unitPrice: 1, minQty: 1 } });

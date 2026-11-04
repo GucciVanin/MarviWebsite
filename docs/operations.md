@@ -136,3 +136,15 @@ is categorised this way too). A customer who is a person must be changed by an a
 3. To list who still has no registration data: `SELECT number, company_name FROM client_accounts WHERE account_type = 0 AND cnpj IS NULL ORDER BY number;`
    (`account_type`: 0 = Business, 1 = Personal). Do not write CPFs with SQL: the column is encrypted, and only the application can write and read it.
 
+## 8. Product data check before the production migration (MRV-9.8)
+
+Create, edit and the CSV import now share one rule set (`ProductRules`): SKU 3 to 40 characters of letters, digits, `-`, `_` and `.` (unique ignoring case); name 2 to 200; description up to 2,000; image only `https` and up to 500; at most 30 attributes (name 1 to 60, value 1 to 200, no repeated name ignoring case); no control or invisible characters in names and values. a category is required. Products stored before these rules (an older SKU of up to 64 characters, a long description, an `http` image, many attributes, a CSV import that allowed more) are NOT rewritten by anything. Until they are fixed they cannot be edited (the form shows what to correct), a CSV row for them is refused, and the only edit that always works is activating or deactivating them.
+
+**Before the first production migration, run the data check and fix what it lists** (read-only, admin only):
+
+```
+TOKEN=$(curl -s -X POST https://<api>/api/auth/login -H 'Content-Type: application/json' -d '{"email":"<admin e-mail>","password":"<admin password>"}' | jq -r .token)
+curl -s https://<api>/api/admin/products/data-check -H "Authorization: Bearer $TOKEN" | jq '{checked, broken, products: [.products[] | {sku, name, problems}]}'
+```
+
+`broken: 0` means nothing to do. Otherwise each listed product has its SKU, name and the field messages (`sku`, `name`, `description`, `imageUrl`, `attributes`, `categoryId` for a product with no category): open it in Catálogo, Editar, correct the fields and save (a SKU that must change is changed there too; quotes and orders keep their own copy of the name and price). Run the check again until it lists nothing. It checks the content rules only (a duplicate SKU ignoring case cannot exist: the database has a unique index for it). It does not change any data and can be run as often as needed; do not fix by hand in SQL, so the audit trail records each correction.

@@ -76,6 +76,9 @@ _Avoid_: Document, personal id
 A company's ICMS registration (`Inscrição estadual`), required only when its status is Contributor; Exempt and non-contributor companies have none.
 _Avoid_: IE number (in prose)
 
+**Product rules** (MRV-9.8):
+The single set of limits a product must meet, whatever way it arrives: created in the admin portal, edited later or brought in by the CSV import (SKU, name, description, https image, attributes). One validator in the domain, `ProductRules`, decides all three; there is no lenient path. A product stored before the rules that breaks them is not rewritten: it is listed by the data check and must be corrected to be edited again (it can still be deactivated).
+
 **Pricing tier**:
 A named price list a Customer is assigned to; exactly one is the default, used for anonymous visitors and new Customers.
 _Avoid_: Price group, level
