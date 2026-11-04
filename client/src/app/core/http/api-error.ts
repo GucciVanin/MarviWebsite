@@ -6,6 +6,22 @@ export interface ApiError {
   status: number;
   message: string;
   detail: string | null;
+  /** The problems the server named by field (`[{ field, message }]`, MRV-9.4), so a form can show each next to its control. */
+  fields?: FieldProblem[];
+}
+
+export interface FieldProblem {
+  field: string;
+  message: string;
+}
+
+/** The `[{ field, message }]` list the API answers a registration-data 400 with; null for any other body. */
+export function fieldProblems(body: unknown): FieldProblem[] | null {
+  if (!Array.isArray(body) || body.length === 0) {
+    return null;
+  }
+  const found = body.filter((item): item is FieldProblem => !!item && typeof item === 'object' && typeof item.field === 'string' && typeof item.message === 'string');
+  return found.length === body.length ? found : null;
 }
 
 function serverText(body: unknown): string | null {
@@ -30,6 +46,14 @@ function messageFor(status: number): string {
   return PT.errors.generic;
 }
 
+/** The machine-readable reason the API gives when a customer's account is Suspended (MRV-9.9): sign-in refused, or a request made with an old token. */
+export const ACCOUNT_SUSPENDED = 'account_suspended';
+
+/** True when `error` is the API's "your account is suspended" answer (403 with the code), not any other 403. */
+export function isSuspendedAnswer(error: unknown): boolean {
+  return error instanceof HttpErrorResponse && error.status === 403 && (error.error as { code?: unknown } | null)?.code === ACCOUNT_SUSPENDED;
+}
+
 /** True when `error` is an HTTP failure with one of the given statuses (e.g. 400/401 for rejected credentials). */
 export function hasStatus(error: unknown, ...statuses: number[]): boolean {
   return error instanceof HttpErrorResponse && statuses.includes(error.status);
@@ -39,10 +63,12 @@ export function describeApiError(error: unknown): ApiError {
   if (!(error instanceof HttpErrorResponse)) {
     return { status: 0, message: PT.errors.generic, detail: null };
   }
+  const fields = error.status === 0 ? null : fieldProblems(error.error);
   return {
     status: error.status,
     message: messageFor(error.status),
     // No server text on a network failure: the "body" is a browser event, not something to show.
-    detail: error.status === 0 ? null : serverText(error.error),
+    detail: error.status === 0 ? null : fields ? fields.map((p) => p.message).join(' ') : serverText(error.error),
+    ...(fields ? { fields } : {}),
   };
 }

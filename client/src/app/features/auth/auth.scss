@@ -16,6 +16,18 @@
   box-shadow: var(--shadow-lg);
 }
 
+.auth-card--wide { max-width: 40rem; } // the registration also holds an address form
+
+.address-group {
+  min-width: 0;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: 0;
+
+  legend { display: flex; align-items: center; gap: 0.5rem; padding: 0; margin-bottom: var(--space-1); font-size: var(--text-sm); font-weight: 600; }
+  > p { margin: 0 0 var(--space-2); }
+}
+
 .auth-title {
   font-size: var(--text-2xl);
 }

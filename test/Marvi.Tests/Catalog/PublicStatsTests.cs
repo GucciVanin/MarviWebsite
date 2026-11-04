@@ -43,12 +43,12 @@ public class PublicStatsTests : IClassFixture<MarviApiFactory>
     public async Task Stats_CountOnlyActiveProductsAndActiveCategories()
     {
         var admin = await _factory.AdminAsync();
+        await admin.EnsureTestCategoryAsync(); // the category the helper creates products in must exist before the first reading
         var before = await StatsAsync();
 
         await admin.CreateProductAsync();
         await admin.CreateProductAsync();
-        var inactive = await admin.PostAsJsonAsync("/api/admin/products",
-            new UpsertProductRequest(Unique("SKU"), "Hidden", null, null, null, false, new Dictionary<string, string>()));
+        var inactive = await admin.PostProductAsync(Unique("SKU"), "Hidden", isActive: false);
         inactive.EnsureSuccessStatusCode();
         (await admin.PostAsJsonAsync("/api/admin/categories", new UpsertCategoryRequest(Unique("Cat"), 1, true))).EnsureSuccessStatusCode();
         (await admin.PostAsJsonAsync("/api/admin/categories", new UpsertCategoryRequest(Unique("Off"), 2, false))).EnsureSuccessStatusCode();

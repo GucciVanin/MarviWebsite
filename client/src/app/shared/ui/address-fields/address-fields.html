@@ -1,0 +1,79 @@
+<div class="address-fields">
+  @if (!compact()) {
+    <div class="field">
+      <label [for]="idPrefix() + '-label'">{{ t.label }}</label>
+      <input [id]="idPrefix() + '-label'" [name]="idPrefix() + '-label'" type="text" autocomplete="off" required [maxLength]="limits.label" [attr.aria-describedby]="idPrefix() + '-label-hint'" [readOnly]="readOnly()" [ngModel]="draft().label()" (ngModelChange)="draft().label.set($event)" />
+      <p [id]="idPrefix() + '-label-hint'" class="muted">{{ t.labelHint }}</p>
+    </div>
+    <div class="field">
+      <label [for]="idPrefix() + '-kind'">{{ t.kind }}</label>
+      <select [id]="idPrefix() + '-kind'" [name]="idPrefix() + '-kind'" required [disabled]="readOnly()" [ngModel]="draft().kind()" (ngModelChange)="draft().kind.set($event)">
+        @for (kind of kinds(); track kind) {
+          <option [value]="kind">{{ t.kinds[kind] }}</option>
+        }
+      </select>
+    </div>
+  }
+  <div class="field">
+    <label [for]="idPrefix() + '-cep'">{{ t.postalCode }}</label>
+    <input
+      [id]="idPrefix() + '-cep'" [name]="idPrefix() + '-cep'" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" required maxlength="9"
+      [attr.aria-describedby]="idPrefix() + '-cep-problem'" [attr.aria-invalid]="draft().problem() ? 'true' : null" [readOnly]="readOnly()"
+      [value]="draft().postalCode()" (input)="onPostalCode($event)"
+    />
+    <p [id]="idPrefix() + '-cep-problem'" class="muted" role="status">{{ draft().problem() }}</p>
+  </div>
+  <div class="field">
+    <label [for]="idPrefix() + '-street'">{{ t.street }}</label>
+    <input [id]="idPrefix() + '-street'" [name]="idPrefix() + '-street'" type="text" autocomplete="address-line1" required [maxLength]="limits.street" [readOnly]="readOnly()" [ngModel]="draft().street()" (ngModelChange)="draft().street.set($event)" />
+  </div>
+  <div class="field">
+    <label [for]="idPrefix() + '-number'">{{ t.number }}</label>
+    <input [id]="idPrefix() + '-number'" [name]="idPrefix() + '-number'" type="text" autocomplete="off" required [maxLength]="limits.number" [attr.aria-describedby]="idPrefix() + '-number-hint'" [readOnly]="readOnly()" [ngModel]="draft().number()" (ngModelChange)="draft().number.set($event)" />
+    <p [id]="idPrefix() + '-number-hint'" class="muted">{{ t.numberHint }}</p>
+  </div>
+  <div class="field">
+    <label [for]="idPrefix() + '-complement'">{{ t.complement }}</label>
+    <input [id]="idPrefix() + '-complement'" [name]="idPrefix() + '-complement'" type="text" autocomplete="address-line2" [maxLength]="limits.complement" [readOnly]="readOnly()" [ngModel]="draft().complement()" (ngModelChange)="draft().complement.set($event)" />
+  </div>
+  <div class="field">
+    <label [for]="idPrefix() + '-district'">{{ t.district }}</label>
+    <input [id]="idPrefix() + '-district'" [name]="idPrefix() + '-district'" type="text" autocomplete="off" required [maxLength]="limits.district" [readOnly]="readOnly()" [ngModel]="draft().district()" (ngModelChange)="draft().district.set($event)" />
+  </div>
+  <div class="field">
+    <label [for]="idPrefix() + '-city'">{{ t.city }}</label>
+    <input [id]="idPrefix() + '-city'" [name]="idPrefix() + '-city'" type="text" autocomplete="address-level2" required [maxLength]="limits.city" [readOnly]="readOnly()" [ngModel]="draft().city()" (ngModelChange)="draft().city.set($event)" />
+  </div>
+  <div class="field">
+    <label [for]="idPrefix() + '-state'">{{ t.state }}</label>
+    <select [id]="idPrefix() + '-state'" [name]="idPrefix() + '-state'" autocomplete="address-level1" required [disabled]="readOnly()" [ngModel]="draft().state()" (ngModelChange)="draft().state.set($event)">
+      <option value="">{{ t.chooseState }}</option>
+      @for (state of states; track state.uf) {
+        <option [value]="state.uf">{{ state.uf }} — {{ state.name }}</option>
+      }
+    </select>
+  </div>
+  @if (!compact()) {
+    <div class="field">
+      <label [for]="idPrefix() + '-notes'">{{ t.notes }}</label>
+      <input [id]="idPrefix() + '-notes'" [name]="idPrefix() + '-notes'" type="text" autocomplete="off" [maxLength]="limits.notes" [attr.aria-describedby]="idPrefix() + '-notes-hint'" [readOnly]="readOnly()" [ngModel]="draft().deliveryNotes()" (ngModelChange)="draft().deliveryNotes.set($event)" />
+      <p [id]="idPrefix() + '-notes-hint'" class="muted">{{ t.notesHint }}</p>
+    </div>
+    @if (offerBilling() && draft().kind() !== 'Delivery') {
+      <div class="field">
+        <label [for]="idPrefix() + '-billing'">
+          <input [id]="idPrefix() + '-billing'" [name]="idPrefix() + '-billing'" type="checkbox" [disabled]="readOnly()" [ngModel]="draft().makeBilling()" (ngModelChange)="draft().makeBilling.set($event)" />
+          {{ t.makeBilling }}
+        </label>
+      </div>
+    }
+    @if (offerDefault() && draft().kind() !== 'Billing') {
+      <div class="field">
+        <label [for]="idPrefix() + '-default'">
+          <input [id]="idPrefix() + '-default'" [name]="idPrefix() + '-default'" type="checkbox" [disabled]="readOnly()" [ngModel]="draft().makeDefault()" (ngModelChange)="draft().makeDefault.set($event)" />
+          {{ t.makeDefault }}
+        </label>
+      </div>
+    }
+  }
+</div>

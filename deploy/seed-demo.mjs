@@ -8,12 +8,17 @@
 //     cliente@demo.marvi.test    Bar do Demo                      Approved, Standard tier, has a priced quote and a quote in the queue
 //     mercado@demo.marvi.test    Mercado Atacadão Demo            Approved, Atacado tier, has an order
 //     pendente@demo.marvi.test   Mercearia Aguardando Aprovação   Pending (try "Aprovar" in the admin area)
-//     suspenso@demo.marvi.test   Loja Suspensa Demo               Suspended
+//     suspenso@demo.marvi.test   Loja Suspensa Demo               Suspended (cannot sign in: the login says so, MRV-9.9)
+//     pessoa@demo.marvi.test     João da Silva (conta pessoal)    Approved, Standard tier, a personal account with CPF and birth date
+//   Business accounts carry a CNPJ and the rest of the company data (the Pending one has only a CNPJ, so the completeness indicator shows what is missing;
+//   the wholesale market has the Receita's alphanumeric CNPJ example). The numbers are the usual public test numbers, not real people or companies.
 //
 // Catalog: 4 categories, 8 products (one without a price, one out of stock), prices in two tiers, stock in two warehouses
-// with coverage areas, and one running deal.
+// with coverage areas, and one running deal. Six products have a photo (a flat-colour PNG made here, uploaded through the real
+// endpoint like an admin would, MRV-9.7); two have none, so the placeholder shows too. Some have a description and extra attributes.
 
 import { readFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 
 const API = 'http://localhost:8080';
 // The stack uses deploy/.env when it exists (that is where the admin the API really seeds comes from), else the example values.
@@ -55,6 +60,29 @@ for (const [order, name] of [[1, 'Cervejas'], [2, 'Refrigerantes'], [3, 'Águas'
   category[name] = await call('POST', '/api/admin/categories', admin, { name, sortOrder: order, isActive: true });
 }
 
+// ---- product photos (MRV-9.7): a flat-colour 480 x 480 PNG per product, made here (no files in the repository)
+const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+const pngChunk = (type, data) => {
+  const t = Buffer.from(type, 'ascii');
+  const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])));
+  return Buffer.concat([length, t, data, crc]);
+};
+const flatPng = (width, height, [r, g, b]) => {
+  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 2; // 8-bit RGB
+  const rows = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) { const at = y * (width * 3 + 1) + 1 + x * 3; rows[at] = r; rows[at + 1] = g; rows[at + 2] = b; }
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), pngChunk('IHDR', header), pngChunk('IDAT', deflateSync(rows)), pngChunk('IEND', Buffer.alloc(0))]);
+};
+const uploadPhoto = async (token, bytes, name) => {
+  const form = new FormData();
+  form.append('photo', new Blob([bytes], { type: 'image/png' }), name);
+  const res = await fetch(`${API}/api/admin/media/product-photos`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+  if (res.status !== 200) throw new Error(`photo upload -> ${res.status} ${(await res.text()).slice(0, 200)}`);
+  return (await res.json()).photoToken;
+};
+
 // ---- warehouses and coverage
 const sp = await call('POST', '/api/admin/warehouses', admin, { name: 'CD São Paulo', address: 'Av. Industrial, 100, São Paulo, SP', latitude: -23.5505, longitude: -46.6333 });
 const campinas = await call('POST', '/api/admin/warehouses', admin, { name: 'CD Campinas', address: 'Rod. dos Bandeirantes, km 90, Campinas, SP', latitude: -22.9099, longitude: -47.0626 });
@@ -65,7 +93,7 @@ for (const warehouse of [sp, campinas]) {
 // ---- products: sku, name, category, Standard price, Atacado price, stock in São Paulo / Campinas, attributes
 const products = {};
 const catalog = [
-  ['CERV-LAGER-600', 'Cerveja Lager 600ml', 'Cervejas', 9.0, 7.8, 200, 150, { Marca: 'Serra Azul', Volume: '600 ml' }],
+  ['CERV-LAGER-600', 'Cerveja Lager 600ml', 'Cervejas', 9.0, 7.8, 200, 150, { Marca: 'Serra Azul', Volume: '600 ml', 'Teor alcoólico': '4,8%', 'Quantidade por caixa': '12', Unidade: 'Garrafa', Origem: 'Serra Gaúcha', Certificação: 'SIF' }],
   ['CERV-PILSEN-350', 'Cerveja Pilsen 350ml', 'Cervejas', 4.2, 3.6, 300, 0, { Marca: 'Serra Azul', Volume: '350 ml' }],
   ['REFRI-COLA-2L', 'Refrigerante Cola 2L', 'Refrigerantes', 8.5, 7.4, 150, 80, { Volume: '2 L' }],
   ['REFRI-LARANJA-2L', 'Refrigerante Laranja 2L', 'Refrigerantes', 7.9, 6.9, 0, 0, { Volume: '2 L' }],
@@ -74,8 +102,14 @@ const catalog = [
   ['ENERG-250', 'Energético 250ml', 'Energéticos', 6.5, 5.6, 120, 60, { Volume: '250 ml' }],
   ['MIXER-TONICA', 'Água Tônica 350ml (sem preço cadastrado)', 'Águas', null, null, 40, 0, { Volume: '350 ml' }],
 ];
+const colours = { Cervejas: [201, 138, 16], Refrigerantes: [216, 32, 47], Águas: [58, 130, 214], Energéticos: [28, 138, 84] };
+const descriptions = { 'CERV-LAGER-600': 'Cerveja lager de corpo leve e final seco, ideal para bares e restaurantes. Vendida em caixas fechadas, direto do centro de distribuição mais próximo da sua loja.', 'REFRI-COLA-2L': 'Refrigerante sabor cola, garrafa PET de 2 litros.' };
+const withoutPhoto = new Set(['ENERG-250', 'MIXER-TONICA']);
 for (const [sku, name, categoryName, standardPrice, atacadoPrice, stockSp, stockCampinas, attributes] of catalog) {
-  const product = await call('POST', '/api/admin/products', admin, { sku, name, description: null, categoryId: category[categoryName].id, imageUrl: null, isActive: true, attributes });
+  // The one way to create a product (MRV-9.8); the prices and stock below are set through their own endpoints so the reorder point can be given.
+  // The photo is uploaded first and linked by its token in the same save (MRV-9.7).
+  const photoToken = withoutPhoto.has(sku) ? null : await uploadPhoto(admin, flatPng(480, 480, colours[categoryName]), `${sku}.png`);
+  const product = await call('POST', '/api/admin/products/with-setup', admin, { sku, name, description: descriptions[sku] ?? null, categoryId: category[categoryName].id, photoToken, isActive: true, attributes, prices: [], stock: [] });
   products[sku] = product;
   if (standardPrice !== null) {
     await call('PUT', `/api/admin/products/${product.id}/pricing`, admin, { pricingTierId: standard.id, unitPrice: standardPrice, minQty: 1 });
@@ -95,37 +129,57 @@ await call('POST', '/api/admin/deals', admin, {
 // ---- people
 await call('POST', '/api/admin/employees', admin, { email: EMPLOYEE.email, password: EMPLOYEE.password, employeeCode: 'FUNC-001', department: 'Vendas', hireDate: new Date().toISOString() });
 const customers = {};
-for (const [key, email, companyName] of [
-  ['bar', 'cliente@demo.marvi.test', 'Bar do Demo'],
-  ['mercado', 'mercado@demo.marvi.test', 'Mercado Atacadão Demo'],
-  ['pendente', 'pendente@demo.marvi.test', 'Mercearia Aguardando Aprovação'],
-  ['suspenso', 'suspenso@demo.marvi.test', 'Loja Suspensa Demo'],
+// Registration data (MRV-9.4): the account type and its fields. The CNPJs and the CPF are public test numbers with valid check digits.
+const company = (over) => ({
+  phone: '(11) 3333-4444', invoiceEmail: 'nfe@demo.marvi.test', legalName: 'Demo Comércio de Bebidas Ltda', tradeName: 'Demo', stateRegistrationStatus: 'Contributor',
+  stateRegistration: '110.042.490.114', municipalRegistration: '1.234.567-8', mainCnae: '4723-7/00', taxRegime: 'SimplesNacional', openingDate: '2012-03-15', contactName: 'Responsável Demo', ...over,
+});
+// Each customer registers with a structured billing address (MRV-9.3): [key, email, name, street, number, district, CEP, account type, registration].
+for (const [key, email, companyName, street, number, district, postalCode, accountType, registration] of [
+  ['bar', 'cliente@demo.marvi.test', 'Bar do Demo', 'Rua Augusta', '1200', 'Consolação', '01304-001', 'Business', company({ cnpj: '11.222.333/0001-81', tradeName: 'Bar do Demo', legalName: 'Bar do Demo Ltda' })],
+  ['mercado', 'mercado@demo.marvi.test', 'Mercado Atacadão Demo', 'Avenida Paulista', '900', 'Bela Vista', '01310-100', 'Business', company({ cnpj: '12.ABC.345/01DE-35', legalName: 'Mercado Atacadão Demo S.A.', tradeName: 'Atacadão Demo', taxRegime: 'LucroPresumido' })],
+  ['pendente', 'pendente@demo.marvi.test', 'Mercearia Aguardando Aprovação', 'Rua da Consolação', '45', 'Centro', '01302-000', 'Business', { cnpj: '11.444.777/0001-61' }],
+  ['suspenso', 'suspenso@demo.marvi.test', 'Loja Suspensa Demo', 'Rua Oscar Freire', '300', 'Jardins', '01426-001', 'Business', company({ stateRegistrationStatus: 'Exempt', stateRegistration: null })],
+  ['pessoa', 'pessoa@demo.marvi.test', 'João da Silva', 'Rua Haddock Lobo', '595', 'Cerqueira César', '01414-001', 'Personal', { cpf: '111.444.777-35', birthDate: '1990-03-02', phone: '(11) 98888-7777', invoiceEmail: 'joao@demo.marvi.test' }],
 ]) {
-  const { id } = await call('POST', '/api/auth/register', null, { email, password: CUSTOMER_PASSWORD, companyName, billingAddress: `Rua ${companyName.split(' ')[0]}, 1, São Paulo, SP` });
+  const { id } = await call('POST', '/api/auth/register', null, {
+    email, password: CUSTOMER_PASSWORD, companyName,
+    billingAddress: { label: 'Matriz', postalCode, street, number, district, city: 'São Paulo', state: 'SP' },
+    accountType, registration,
+  });
   customers[key] = { id, email, token: await login({ email, password: CUSTOMER_PASSWORD }) };
 }
 // Registration leaves a customer Pending: the admin approves, choosing the tier (nobody is approved by default).
 await call('PUT', `/api/admin/clients/${customers.bar.id}/approve`, admin, { pricingTierId: standard.id });
 await call('PUT', `/api/admin/clients/${customers.mercado.id}/approve`, admin, { pricingTierId: atacado.id });
+await call('PUT', `/api/admin/clients/${customers.pessoa.id}/approve`, admin, { pricingTierId: standard.id });
 await call('PUT', `/api/admin/clients/${customers.suspenso.id}/approve`, admin, { pricingTierId: standard.id });
 await call('PUT', `/api/admin/clients/${customers.suspenso.id}/suspend`, admin);
-await call('PUT', '/api/client/profile', customers.bar.token, {
-  companyName: 'Bar do Demo', billingAddress: 'Rua do Bar, 1, São Paulo, SP', shippingAddresses: ['Rua do Bar, 1, São Paulo, SP', 'Av. das Flores, 200, Campinas, SP'],
+// The bar keeps a second address of each kind besides its headquarters (Both: billing and default delivery): a delivery point and a branch.
+await call('POST', '/api/client/addresses', customers.bar.token, {
+  label: 'Filial Campinas', kind: 'Delivery', postalCode: '13010-111', street: 'Avenida das Flores', number: '200', complement: 'Loja 2', district: 'Centro', city: 'Campinas', state: 'SP',
+  deliveryNotes: 'Entregas de segunda a sexta, das 8h às 12h.',
+});
+await call('POST', '/api/client/addresses', customers.bar.token, {
+  label: 'Depósito Guarulhos', kind: 'Delivery', postalCode: '07190-100', street: 'Rua do Depósito', number: 's/n', district: 'Cumbica', city: 'Guarulhos', state: 'SP',
 });
 
 // ---- quotes and orders
 const employee = await login(EMPLOYEE);
-const quote = (token, lines) => call('POST', '/api/quotes', token, { lineItems: lines.map(([sku, qty]) => ({ productId: products[sku].id, qty })) });
+// A quote is delivered to the address the customer chooses (MRV-9.6); without a key it goes to their default delivery address.
+const quote = (token, lines, deliveryAddressKey = undefined) => call('POST', '/api/quotes', token, { lineItems: lines.map(([sku, qty]) => ({ productId: products[sku].id, qty })), deliveryAddressKey });
+const barAddresses = (await call('GET', '/api/client/profile', customers.bar.token)).addresses;
+const barAddress = (label) => barAddresses.find((a) => a.label === label).key;
 const priceQuote = (q, discount = 0) => call('PUT', `/api/employee/quotes/${q.id}/price`, employee, {
   lineItems: q.lineItems.map((line) => ({ lineItemId: line.id, finalUnitPrice: Math.round((line.suggestedUnitPrice ?? 0) * (1 - discount) * 100) / 100 })),
 });
 // A priced quote waiting for the customer to accept it, and a new one waiting in the employee's queue.
-await priceQuote(await quote(customers.bar.token, [['REFRI-COLA-2L', 12], ['AGUA-500', 24]]), 0.05);
+await priceQuote(await quote(customers.bar.token, [['REFRI-COLA-2L', 12], ['AGUA-500', 24]], barAddress('Filial Campinas')), 0.05);
 await quote(customers.bar.token, [['CERV-LAGER-600', 10]]);
 // An accepted quote (an order made by the customer) and an order the employee placed directly.
 const accepted = await priceQuote(await quote(customers.mercado.token, [['CERV-PILSEN-350', 48], ['ENERG-250', 12]]));
 await call('POST', `/api/quotes/${accepted.id}/accept`, customers.mercado.token);
-await call('POST', '/api/employee/orders', employee, { clientId: customers.bar.id, deliveryAddress: 'Rua do Bar, 1, São Paulo, SP', lineItems: [{ productId: products['AGUA-GAS-500'].id, qty: 36 }] });
+await call('POST', '/api/employee/orders', employee, { clientId: customers.bar.id, deliveryAddressKey: barAddress('Depósito Guarulhos'), lineItems: [{ productId: products['AGUA-GAS-500'].id, qty: 36 }] });
 
-console.log('Demo data created: 4 categories, 8 products, 2 warehouses, 1 deal, 1 employee, 4 customers, quotes and orders.');
-console.log(`Sign in as the admin (${ADMIN.email}), the employee (${EMPLOYEE.email}) or a customer (cliente@, mercado@, pendente@, suspenso@demo.marvi.test).`);
+console.log('Demo data created: 4 categories, 8 products, 2 warehouses, 1 deal, 1 employee, 5 customers (4 companies, 1 person), quotes and orders.');
+console.log(`Sign in as the admin (${ADMIN.email}), the employee (${EMPLOYEE.email}) or a customer (cliente@, mercado@, pendente@, suspenso@, pessoa@demo.marvi.test).`);

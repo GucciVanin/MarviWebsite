@@ -46,6 +46,97 @@ public class RateLimitingTests : IClassFixture<RateLimitingTests.TightLimitsFact
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
     }
 
+    [Fact]
+    public async Task TheAddressWrites_AreLimited_WithRetryAfter_ButReadingTheProfileIsNot()
+    {
+        using var factory = new TightLimitsFactory(); // its own factory: the auth budget of the shared one is spent by the tests above
+        var (customer, _) = await factory.RegisterPendingClientAsync();
+
+        for (var i = 1; i <= 3; i++)
+        {
+            Assert.Equal(HttpStatusCode.Created, (await customer.PostAsJsonAsync("/api/client/addresses", TestAddresses.Other(i.ToString()))).StatusCode);
+        }
+
+        var limited = await customer.PostAsJsonAsync("/api/client/addresses", TestAddresses.Other("4"));
+        var deleteLimited = await customer.DeleteAsync($"/api/client/addresses/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+        Assert.Equal(HttpStatusCode.TooManyRequests, deleteLimited.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await customer.GetAsync("/api/client/profile")).StatusCode);
+    }
+
+    [Fact]
+    public async Task TheAdminAddressFix_IsLimitedToo_With429AndRetryAfter()
+    {
+        using var factory = new TightLimitsFactory();
+        var (customer, id) = await factory.RegisterPendingClientAsync();
+        var admin = await factory.AdminAsync();
+        var key = (await customer.GetFromJsonAsync<Marvi.Api.Features.Identity.Contracts.ClientOwnProfileDto>("/api/client/profile"))!.Addresses.Single().Key;
+
+        for (var i = 1; i <= 3; i++)
+        {
+            Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync($"/api/admin/clients/{id}/addresses/{key}", TestAddresses.Main with { Label = $"Sede {i}", Kind = Marvi.Domain.Identity.ClientAddressKind.Both })).StatusCode);
+        }
+
+        var limited = await admin.PutAsJsonAsync($"/api/admin/clients/{id}/addresses/{key}", TestAddresses.Main with { Label = "Sede 4", Kind = Marvi.Domain.Identity.ClientAddressKind.Both });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task TheDeliveryAddressChangeOfAQuote_IsLimited_With429AndRetryAfter()
+    {
+        using var factory = new TightLimitsFactory();
+        var (customer, _) = await factory.RegisterPendingClientAsync();
+        var body = new Marvi.Api.Features.Common.ChangeDeliveryAddressRequest(Guid.NewGuid());
+
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(HttpStatusCode.NotFound, (await customer.PutAsJsonAsync("/api/quotes/1/delivery-address", body)).StatusCode);
+        }
+
+        var limited = await customer.PutAsJsonAsync("/api/quotes/1/delivery-address", body);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task TheDeliveryAddressAmendOfAnOrder_IsLimited_With429AndRetryAfter()
+    {
+        using var factory = new TightLimitsFactory();
+        var admin = await factory.AdminAsync();
+        var body = new Marvi.Api.Features.Common.ChangeDeliveryAddressRequest(Guid.NewGuid());
+
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsJsonAsync("/api/employee/orders/1/delivery-address", body)).StatusCode);
+        }
+
+        var limited = await admin.PutAsJsonAsync("/api/employee/orders/1/delivery-address", body);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task TheGuidedProductCreate_IsLimited_With429AndRetryAfter_ButReadingProductsIsNot()
+    {
+        using var factory = new TightLimitsFactory();
+        var admin = await factory.AdminAsync();
+        var body = new Marvi.Api.Features.Catalog.Contracts.CreateProductWithSetupRequest("x", "x", null, null, null, true, null, null, null);
+
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/products/with-setup", body)).StatusCode);
+        }
+
+        var limited = await admin.PostAsJsonAsync("/api/admin/products/with-setup", body);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.True(limited.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/admin/products")).StatusCode);
+    }
+
     /// <summary>Three requests per minute on each limited endpoint group.</summary>
     public sealed class TightLimitsFactory : MarviApiFactory
     {
@@ -56,6 +147,8 @@ public class RateLimitingTests : IClassFixture<RateLimitingTests.TightLimitsFact
             {
                 ["RateLimiting:Auth:PermitLimit"] = "3",
                 ["RateLimiting:Coverage:PermitLimit"] = "3",
+                ["RateLimiting:Addresses:PermitLimit"] = "3",
+                ["RateLimiting:ProductSetup:PermitLimit"] = "3",
             }));
         }
     }

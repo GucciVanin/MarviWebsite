@@ -17,10 +17,30 @@ public static class RateLimiting
     public const string AuthPolicy = "auth";
     public const string CoveragePolicy = "coverage";
     public const string ContactPolicy = "contact";
+    /// <summary>The write endpoints of a customer's addresses and the admin's address fix (MRV-9.3); <c>RateLimiting:Addresses</c>.</summary>
+    public const string AddressesPolicy = "addresses";
+    /// <summary>Creating an account (<c>POST /api/auth/register</c>), tighter than sign-in: it is also a CNPJ/CPF probe (MRV-9.4); <c>RateLimiting:Register</c>.</summary>
+    public const string RegisterPolicy = "register";
+    /// <summary>Saving the customer's own registration data (<c>PUT /api/client/profile</c>); a Pending customer can change the CPF/CNPJ freely, so this bounds duplicate probing (MRV-9.4); <c>RateLimiting:Profile</c>.</summary>
+    public const string ProfilePolicy = "profile";
+    /// <summary>The admin's "Mostrar CPF" (<c>POST .../cpf/reveal</c>), each one audited (MRV-9.4); <c>RateLimiting:Reveal</c>.</summary>
+    public const string RevealPolicy = "reveal";
+
+    /// <summary>The admin's guided product creation (<c>POST /api/admin/products/with-setup</c>): one request writes a product, its prices and its stock (MRV-9.5); <c>RateLimiting:ProductSetup</c>.</summary>
+    public const string ProductSetupPolicy = "productSetup";
+
+    /// <summary>The admin's product photo upload (<c>POST /api/admin/media/product-photos</c>): each call may write up to 5 MB to disk (MRV-9.7); <c>RateLimiting:ProductPhoto</c>.</summary>
+    public const string ProductPhotoPolicy = "productPhoto";
 
     private const int DefaultAuthPermits = 10;
     private const int DefaultCoveragePermits = 30;
     private const int DefaultContactPermits = 5;
+    private const int DefaultAddressesPermits = 60;
+    private const int DefaultRegisterPermits = 5;
+    private const int DefaultProfilePermits = 20;
+    private const int DefaultRevealPermits = 10;
+    private const int DefaultProductSetupPermits = 30;
+    private const int DefaultProductPhotoPermits = 30;
     private const int DefaultWindowSeconds = 60;
 
     public static IServiceCollection AddMarviRateLimiting(this IServiceCollection services, IConfiguration configuration)
@@ -42,6 +62,12 @@ public static class RateLimiting
             AddPolicy(options, AuthPolicy, configuration.GetSection("RateLimiting:Auth"), DefaultAuthPermits);
             AddPolicy(options, CoveragePolicy, configuration.GetSection("RateLimiting:Coverage"), DefaultCoveragePermits);
             AddPolicy(options, ContactPolicy, configuration.GetSection("RateLimiting:Contact"), DefaultContactPermits);
+            AddPolicy(options, AddressesPolicy, configuration.GetSection("RateLimiting:Addresses"), DefaultAddressesPermits);
+            AddPolicy(options, RegisterPolicy, configuration.GetSection("RateLimiting:Register"), DefaultRegisterPermits);
+            AddPolicy(options, ProfilePolicy, configuration.GetSection("RateLimiting:Profile"), DefaultProfilePermits);
+            AddPolicy(options, RevealPolicy, configuration.GetSection("RateLimiting:Reveal"), DefaultRevealPermits);
+            AddPolicy(options, ProductSetupPolicy, configuration.GetSection("RateLimiting:ProductSetup"), DefaultProductSetupPermits);
+            AddPolicy(options, ProductPhotoPolicy, configuration.GetSection("RateLimiting:ProductPhoto"), DefaultProductPhotoPermits);
         });
 
         return services;

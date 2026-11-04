@@ -20,8 +20,8 @@ public class CatalogDataProtectionTests : IClassFixture<MarviApiFactory>
         _factory = factory;
     }
 
-    private static UpsertProductRequest Product(string sku, string name = "Widget") =>
-        new(sku, name, null, null, null, true, new Dictionary<string, string>());
+    private static UpdateProductRequest Product(string sku, Guid category, string name = "Widget") =>
+        new(sku, name, null, category, true, new Dictionary<string, string>());
 
     [Fact]
     public async Task DeleteProduct_IsRefusedOnceItAppearsOnAQuote_AndSucceedsWhenItHasNoHistory()
@@ -44,12 +44,12 @@ public class CatalogDataProtectionTests : IClassFixture<MarviApiFactory>
         var admin = await _factory.AdminAsync();
         var sku = $"Dup-{Guid.NewGuid():N}";
 
-        var created = await admin.PostAsJsonAsync("/api/admin/products", Product($"  {sku}  "));
+        var created = await admin.PostProductAsync($"  {sku}  ");
         var created2 = (await created.Content.ReadFromJsonAsync<ProductAdminDto>())!;
-        var duplicate = await admin.PostAsJsonAsync("/api/admin/products", Product(sku.ToUpperInvariant()));
-        var blankSku = await admin.PostAsJsonAsync("/api/admin/products", Product("   "));
-        var blankName = await admin.PostAsJsonAsync("/api/admin/products", Product("OK-" + Guid.NewGuid().ToString("N"), " "));
-        var tooLong = await admin.PostAsJsonAsync("/api/admin/products", Product(new string('s', 65)));
+        var duplicate = await admin.PostProductAsync(sku.ToUpperInvariant());
+        var blankSku = await admin.PostProductAsync("   ");
+        var blankName = await admin.PostProductAsync("OK-" + Guid.NewGuid().ToString("N"), " ");
+        var tooLong = await admin.PostProductAsync(new string('s', 41));
 
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         Assert.Equal(sku, created2.Sku);
@@ -68,8 +68,9 @@ public class CatalogDataProtectionTests : IClassFixture<MarviApiFactory>
         await admin.CreateProductAsync(first);
         var secondId = await admin.CreateProductAsync(second);
 
-        var steal = await admin.PutAsJsonAsync($"/api/admin/products/{secondId}", Product(first.ToLowerInvariant()));
-        var keep = await admin.PutAsJsonAsync($"/api/admin/products/{secondId}", Product(second, "Renamed"));
+        var category = await admin.EnsureTestCategoryAsync();
+        var steal = await admin.PutAsJsonAsync($"/api/admin/products/{secondId}", Product(first.ToLowerInvariant(), category));
+        var keep = await admin.PutAsJsonAsync($"/api/admin/products/{secondId}", Product(second, category, "Renamed"));
 
         Assert.Equal(HttpStatusCode.Conflict, steal.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, keep.StatusCode);

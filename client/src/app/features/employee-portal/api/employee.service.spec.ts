@@ -17,10 +17,10 @@ const cases: EndpointCase<EmployeeService>[] = [
   },
   {
     name: 'createOrder',
-    call: (s) => s.createOrder({ clientId: 'c1', deliveryAddress: 'Rua A, 1', lineItems: [{ productId: 'p1', qty: 2 }] }),
+    call: (s) => s.createOrder({ clientId: 'c1', deliveryAddressKey: 'k1', lineItems: [{ productId: 'p1', qty: 2 }] }),
     method: 'POST',
     url: '/api/employee/orders',
-    body: { clientId: 'c1', deliveryAddress: 'Rua A, 1', lineItems: [{ productId: 'p1', qty: 2 }] },
+    body: { clientId: 'c1', deliveryAddressKey: 'k1', lineItems: [{ productId: 'p1', qty: 2 }] },
     response: { id: 'o1' },
   },
   { name: 'getInventory (all warehouses)', call: (s) => s.getInventory(), method: 'GET', url: '/api/employee/inventory', response: [{ id: 'i1' }] },

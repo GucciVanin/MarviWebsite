@@ -36,7 +36,13 @@
         <h3>{{ t.problems }}</h3>
         <ul class="stack">
           @for (problem of result.errors; track $index) {
-            <li data-testid="import-error"><strong>{{ t.line }} {{ problem.line }}</strong> {{ problem.message }}</li>
+            <li data-testid="import-error">
+              <strong>{{ t.line }} {{ problem.line }}</strong>
+              @if (problem.sku) {
+                <span> ({{ t.sku }} {{ problem.sku }}@if (problem.field) {, {{ t.field }} {{ problem.field }}})</span>
+              }
+              {{ problem.message }}
+            </li>
           }
         </ul>
       } @else if (result.dryRun) {

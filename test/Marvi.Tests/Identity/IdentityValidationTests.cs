@@ -34,12 +34,13 @@ public class IdentityValidationTests : IClassFixture<MarviApiFactory>
         Assert.False(EmailAddressValidator.IsValid(new string('a', 250) + "@b.com"));
 
     [Theory]
-    [InlineData("not-an-email", "Acme", "Rua A")]
-    [InlineData("ok@example.com", " ", "Rua A")]
+    [InlineData("not-an-email", "Acme", "01001-000")]
+    [InlineData("ok@example.com", " ", "01001-000")]
     [InlineData("ok2@example.com", "Acme", "")]
-    public async Task Register_RejectsBadEmailOrMissingCompanyDetails(string email, string company, string address)
+    [InlineData("ok3@example.com", "Acme", "1234")]
+    public async Task Register_RejectsBadEmailOrMissingCompanyDetails(string email, string company, string cep)
     {
-        var response = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", company, address));
+        var response = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", company, TestAddresses.Main with { PostalCode = cep }));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
@@ -48,19 +49,23 @@ public class IdentityValidationTests : IClassFixture<MarviApiFactory>
     {
         var email = $"{Guid.NewGuid()}@example.com";
 
-        var padded = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "  Acme Ltda  ", "  Rua A, 1  "));
+        var padded = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "  Acme Ltda  ", TestAddresses.Main with { Street = "  Rua A  ", PostalCode = " 01001-000 " }));
         var accountId = (await padded.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
         var admin = await _factory.AdminAsync(); // admins may read client profiles through the employee endpoint
         var profile = await admin.GetFromJsonAsync<ClientProfileDto>($"/api/employee/clients/{accountId}");
 
-        var tooLongName = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest($"{Guid.NewGuid()}@example.com", "Test1234!", new string('c', 201), "Rua A"));
-        var tooLongAddress = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest($"{Guid.NewGuid()}@example.com", "Test1234!", "Acme", new string('a', 501)));
+        var tooLongName = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest($"{Guid.NewGuid()}@example.com", "Test1234!", new string('c', 201), TestAddresses.Main));
+        var tooLongAddress = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest($"{Guid.NewGuid()}@example.com", "Test1234!", "Acme", TestAddresses.Main with { Street = new string('a', 201) }));
+        var noAddress = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new { email = $"{Guid.NewGuid()}@example.com", password = "Test1234!", companyName = "Acme" });
 
         Assert.Equal(HttpStatusCode.Created, padded.StatusCode);
         Assert.Equal("Acme Ltda", profile!.CompanyName);
-        Assert.Equal("Rua A, 1", profile.BillingAddress);
+        var billing = Assert.Single(profile.Addresses);
+        Assert.Equal("Rua A", billing.Street);
+        Assert.Equal("01001000", billing.PostalCode);
         Assert.Equal(HttpStatusCode.BadRequest, tooLongName.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, tooLongAddress.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, noAddress.StatusCode);
     }
 
     [Fact]

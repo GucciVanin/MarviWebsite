@@ -1,4 +1,5 @@
 import { BrlPipe } from './brl.pipe';
+import { CustomerNumberPipe, DocumentNumberPipe } from './number.pipes';
 import { PtDatePipe } from './pt-date.pipe';
 
 // Intl uses a no-break space between "R$" and the number; compare with ordinary spaces.
@@ -41,5 +42,36 @@ describe('PtDatePipe', () => {
 
   it.each([[null], [undefined], [''], ['not a date'], ['2026-13-45']])('shows nothing for %s', (value) => {
     expect(pipe.transform(value as string | null | undefined)).toBe('');
+  });
+});
+
+describe('CustomerNumberPipe', () => {
+  const pipe = new CustomerNumberPipe();
+
+  it.each([
+    [1, 'C-000001'],
+    [42, 'C-000042'],
+    [999999, 'C-999999'],
+    [1234567, 'C-1234567'],
+  ])('writes %i as %s', (value, text) => {
+    expect(pipe.transform(value)).toBe(text);
+  });
+
+  it.each([[null], [undefined], [0], [-3], [1.5], [Number.NaN]])('shows nothing for %s, never C-000000', (value) => {
+    expect(pipe.transform(value as number | null | undefined)).toBe('');
+  });
+});
+
+describe('DocumentNumberPipe', () => {
+  const pipe = new DocumentNumberPipe();
+
+  it('writes a quote as Q- and an order as P-, six digits each', () => {
+    expect(pipe.transform(123, 'quote')).toBe('Q-000123');
+    expect(pipe.transform(45, 'order')).toBe('P-000045');
+  });
+
+  it('shows nothing for a missing number', () => {
+    expect(pipe.transform(null, 'quote')).toBe('');
+    expect(pipe.transform(0, 'order')).toBe('');
   });
 });

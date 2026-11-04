@@ -32,6 +32,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Removing a feature means deleting its folder and its line here.
 builder.Services.AddIdentityFeature(builder.Configuration);
 builder.Services.AddCatalogFeature();
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<Marvi.Api.Features.Catalog.Media.ProductPhotoCleanupWorker>();
+}
+
 builder.Services.AddCoverageFeature();
 builder.Services.AddQuotesFeature();
 builder.Services.AddAuditingFeature();
@@ -64,6 +69,7 @@ app.UseHttpsRedirection();
 app.UseCors("SpaClient");
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseSuspendedClientGate();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
@@ -72,6 +78,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    await CpfKeyCheck.EnsureAsync(scope.ServiceProvider, app.Environment, app.Logger);
     await IdentityModule.SeedRolesAsync(scope.ServiceProvider);
     await IdentityModule.SeedAdminAsync(scope.ServiceProvider, app.Configuration);
     await DefaultPricingTier.GetOrCreateAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());

@@ -23,3 +23,14 @@ export const guestGuard: CanActivateFn = () => {
 export const clientGuard: CanActivateFn = roleGuard(['Client']);
 export const employeeGuard: CanActivateFn = roleGuard(['Employee', 'Admin']);
 export const adminGuard: CanActivateFn = roleGuard(['Admin']);
+
+// For a page staff open from a link, possibly in a new tab (MRV-9.2): only Employee and Admin get in; a signed-out visitor is sent to the login
+// page and anyone else (a customer) to their own area. The plain employeeGuard above keeps sending every refused visitor to the landing page.
+export const staffPageGuard: CanActivateFn = () => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+  if (!authService.isAuthenticated()) {
+    return router.parseUrl('/login');
+  }
+  return ['Employee', 'Admin'].includes(authService.role() ?? '') ? true : router.parseUrl(authService.homeUrl());
+};

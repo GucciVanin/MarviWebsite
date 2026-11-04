@@ -48,7 +48,7 @@ public class AdminPendingActionsController : ControllerBase
         var items = await query
             .OrderBy(c => c.CreatedAt).ThenBy(c => c.Id)
             .Take(MaxItemsPerGroup)
-            .Select(c => new PendingCustomerDto(c.Id, c.CompanyName, c.CreatedAt))
+            .Select(c => new PendingCustomerDto(c.Id, c.Number, c.CompanyName, c.CreatedAt))
             .ToListAsync();
         return new PendingGroup<PendingCustomerDto>(await query.CountAsync(), items);
     }
@@ -59,7 +59,7 @@ public class AdminPendingActionsController : ControllerBase
         var items = await query
             .OrderBy(q => q.CreatedAt).ThenBy(q => q.Id)
             .Take(MaxItemsPerGroup)
-            .Select(q => new PendingQuoteDto(q.Id, q.ClientAccountId, q.ClientAccount!.CompanyName, q.CreatedAt, q.LineItems.Count))
+            .Select(q => new PendingQuoteDto(q.Id, q.Number, q.ClientAccountId, q.ClientAccount!.Number, q.ClientAccount!.CompanyName, q.CreatedAt, q.LineItems.Count))
             .ToListAsync();
         return new PendingGroup<PendingQuoteDto>(await query.CountAsync(), items);
     }

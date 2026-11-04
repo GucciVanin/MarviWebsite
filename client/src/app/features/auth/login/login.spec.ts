@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
+import { AuthService } from '../../../core/auth/auth.service';
 import { fakeToken } from '../../../core/auth/testing/fake-token';
 import { iconNames } from '../../../shared/ui/app-icon/testing/icon-names';
 import { Login } from './login';
@@ -36,6 +37,48 @@ describe('Login', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('[role="alert"]')?.textContent).toContain('Não foi possível entrar');
     expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+  });
+
+  // MRV-9.9: the 403 means "suspended", not "wrong password", and it is said in the company's words.
+  it('tells a suspended customer their account is suspended instead of blaming the password', () => {
+    const { fixture, http } = setup();
+    fixture.componentInstance.email = 'a@b.com';
+    fixture.componentInstance.password = 'right';
+
+    fixture.componentInstance.submit();
+    http.expectOne('/api/auth/login').flush(
+      { code: 'account_suspended', message: 'Sua conta está suspensa. Entre em contato com a empresa.' },
+      { status: 403, statusText: 'Forbidden' },
+    );
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('Sua conta está suspensa. Entre em contato com a empresa.');
+    expect(element.textContent).not.toContain('Verifique seu e-mail');
+    expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+    expect(localStorage.getItem('marvi_auth_token')).toBeNull();
+  });
+
+  it('shows the same message once when the company ended the session of a signed-in customer', () => {
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.inject(AuthService).endSuspendedSession();
+    const fixture = TestBed.createComponent(Login);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent).toContain('Sua conta está suspensa.');
+    expect(TestBed.inject(AuthService).takeSuspendedNotice()).toBe(false);
+    // Visiting the page again later shows nothing.
+    const again = TestBed.createComponent(Login);
+    again.detectChanges();
+    expect((again.nativeElement as HTMLElement).querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('does not treat another 403 as a suspension', () => {
+    const { fixture, http } = setup();
+    fixture.componentInstance.submit();
+    http.expectOne('/api/auth/login').flush('x', { status: 403, statusText: 'Forbidden' });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent).not.toContain('suspensa');
   });
 
   // "Check your email and password" is the wrong advice when the server is down.

@@ -24,7 +24,9 @@
         <table class="table" data-testid="customers">
           <thead>
             <tr>
+              <th>{{ refs.customer }}</th>
               <th>{{ t.company }}</th>
+              <th>{{ t.type }}</th>
               <th>{{ t.status }}</th>
               <th>{{ t.tier }}</th>
               <th>{{ t.since }}</th>
@@ -34,7 +36,9 @@
           <tbody>
             @for (customer of customers.data().items; track customer.id) {
               <tr data-testid="customer">
+                <td><a data-testid="customer-page-link" [routerLink]="['/employee/clientes', customer.customerNumber | customerNumber]">{{ customer.customerNumber | customerNumber }}</a></td>
                 <td>{{ customer.companyName }}</td>
+                <td><span class="badge" data-testid="account-type">{{ types[customer.accountType] }}</span></td>
                 <td>
                   <span class="badge" [class.badge--ok]="customer.status === 'Approved'" [class.badge--bad]="customer.status !== 'Approved'">
                     {{ portal.clientStatus[customer.status] ?? customer.status }}
@@ -58,14 +62,14 @@
               </tr>
               @if (approvingId() === customer.id) {
                 <tr data-testid="customer-approval">
-                  <td colspan="5">
+                  <td colspan="7">
                     <app-approval-form [tiers]="tiers.data()" [suggestedTierId]="suggestedTierId()" [busy]="saveAction.busy()" (confirmed)="approve(customer, $event)" (cancelled)="cancelApproval()" />
                   </td>
                 </tr>
               }
               @if (editingId() === customer.id) {
                 <tr data-testid="customer-editor">
-                  <td colspan="5">
+                  <td colspan="7">
                     <form class="toolbar" (ngSubmit)="save(customer)">
                       <div class="field">
                         <label for="customer-tier">{{ t.tier }}</label>
@@ -78,6 +82,89 @@
                       <button type="submit" class="btn btn--primary btn--small" [disabled]="!canSave()">{{ t.save }}</button>
                       <button type="button" class="btn btn--outline btn--small" (click)="stopEditing()">{{ t.cancel }}</button>
                     </form>
+                    <section class="stack" [attr.aria-label]="t.registration" data-testid="customer-registration-editor">
+                      <strong id="admin-registration-title" tabindex="-1">{{ t.registration }}</strong>
+                      @if (registration.type() === null && addressesAction.busy()) {
+                        <p role="status" class="muted">{{ t.loadingRegistration }}</p>
+                      }
+                      @if (registration.type() !== null) {
+                        <form (ngSubmit)="saveRegistration(customer)" [attr.aria-label]="t.editRegistration">
+                          <app-registration-fields idPrefix="admin-registration" [draft]="registration" [readOnly]="registrationAction.busy()" />
+                          @if (typeChanged()) {
+                            <div class="field">
+                              <label for="admin-registration-confirm-type">
+                                <input id="admin-registration-confirm-type" name="confirm-type" type="checkbox" [checked]="confirmType()" (change)="confirmType.set($any($event.target).checked)" />
+                                {{ t.confirmType }}
+                              </label>
+                            </div>
+                          }
+                          <div class="toolbar">
+                            <button type="submit" class="btn btn--primary btn--small" [disabled]="!canSaveRegistration()">{{ t.saveRegistration }}</button>
+                            @if (registration.hasCpf() && !typeChanged()) {
+                              @if (shownCpf() === null) {
+                                <button type="button" class="btn btn--outline btn--small" data-testid="show-cpf" [disabled]="revealAction.busy()" (click)="askToReveal()">{{ t.showCpf }}</button>
+                              } @else {
+                                <button type="button" id="admin-hide-cpf" class="btn btn--outline btn--small" (click)="hideCpf()">{{ t.hideCpf }}</button>
+                              }
+                            }
+                          </div>
+                        </form>
+                        @if (revealing() && shownCpf() === null) {
+                          <div class="field" data-testid="reveal-form">
+                            <label for="admin-reveal-reason">{{ t.revealReason }}</label>
+                            <input id="admin-reveal-reason" name="reveal-reason" type="text" autocomplete="off" maxlength="200" aria-describedby="admin-reveal-hint" [attr.aria-invalid]="reasonInvalid() ? 'true' : null" [value]="revealReason()" (input)="revealReason.set($any($event.target).value)" (keydown.enter)="showCpf(customer)" />
+                            <p id="admin-reveal-hint" class="muted">{{ t.revealReasonHint }}</p>
+                            <div class="toolbar">
+                              <button type="button" class="btn btn--primary btn--small" [disabled]="!canReveal()" (click)="showCpf(customer)">{{ t.confirmReveal }}</button>
+                              <button type="button" class="btn btn--outline btn--small" (click)="cancelReveal()">{{ t.cancelReveal }}</button>
+                            </div>
+                          </div>
+                        }
+                        @if (shownCpf(); as cpf) {
+                          <p class="alert" role="status" data-testid="shown-cpf">{{ t.cpfShown }}: <strong>{{ cpf }}</strong></p>
+                        }
+                        <app-error-alert [error]="registrationAction.error()" />
+                        <app-error-alert [error]="revealAction.error()" />
+                        @if (registrationMessage(); as note) {
+                          <p class="alert alert--success" role="status">{{ note }}</p>
+                        }
+                      }
+                    </section>
+                    <section class="stack" [attr.aria-label]="t.addresses" data-testid="customer-addresses">
+                      <strong id="admin-addresses-title" tabindex="-1">{{ t.addresses }}</strong>
+                      @if (addressesAction.busy() && addresses().length === 0) {
+                        <p role="status" class="muted">{{ t.loadingAddresses }}</p>
+                      }
+                      <app-error-alert [error]="addressesAction.error()" />
+                      @if (!addressesAction.busy() && !addressesAction.error() && addresses().length === 0) {
+                        <p class="muted">{{ t.noAddresses }}</p>
+                      }
+                      <ul class="address-list">
+                        @for (address of addresses(); track address.key) {
+                          <li class="address-card">
+                            @if (fixingKey() === address.key) {
+                              <form (ngSubmit)="saveFix(customer)" [attr.aria-label]="t.fixTitle">
+                                <app-address-fields idPrefix="admin-address" [draft]="draft" [readOnly]="fixAction.busy()" [allowedKinds]="allowedKinds(address)" [offerBilling]="!address.isBilling" [offerDefault]="!address.isDefaultDelivery" />
+                                <div class="toolbar">
+                                  <button type="submit" class="btn btn--primary btn--small" [disabled]="!canFix()">{{ t.saveAddress }}</button>
+                                  <button type="button" class="btn btn--outline btn--small" (click)="cancelFix()">{{ t.cancel }}</button>
+                                </div>
+                              </form>
+                            } @else {
+                              <app-address-summary [address]="address">
+                                <div class="toolbar">
+                                  <button type="button" class="btn btn--outline btn--small" [id]="'admin-fix-btn-' + $index" (click)="startFix(address)">{{ t.fixAddress }}</button>
+                                </div>
+                              </app-address-summary>
+                            }
+                          </li>
+                        }
+                      </ul>
+                      <app-error-alert [error]="fixAction.error()" />
+                      @if (addressMessage(); as note) {
+                        <p class="alert alert--success" role="status">{{ note }}</p>
+                      }
+                    </section>
                   </td>
                 </tr>
               }

@@ -57,16 +57,42 @@
     <ul class="product-grid">
       @for (product of products.data(); track product.id) {
         <li class="card product" [class]="'card product product--' + ($index % 6)" data-testid="product" [appReveal]="$index % 4">
-          <div class="product__art" aria-hidden="true">
-            @if ($index % 2 === 0) {
-              <svg viewBox="0 0 40 80" focusable="false"><rect x="14" y="0" width="12" height="5" rx="1.5" fill="#d8202f" /><path d="M16 5h8v8c0 4 8 8 8 18v43a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V31c0-10 8-14 8-18Z" fill="#fff" fill-opacity="0.93" /><rect x="8" y="38" width="24" height="22" fill="#f5b700" /></svg>
-            } @else {
-              <svg viewBox="0 0 40 80" focusable="false"><rect x="6" y="14" width="28" height="60" rx="5" fill="#fff" fill-opacity="0.93" /><rect x="6" y="30" width="28" height="22" fill="#d8202f" /><rect x="10" y="9" width="20" height="6" rx="2" fill="#c7ccdb" /></svg>
-            }
-          </div>
+          <app-product-photo [src]="product.imageUrl" [alt]="product.name" size="card" [eager]="$index < 4" />
           <div class="product__body">
             <h3>{{ product.name }}</h3>
+            @if (product.description) {
+              <p class="product__description" data-testid="product-description" [attr.aria-hidden]="detailsOf(product).longDescription ? 'true' : null">{{ product.description }}</p>
+            }
+            @if (detailsOf(product); as details) {
+              @if (details.shown.length) {
+                <dl class="product__specs" data-testid="product-specs">
+                  @for (spec of details.shown; track spec.key) {
+                    <dt>{{ spec.key }}</dt>
+                    <dd>{{ spec.value }}</dd>
+                  }
+                </dl>
+              }
+              @if (details.more.length || details.longDescription) {
+                <details class="product__more" data-testid="product-more">
+                  <summary>{{ t.moreDetails }}</summary>
+                  @if (details.longDescription) {
+                    <p>{{ product.description }}</p>
+                  }
+                  @if (details.more.length) {
+                    <dl class="product__specs">
+                      @for (spec of details.more; track spec.key) {
+                        <dt>{{ spec.key }}</dt>
+                        <dd>{{ spec.value }}</dd>
+                      }
+                    </dl>
+                  }
+                </details>
+              }
+            }
             <div class="product__tags">
+              @if (product.categoryName) {
+                <span class="chip chip--tag" data-testid="product-category">{{ product.categoryName }}</span>
+              }
               <span class="chip chip--tag">{{ product.sku }}</span>
               @if (product.dealName) {
                 <span class="badge badge--warn">{{ product.dealName }}</span>

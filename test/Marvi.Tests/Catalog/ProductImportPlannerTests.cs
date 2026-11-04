@@ -13,7 +13,9 @@ public class ProductImportPlannerTests
         new Dictionary<string, Guid> { ["Cervejas"] = BeerId },
         new Dictionary<string, Guid> { ["Standard"] = DefaultTier, ["Gold"] = GoldTier },
         DefaultTier,
-        canImportStock);
+        canImportStock,
+        // The rows below are stored products that already have a category: a blank category cell keeps it (a NEW product needs one: see the category tests).
+        ExistingProducts: new[] { "AAA", "BBB", "CCC" }.ToDictionary(sku => sku, _ => new ExistingProduct(null, new Dictionary<string, string>(), BeerId)));
 
     private static ImportPlan Plan(string csv, bool canImportStock = true) => ProductImportPlanner.Plan(csv, Catalog(canImportStock));
 
@@ -40,7 +42,7 @@ public class ProductImportPlannerTests
     [Fact]
     public void BlankCells_MeanNoValue_SoAReimportDoesNotWipeExistingData()
     {
-        var plan = Plan("sku,name,description,category,price,stock,attr_Marca\nA,Alpha,,,,,\n");
+        var plan = Plan("sku,name,description,category,price,stock,attr_Marca\nAAA,Alpha,,,,,\n");
 
         var product = Assert.Single(plan.Products);
         Assert.Null(product.Description);
@@ -53,16 +55,16 @@ public class ProductImportPlannerTests
     [Fact]
     public void TheMinimalFile_NeedsOnlySkuAndName()
     {
-        var plan = Plan("sku,name\nA,Alpha\nB,Beta\n");
+        var plan = Plan("sku,name\nAAA,Alpha\nBBB,Beta\n");
 
         Assert.True(plan.IsValid);
-        Assert.Equal(["A", "B"], plan.Products.Select(p => p.Sku));
+        Assert.Equal(["AAA", "BBB"], plan.Products.Select(p => p.Sku));
     }
 
     [Fact]
     public void AnExcelStyleFile_Works_SemicolonsBomWindowsLineEndingsAndBlankLines()
     {
-        var plan = Plan("﻿sku;name;price\r\nA;Alpha;1.234,50\r\n\r\nB;\"Beta; the second\";3,5\r\n");
+        var plan = Plan("﻿sku;name;price\r\nAAA;Alpha;1.234,50\r\n\r\nBBB;\"Beta; the second\";3,5\r\n");
 
         Assert.True(plan.IsValid);
         Assert.Equal(1234.5m, plan.Products[0].Prices[DefaultTier]);
@@ -73,12 +75,12 @@ public class ProductImportPlannerTests
     [Fact]
     public void QuotedValues_MayContainCommasQuotesAndLineBreaks_AndErrorsReportTheRightLine()
     {
-        var plan = Plan("sku,name,description\nA,\"Alpha, \"\"big\"\"\",\"two\nlines\"\nB,,x\n");
+        var plan = Plan("sku,name,description\nAAA,\"Alpha, \"\"big\"\"\",\"two\nlines\"\nBBB,,x\n");
 
         // Row A spans lines 2 and 3 (a line break inside quotes), so row B, the one with the error, is on line 4.
-        Assert.Equal(["4: name is required."], Messages(plan));
+        Assert.Equal(["4: O nome deve ter de 2 a 200 caracteres, sem caracteres de controle."], Messages(plan));
 
-        var valid = Plan("sku,name,description\nA,\"Alpha, \"\"big\"\"\",\"two\nlines\"\n");
+        var valid = Plan("sku,name,description\nAAA,\"Alpha, \"\"big\"\"\",\"two\nlines\"\n");
         var product = Assert.Single(valid.Products);
         Assert.Equal("Alpha, \"big\"", product.Name);
         Assert.Equal("two\nlines", product.Description);
@@ -118,28 +120,29 @@ public class ProductImportPlannerTests
     public void EveryProblemInTheFile_IsReported_NotJustTheFirst_AndNothingIsPlanned()
     {
         var plan = Plan("sku,name,category,price,stock\n" +
-                        "A,Alpha,Nope,abc,-3\n" +
+                        "AAA,Alpha,Nope,abc,-3\n" +
                         ",Beta,,,\n" +
-                        "C,,,,\n" +
-                        "A,Again,,,\n");
+                        "CCC,,,,\n" +
+                        "AAA,Again,,,\n");
 
         Assert.False(plan.IsValid);
         Assert.Empty(plan.Products);
         Assert.Equal(
         [
             "2: Unknown category 'Nope'. Create it first (categories are never created by an import).",
-            "2: price 'abc' is not an amount of 0 or more with at most 2 decimals (write 1.234,00 or 1234, not 1.234).",
+            "2: price 'abc' is not an amount with at most 2 decimals (write 1.234,00 or 1234, not 1.234).",
             "2: stock '-3' is not a whole number of 0 or more.",
-            "3: sku is required.",
-            "4: name is required.",
-            "5: sku 'A' already appears on line 2.",
+            "3: O código (SKU) deve ter de 3 a 40 caracteres: letras, números, hífen, sublinhado ou ponto.",
+            "3: Escolha a categoria do produto.",
+            "4: O nome deve ter de 2 a 200 caracteres, sem caracteres de controle.",
+            "5: sku 'AAA' already appears on line 2.",
         ], Messages(plan));
     }
 
     [Fact]
     public void AColumnThatIsNotInTheSchema_IsAnError_SoATypoIsNotSilentlyIgnored()
     {
-        var plan = Plan("sku,name,prce\nA,Alpha,5\n");
+        var plan = Plan("sku,name,prce\nAAA,Alpha,5\n");
 
         Assert.Single(plan.Errors);
         Assert.Contains("Unknown column 'prce'", plan.Errors[0].Message);
@@ -150,9 +153,9 @@ public class ProductImportPlannerTests
     public void MissingRequiredColumns_DuplicateColumns_AndUnknownTiers_AreHeaderErrors()
     {
         Assert.Contains("The required column 'sku' is missing.", Messages(Plan("name\nA\n")).Single(m => m.Contains("sku")));
-        Assert.Contains("appears more than once", Plan("sku,name,NAME\nA,B,C\n").Errors.Single().Message);
-        Assert.Contains("pricing tier that does not exist", Plan("sku,name,tier_Platinum\nA,B,5\n").Errors.Single().Message);
-        Assert.Contains("has no name", Plan("sku,,name\nA,,B\n").Errors.Single().Message);
+        Assert.Contains("appears more than once", Plan("sku,name,NAME\nAAA,B,C\n").Errors.Single().Message);
+        Assert.Contains("pricing tier that does not exist", Plan("sku,name,tier_Platinum\nAAA,B,5\n").Errors.Single().Message);
+        Assert.Contains("has no name", Plan("sku,,name\nAAA,,B\n").Errors.Single().Message);
     }
 
     [Fact]
@@ -164,8 +167,8 @@ public class ProductImportPlannerTests
             AmbiguousTierNames = new HashSet<string> { "Vip" },
         };
 
-        var category = ProductImportPlanner.Plan("sku,name,category\nA,Alpha,twice\n", catalog);
-        var tier = ProductImportPlanner.Plan("sku,name,tier_vip\nA,Alpha,5\n", catalog);
+        var category = ProductImportPlanner.Plan("sku,name,category\nAAA,Alpha,twice\n", catalog);
+        var tier = ProductImportPlanner.Plan("sku,name,tier_vip\nAAA,Alpha,5\n", catalog);
 
         Assert.Contains("matches more than one category", category.Errors.Single().Message);
         Assert.Contains("more than one tier has", tier.Errors.Single().Message);
@@ -174,7 +177,7 @@ public class ProductImportPlannerTests
     [Fact]
     public void PriceAndTheDefaultTiersColumn_CannotBothBeGiven()
     {
-        var plan = Plan("sku,name,price,tier_Standard\nA,Alpha,5,6\n");
+        var plan = Plan("sku,name,price,tier_Standard\nAAA,Alpha,5,6\n");
 
         Assert.Contains("both the price of the default tier", plan.Errors.Single().Message);
     }
@@ -182,10 +185,10 @@ public class ProductImportPlannerTests
     [Fact]
     public void Stock_NeedsAChosenWarehouse()
     {
-        var plan = Plan("sku,name,stock\nA,Alpha,5\n", canImportStock: false);
+        var plan = Plan("sku,name,stock\nAAA,Alpha,5\n", canImportStock: false);
 
         Assert.Contains("stock needs a warehouse", plan.Errors.Single().Message);
-        Assert.True(Plan("sku,name\nA,Alpha\n", canImportStock: false).IsValid);
+        Assert.True(Plan("sku,name\nAAA,Alpha\n", canImportStock: false).IsValid);
     }
 
     [Fact]
@@ -193,7 +196,7 @@ public class ProductImportPlannerTests
     {
         var plan = Plan($"sku,name\n{new string('S', ProductRules.MaxSkuLength + 1)},{new string('N', ProductRules.MaxNameLength + 1)}\n");
 
-        Assert.Equal(2, plan.Errors.Count);
+        Assert.Equal(["sku", "name", "category"], plan.Errors.Select(e => e.Field)); // the category: these are new products
     }
 
     [Theory]
@@ -208,7 +211,7 @@ public class ProductImportPlannerTests
     [Fact]
     public void AnUnclosedQuote_IsReportedWithItsLine()
     {
-        var plan = Plan("sku,name\nA,\"Alpha\n");
+        var plan = Plan("sku,name\nAAA,\"Alpha\n");
 
         Assert.Contains("starts on line 2", plan.Errors.Single().Message);
     }
@@ -216,7 +219,7 @@ public class ProductImportPlannerTests
     [Fact]
     public void ARowWithMoreValuesThanColumns_IsAnError()
     {
-        var plan = Plan("sku,name\nA,Alpha,extra\n");
+        var plan = Plan("sku,name\nAAA,Alpha,extra\n");
 
         Assert.Contains("3 values but the header has 2 columns", plan.Errors.Single().Message);
     }
@@ -224,27 +227,27 @@ public class ProductImportPlannerTests
     [Fact]
     public void ExcelsTrailingEmptyColumns_AreIgnored_InTheHeaderAndInTheRows()
     {
-        var plan = Plan("sku;name;price;\nA;Alpha;1;\nB;Beta;2;;\n");
+        var plan = Plan("sku;name;price;\nAAA;Alpha;1;\nBBB;Beta;2;;\n");
 
         Assert.True(plan.IsValid, string.Join(" | ", Messages(plan)));
         Assert.Equal(2, plan.Products.Count);
-        Assert.Contains("3 values but the header has 2 columns", Plan("sku,name\nA,Alpha,extra\n").Errors.Single().Message);
+        Assert.Contains("3 values but the header has 2 columns", Plan("sku,name\nAAA,Alpha,extra\n").Errors.Single().Message);
     }
 
     [Fact]
     public void TheSeparatorIsTakenFromTheFirstNonBlankLine_EvenAfterBlankLinesOrWithOldMacLineEndings()
     {
-        Assert.Equal(["A"], Plan("\n\nsku;name\nA;Alpha\n").Products.Select(p => p.Sku));
-        Assert.Equal(["A", "B"], Plan("sku;name\rA;Alpha\rB;Beta\r").Products.Select(p => p.Sku));
+        Assert.Equal(["AAA"], Plan("\n\nsku;name\nAAA;Alpha\n").Products.Select(p => p.Sku));
+        Assert.Equal(["AAA", "BBB"], Plan("sku;name\rAAA;Alpha\rBBB;Beta\r").Products.Select(p => p.Sku));
     }
 
     [Fact]
     public void TextAfterAClosingQuote_IsAnError_AndLinesStayRightAcrossBareCarriageReturns()
     {
-        Assert.Contains("after a closing quote", Plan("sku,name\nA,\"Alpha\"beta\n").Errors.Single().Message);
+        Assert.Contains("after a closing quote", Plan("sku,name\nAAA,\"Alpha\"beta\n").Errors.Single().Message);
 
         // A bare carriage return inside quotes is one line break, so the bad row B is on line 4.
-        var plan = Plan("sku,name,description\nA,Alpha,\"one\rtwo\"\nB,,x\n");
+        var plan = Plan("sku,name,description\nAAA,Alpha,\"one\rtwo\"\nBBB,,x\n");
         Assert.Equal(4, plan.Errors.Single().Line);
     }
 
@@ -256,5 +259,32 @@ public class ProductImportPlannerTests
         var plan = Plan($"sku,name\n{rows}\n");
 
         Assert.Contains($"at most {ProductImportPlanner.MaxRows}", plan.Errors.Single().Message);
+    }
+
+    [Fact]
+    public void ANewProduct_NeedsACategory_AStoredOneKeepsItsOwn()
+    {
+        var withoutCategory = Plan("sku,name\nNEW-1,Novo\n");
+        var withCategory = Plan("sku,name,category\nNEW-1,Novo,cervejas\n");
+        var stored = Plan("sku,name\nAAA,Antigo\n");
+
+        var error = Assert.Single(withoutCategory.Errors);
+        Assert.Equal((2, "NEW-1", "category"), (error.Line, error.Sku, error.Field));
+        Assert.True(withCategory.IsValid);
+        Assert.Equal(BeerId, withCategory.Products.Single().CategoryId);
+        Assert.True(stored.IsValid);
+        Assert.Null(stored.Products.Single().CategoryId); // blank cell: the stored category is left as it is
+    }
+
+    [Fact]
+    public void AStoredProductWithNoCategory_IsRefusedUntilARowGivesItOne()
+    {
+        var catalog = Catalog() with { ExistingProducts = new Dictionary<string, ExistingProduct> { ["OLD"] = new(null, new Dictionary<string, string>(), null) } };
+
+        var blank = ProductImportPlanner.Plan("sku,name\nOLD,Velho\n", catalog);
+        var given = ProductImportPlanner.Plan("sku,name,category\nOLD,Velho,cervejas\n", catalog);
+
+        Assert.Equal("category", Assert.Single(blank.Errors).Field);
+        Assert.True(given.IsValid);
     }
 }

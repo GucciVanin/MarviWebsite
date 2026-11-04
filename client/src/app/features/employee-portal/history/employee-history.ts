@@ -5,8 +5,10 @@ import { action } from '../../../core/http/action';
 import { Loadable, loadable } from '../../../core/http/loadable';
 import { PT } from '../../../core/i18n/pt-br';
 import { BrlPipe } from '../../../shared/format/brl.pipe';
+import { CustomerNumberPipe, DocumentNumberPipe } from '../../../shared/format/number.pipes';
 import { PtDatePipe } from '../../../shared/format/pt-date.pipe';
 import type { PagedResult } from '../../../shared/models/paged.model';
+import { DeliveryTo } from '../../../shared/ui/delivery-to/delivery-to';
 import { ErrorAlert } from '../../../shared/ui/error-alert/error-alert';
 import { LoadState } from '../../../shared/ui/load-state/load-state';
 import { ClientSummary, EmployeeService, HistoryQuery, OrderHistoryItem, QuoteHistoryItem } from '../api/employee.service';
@@ -29,7 +31,7 @@ function startOfDay(date: string, plusDays = 0): string {
 }
 
 interface AppliedFilters {
-  client: { id: string; companyName: string } | null;
+  client: { id: string; companyName: string; customerNumber: number } | null;
   status: string;
   from: string;
   to: string;
@@ -43,11 +45,12 @@ const NO_FILTERS: AppliedFilters = { client: null, status: '', from: '', to: '' 
  */
 @Component({
   selector: 'app-employee-history',
-  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, BrlPipe, PtDatePipe],
+  imports: [FormsModule, RouterLink, ErrorAlert, LoadState, DeliveryTo, BrlPipe, PtDatePipe, CustomerNumberPipe, DocumentNumberPipe],
   templateUrl: './employee-history.html',
 })
 export class EmployeeHistory implements OnInit {
   protected readonly t = PT.employeeHistory;
+  protected readonly refs = PT.numbers;
   protected readonly portal = PT.employeePortal;
   protected readonly statuses = PT.statuses;
   private readonly employeeService = inject(EmployeeService);
@@ -98,7 +101,7 @@ export class EmployeeHistory implements OnInit {
   }
 
   protected pickClient(match: ClientSummary): void {
-    this.setDraft({ client: { id: match.id, companyName: match.companyName } });
+    this.setDraft({ client: { id: match.id, companyName: match.companyName, customerNumber: match.customerNumber } });
     this.clientMatches.set(null);
   }
 

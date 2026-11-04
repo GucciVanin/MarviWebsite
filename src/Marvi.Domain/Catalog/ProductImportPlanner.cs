@@ -9,15 +9,20 @@ namespace Marvi.Domain.Catalog;
 /// <param name="CanImportStock">Whether a warehouse has been chosen for the `stock` column.</param>
 /// <param name="AmbiguousCategoryNames">Category names that more than one category has; a row or column that uses one is refused rather than guessed.</param>
 /// <param name="AmbiguousTierNames">The same for pricing tier names (tier names are not unique in the database).</param>
+/// <param name="ExistingProducts">The stored products by SKU (ignoring case): what a row would leave as it is (blank cells) and merge with. The import checks the product as it would be stored, so a row for a stored product that breaks the rules is refused until the product is fixed.</param>
 public sealed record ImportCatalog(
     IReadOnlyDictionary<string, Guid> CategoryIdsByName,
     IReadOnlyDictionary<string, Guid> TierIdsByName,
     Guid DefaultTierId,
     bool CanImportStock,
     IReadOnlySet<string>? AmbiguousCategoryNames = null,
-    IReadOnlySet<string>? AmbiguousTierNames = null);
+    IReadOnlySet<string>? AmbiguousTierNames = null,
+    IReadOnlyDictionary<string, ExistingProduct>? ExistingProducts = null);
 
-/// <summary>One product row that passed every check. A null value means the cell was blank: leave an existing value as it is.</summary>
+/// <summary>The stored fields of a product that an import row can leave unchanged.</summary>
+public sealed record ExistingProduct(string? Description, IReadOnlyDictionary<string, string> Attributes, Guid? CategoryId = null);
+
+/// <summary>One product row that passed every check. A null description or category means the cell was blank: leave an existing value as it is. <c>Attributes</c> is the complete cleaned set to store when the row has any attribute cell (existing ones merged ignoring case), empty otherwise.</summary>
 public sealed record PlannedProduct(
     int Line,
     string Sku,
@@ -28,7 +33,8 @@ public sealed record PlannedProduct(
     IReadOnlyDictionary<Guid, decimal> Prices,
     int? Stock);
 
-public sealed record ImportError(int Line, string Message);
+/// <summary>One problem in the file: its line (1 is the header), the row's SKU and the field when the problem is about one row.</summary>
+public sealed record ImportError(int Line, string Message, string? Sku = null, string? Field = null);
 
 /// <summary>The outcome of checking a file. The file is imported only when there is no error at all.</summary>
 public sealed record ImportPlan(IReadOnlyList<PlannedProduct> Products, IReadOnlyList<ImportError> Errors)
@@ -41,6 +47,7 @@ public sealed record ImportPlan(IReadOnlyList<PlannedProduct> Products, IReadOnl
 /// Columns: sku, name (required), description, category, price, stock, `attr_&lt;name&gt;` (a spec-sheet attribute) and
 /// `tier_&lt;name&gt;` (the price for a pricing tier). A column that is none of these is an error, so a typo such as
 /// "prce" is caught instead of silently ignored. Every problem in the file is reported with its line, not just the first.
+/// Each row is checked by <see cref="ProductRules"/> (MRV-9.8), the validator create and edit use too, on the product as it would be stored.
 /// </summary>
 public static class ProductImportPlanner
 {
@@ -48,7 +55,6 @@ public static class ProductImportPlanner
 
     private const string AttributePrefix = "attr_";
     private const string TierPrefix = "tier_";
-    private const int MaxAttributeNameLength = 64;
     private static readonly string[] KnownColumns = ["sku", "name", "description", "category", "price", "stock"];
 
     public static ImportPlan Plan(string csv, ImportCatalog catalog)
@@ -86,44 +92,32 @@ public static class ProductImportPlanner
         var errors = new List<ImportError>();
         var firstLineOfSku = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
+        var existingProducts = catalog.ExistingProducts is null
+            ? new Dictionary<string, ExistingProduct>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, ExistingProduct>(catalog.ExistingProducts, StringComparer.OrdinalIgnoreCase);
+
         foreach (var row in document.Rows)
         {
-            var rowErrors = new List<string>();
+            var rowErrors = new List<(string? Field, string Message)>();
             string Cell(string column) => columns.TryGetValue(column, out var index) && index < row.Cells.Count ? row.Cells[index] : string.Empty;
 
             var usedCells = row.Cells.Count - row.Cells.Reverse().TakeWhile(c => c.Length == 0).Count();
             if (usedCells > header.Count)
             {
-                rowErrors.Add($"The row has {usedCells} values but the header has {header.Count} columns.");
+                rowErrors.Add((null, $"The row has {usedCells} values but the header has {header.Count} columns."));
             }
 
             var sku = Cell("sku");
-            if (sku.Length == 0)
+            if (sku.Length > 0 && firstLineOfSku.TryGetValue(sku, out var firstLine))
             {
-                rowErrors.Add("sku is required.");
+                rowErrors.Add(("sku", $"sku '{sku}' already appears on line {firstLine}."));
             }
-            else if (sku.Length > ProductRules.MaxSkuLength)
-            {
-                rowErrors.Add($"sku is limited to {ProductRules.MaxSkuLength} characters.");
-            }
-            else if (firstLineOfSku.TryGetValue(sku, out var firstLine))
-            {
-                rowErrors.Add($"sku '{sku}' already appears on line {firstLine}.");
-            }
-            else
+            else if (sku.Length > 0)
             {
                 firstLineOfSku[sku] = row.Line;
             }
 
             var name = Cell("name");
-            if (name.Length == 0)
-            {
-                rowErrors.Add("name is required.");
-            }
-            else if (name.Length > ProductRules.MaxNameLength)
-            {
-                rowErrors.Add($"name is limited to {ProductRules.MaxNameLength} characters.");
-            }
 
             Guid? categoryId = null;
             var categoryName = Cell("category");
@@ -131,7 +125,7 @@ public static class ProductImportPlanner
             {
                 if (ambiguousCategories.Contains(categoryName))
                 {
-                    rowErrors.Add($"Category '{categoryName}' matches more than one category; rename one of them first.");
+                    rowErrors.Add(("category", $"Category '{categoryName}' matches more than one category; rename one of them first."));
                 }
                 else if (categories.TryGetValue(categoryName, out var id))
                 {
@@ -139,21 +133,24 @@ public static class ProductImportPlanner
                 }
                 else
                 {
-                    rowErrors.Add($"Unknown category '{categoryName}'. Create it first (categories are never created by an import).");
+                    rowErrors.Add(("category", $"Unknown category '{categoryName}'. Create it first (categories are never created by an import)."));
                 }
             }
 
-            var prices = new Dictionary<Guid, decimal>();
+            // The prices as typed, in the order of the columns; the price rules (above zero, two decimals, in range) are ProductRules'.
+            var priceRows = new List<ProductPrice>();
+            var priceColumns = new List<string>();
             var priceCell = Cell("price");
             if (priceCell.Length > 0)
             {
                 if (TryParseMoney(priceCell, out var price))
                 {
-                    prices[catalog.DefaultTierId] = price;
+                    priceRows.Add(new ProductPrice(catalog.DefaultTierId, price));
+                    priceColumns.Add("price");
                 }
                 else
                 {
-                    rowErrors.Add($"price '{priceCell}' is not an amount of 0 or more with at most 2 decimals (write 1.234,00 or 1234, not 1.234).");
+                    rowErrors.Add(("price", $"price '{priceCell}' is not an amount with at most 2 decimals (write 1.234,00 or 1234, not 1.234)."));
                 }
             }
 
@@ -167,53 +164,98 @@ public static class ProductImportPlanner
 
                 if (!TryParseMoney(tierCell, out var tierPrice))
                 {
-                    rowErrors.Add($"{column} '{tierCell}' is not an amount of 0 or more with at most 2 decimals (write 1.234,00 or 1234, not 1.234).");
+                    rowErrors.Add((column, $"{column} '{tierCell}' is not an amount with at most 2 decimals (write 1.234,00 or 1234, not 1.234)."));
                 }
-                else if (!prices.TryAdd(tierId, tierPrice))
+                else if (priceRows.Any(p => p.PricingTierId == tierId))
                 {
-                    rowErrors.Add($"{column} and price are both the price of the default tier; give only one.");
+                    rowErrors.Add((column, $"{column} and price are both the price of the default tier; give only one."));
+                }
+                else
+                {
+                    priceRows.Add(new ProductPrice(tierId, tierPrice));
+                    priceColumns.Add(column);
                 }
             }
 
-            int? stock = null;
+            ProductStock? stockRow = null;
             var stockCell = Cell("stock");
             if (stockCell.Length > 0)
             {
                 if (!int.TryParse(stockCell, NumberStyles.None, CultureInfo.InvariantCulture, out var quantity))
                 {
-                    rowErrors.Add($"stock '{stockCell}' is not a whole number of 0 or more.");
+                    rowErrors.Add(("stock", $"stock '{stockCell}' is not a whole number of 0 or more."));
                 }
                 else if (!catalog.CanImportStock)
                 {
-                    rowErrors.Add("stock needs a warehouse: choose one for the import (there is not exactly one warehouse).");
+                    rowErrors.Add(("stock", "stock needs a warehouse: choose one for the import (there is not exactly one warehouse)."));
                 }
                 else
                 {
-                    stock = quantity;
+                    stockRow = new ProductStock(Guid.Empty, quantity);
                 }
             }
 
-            var attributes = new Dictionary<string, string>();
+            // The product as it would be stored: the cells of the row over what the stored product keeps (a blank cell leaves it as it is).
+            existingProducts.TryGetValue(sku, out var existing);
+            var attributeCells = new Dictionary<string, string>();
             foreach (var column in columns.Keys.Where(k => k.StartsWith(AttributePrefix, StringComparison.OrdinalIgnoreCase)))
             {
                 var value = Cell(column);
                 if (value.Length > 0)
                 {
-                    attributes[column[AttributePrefix.Length..]] = value;
+                    attributeCells[column[AttributePrefix.Length..]] = value;
                 }
+            }
+
+            var attributes = new Dictionary<string, string>(existing?.Attributes ?? new Dictionary<string, string>());
+            foreach (var (rawKey, value) in attributeCells)
+            {
+                var key = rawKey.Trim();
+                // The key matches ignoring case, so a spelling that differs only in case replaces the stored one instead of sitting beside it.
+                foreach (var same in attributes.Keys.Where(k => string.Equals(k.Trim(), key, StringComparison.OrdinalIgnoreCase)).ToList())
+                {
+                    attributes.Remove(same);
+                }
+
+                attributes[key] = value;
+            }
+
+            var description = Cell("description");
+            var problems = new List<ProductProblem>();
+            var plan = ProductRules.Check(
+                new ProductInput(sku, name, description.Length > 0 ? description : existing?.Description, attributes,
+                    priceRows, stockRow is null ? null : [stockRow],
+                    // A category is required like everywhere else: the cell, else the stored one. A cell that names an unknown category already has its own error.
+                    categoryId ?? existing?.CategoryId ?? (categoryName.Length > 0 ? Guid.Empty : null)),
+                problems);
+            foreach (var problem in problems)
+            {
+                rowErrors.Add((ImportField(problem.Field, priceColumns), problem.Message));
             }
 
             if (rowErrors.Count > 0)
             {
-                errors.AddRange(rowErrors.Select(message => new ImportError(row.Line, message)));
+                errors.AddRange(rowErrors.Select(e => new ImportError(row.Line, e.Message, sku.Length > 0 ? sku : null, e.Field)));
                 continue;
             }
 
-            var description = Cell("description");
-            products.Add(new PlannedProduct(row.Line, sku, name, description.Length == 0 ? null : description, categoryId, attributes, prices, stock));
+            products.Add(new PlannedProduct(row.Line, plan!.Sku, plan.Name, description.Length == 0 ? null : plan.Description, categoryId,
+                attributeCells.Count > 0 ? plan.Attributes : new Dictionary<string, string>(),
+                plan.Prices.ToDictionary(p => p.PricingTierId, p => p.UnitPrice!.Value), stockRow is null ? null : plan.Stock.Single().QtyOnHand));
         }
 
         return errors.Count > 0 ? new ImportPlan([], errors) : new ImportPlan(products, []);
+    }
+
+    // The rules name a price row as prices[i] and the stock row as stock[0]; the import names the column the value came from.
+    private static string ImportField(string field, IReadOnlyList<string> priceColumns)
+    {
+        if (field.StartsWith("prices[", StringComparison.Ordinal) && int.TryParse(field["prices[".Length..^1], out var index) && index < priceColumns.Count)
+        {
+            return priceColumns[index];
+        }
+
+        return field == "categoryId" ? "category" : field.StartsWith("stock[", StringComparison.Ordinal) ? "stock" : field;
     }
 
     /// <summary>The column index by (lower-cased, except attribute names) column name, with every header problem reported on line 1.</summary>
@@ -235,9 +277,9 @@ public static class ProductImportPlanner
             else if (name.StartsWith(AttributePrefix, StringComparison.OrdinalIgnoreCase))
             {
                 var attribute = name[AttributePrefix.Length..];
-                if (attribute.Length == 0 || attribute.Length > MaxAttributeNameLength)
+                if (attribute.Length == 0 || attribute.Length > ProductRules.MaxAttributeKeyLength)
                 {
-                    errors.Add(new ImportError(1, $"Column '{name}' needs an attribute name of 1 to {MaxAttributeNameLength} characters after '{AttributePrefix}'."));
+                    errors.Add(new ImportError(1, $"Column '{name}' needs an attribute name of 1 to {ProductRules.MaxAttributeKeyLength} characters after '{AttributePrefix}'."));
                 }
                 else
                 {

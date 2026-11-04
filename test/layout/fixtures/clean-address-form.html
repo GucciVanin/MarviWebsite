@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="none">
+<title>Clean: an address form on a grid of equal columns (MRV-9.3)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px;max-width:960px;margin:0 auto}
+.card{border:1px solid #ccc;padding:20px;margin-bottom:16px}
+.address-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,14rem),1fr));gap:16px;align-items:start;margin-bottom:16px}
+.field{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;min-width:0}
+.field p{margin:0}
+input,select{width:100%;height:40px}
+button{min-height:36px}
+</style></head><body><main class="page"><section class="card">
+<h1>Novo endereço</h1>
+<form>
+<div class="address-fields">
+<div class="field"><label for="a1">Apelido do endereço</label><input id="a1" name="a1"><p>Por exemplo: Matriz, Filial Campinas.</p></div>
+<div class="field"><label for="a2">Tipo de endereço</label><select id="a2" name="a2"><option>Cobrança e entrega</option></select></div>
+<div class="field"><label for="a3">CEP</label><input id="a3" name="a3" placeholder="00000-000"></div>
+<div class="field"><label for="a4">Logradouro</label><input id="a4" name="a4"></div>
+<div class="field"><label for="a5">Número</label><input id="a5" name="a5"><p>Use "s/n" se não houver número.</p></div>
+<div class="field"><label for="a6">Complemento</label><input id="a6" name="a6"></div>
+<div class="field"><label for="a7">Bairro</label><input id="a7" name="a7"></div>
+<div class="field"><label for="a8">Cidade</label><input id="a8" name="a8"></div>
+<div class="field"><label for="a9">UF</label><select id="a9" name="a9"><option>Selecione</option></select></div>
+<div class="field"><label for="a10">Notas de entrega</label><input id="a10" name="a10"></div>
+</div>
+<button type="button">Salvar endereço</button>
+</form>
+</section></main></body></html>

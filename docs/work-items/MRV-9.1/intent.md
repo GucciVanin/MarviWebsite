@@ -1,0 +1,1 @@
+Slice 9.1 of MRV-9 (spec docs/specs/MRV-9.1-customer-number.md, issue #52): the browser never shows a database id (GUID). Customers, quotes and orders get a human number (C-000042, Q-000123, P-000045) used wherever a document or customer is named and in URLs. Approved by the owner 2026-10-30 ("the client ID is for the backend, the front end should never display it").

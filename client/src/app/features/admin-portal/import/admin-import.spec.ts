@@ -101,14 +101,14 @@ describe('AdminImport', () => {
     button('Importar').click();
     fixture.detectChanges();
     importRequest('').flush(
-      report({ applied: false, rows: 0, created: 0, updated: 0, errors: [{ line: 1, message: "Unknown column 'prce'." }, { line: 3, message: 'name is required.' }] }),
+      report({ applied: false, rows: 0, created: 0, updated: 0, errors: [{ line: 1, message: "Unknown column 'prce'." }, { line: 3, message: 'O nome deve ter de 2 a 200 caracteres, sem caracteres de controle.', sku: 'AAA-1', field: 'name' }] }),
       { status: 400, statusText: 'Bad Request' },
     );
     await settle();
 
     expect(text(root)).toContain('Nada foi importado');
     const rows = Array.from(root.querySelectorAll('[data-testid="import-error"]')).map((r) => (r.textContent ?? '').replace(/\s+/g, ' ').trim());
-    expect(rows).toEqual(["Linha 1 Unknown column 'prce'.", 'Linha 3 name is required.']);
+    expect(rows).toEqual(["Linha 1 Unknown column 'prce'.", 'Linha 3 (sku AAA-1, campo name) O nome deve ter de 2 a 200 caracteres, sem caracteres de controle.']);
     expect(text(root)).not.toContain('Importação concluída');
   });
 

@@ -102,8 +102,8 @@ describe('Home (landing page)', () => {
     const tiles = Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-testid="category-tile"]'));
     expect(tiles.length).toBe(6);
     expect(tiles[0].textContent).toContain('Categoria 1');
-    expect(tiles[0].getAttribute('href')).toBe('/storefront?category=c1');
-    expect(tiles[5].getAttribute('href')).toBe('/storefront?category=c6');
+    expect(tiles[0].getAttribute('href')).toBe('/storefront?category=Categoria%201');
+    expect(tiles[5].getAttribute('href')).toBe('/storefront?category=Categoria%206');
   });
 
   // ---- the API down: no blank areas, no error banners
