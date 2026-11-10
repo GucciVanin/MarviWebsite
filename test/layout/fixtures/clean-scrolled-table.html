@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="layout-expect" content="none">
+<title>Clean: a wide table in a .table-wrap that has been scrolled sideways (MRV-9.3)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Arial,Helvetica,sans-serif;color:#111}
+.page{padding:16px;max-width:960px;margin:0 auto}
+.table-wrap{overflow-x:auto;border:1px solid #ccc}
+table{border-collapse:collapse;min-width:900px}
+td,th{padding:4px 8px;text-align:left;white-space:nowrap}
+</style></head><body><main class="page"><section>
+<h1>Clientes</h1>
+<div class="table-wrap" tabindex="0" role="group" aria-label="Clientes">
+<table><thead><tr><th>Número</th><th>Empresa</th><th>Situação</th><th>Faixa de preço</th><th>Cadastro</th><th>Ações</th></tr></thead>
+<tbody><tr><td>C-000001</td><td>Bar do Demo</td><td>Aprovado</td><td>Standard</td><td>30/10/2026</td><td>Editar Suspender</td></tr></tbody></table>
+</div>
+</section></main>
+<script>
+// The reader (or the focus moving into a form inside the table) has scrolled it sideways.
+document.querySelector('.table-wrap').scrollLeft = 80;
+</script>
+</body></html>

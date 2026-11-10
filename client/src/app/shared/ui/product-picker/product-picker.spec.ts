@@ -36,4 +36,27 @@ describe('ProductPicker icons', () => {
     expect(root.querySelector('[data-testid="filters"] button')?.textContent?.trim()).toBe('Buscar');
     expect(root.querySelector('[data-testid="catalog"] tbody button')?.textContent?.trim()).toBe('Adicionar');
   });
+
+describe('ProductPicker photos (MRV-9.7)', () => {
+  it('shows a thumbnail with the product name as alt text, or the placeholder, beside each product', async () => {
+    TestBed.configureTestingModule({ imports: [ProductPicker], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const fixture = TestBed.createComponent(ProductPicker);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    const base = { sku: 'S', attributes: {}, price: 5, dealName: null, inStock: true };
+    http.expectOne((r) => r.url === '/api/products').flush([
+      { id: 'a', name: 'Cafe', imageUrl: '/api/public/media/products/0123456789abcdef0123456789abcdef.png', ...base },
+      { id: 'b', name: 'Cha', imageUrl: null, ...base },
+    ]);
+    http.expectOne('/api/categories').flush([]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="catalog"] tbody tr');
+    expect(rows[0].querySelector('img')!.getAttribute('alt')).toBe('') // the name sits beside it: decorative for screen readers (axe image-redundant-alt);
+    expect(rows[0].querySelector('img')!.getAttribute('width')).toBe('48');
+    expect(rows[1].querySelector('img')).toBeNull();
+    expect(rows[1].querySelector('app-product-photo')).not.toBeNull();
+  });
+});
 });

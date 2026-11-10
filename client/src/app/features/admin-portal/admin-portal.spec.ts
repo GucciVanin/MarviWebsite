@@ -89,4 +89,23 @@ describe('AdminPortal', () => {
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('conflito');
     expect(email.value).toBe('ana@marvi.test');
   });
+  // MRV-9.1: the recent-audit list names a customer by number, not by its entity name or id.
+  it('names a customer in the recent audit list by its customer number', async () => {
+    TestBed.configureTestingModule({ imports: [AdminPortal], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const fixture = TestBed.createComponent(AdminPortal);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((r) => r.url === '/api/admin/deals').flush([]);
+    http.expectOne((r) => r.url === '/api/admin/audit-log').flush([
+      { id: 'a1', actorUserId: 'u1', action: 'Approve', entityName: 'ClientAccount', entityId: 'e1', entityNumber: 42, timestamp: '2026-10-15T10:19:00Z', details: {} },
+      { id: 'a2', actorUserId: 'u1', action: 'Create', entityName: 'Category', entityId: 'e2', entityNumber: null, timestamp: '2026-10-15T10:19:00Z', details: {} },
+    ]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Cliente C-000042');
+    expect(text).toContain('Category');
+    expect(text).not.toContain('ClientAccount');
+  });
 });

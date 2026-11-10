@@ -16,6 +16,8 @@ container, set them as environment variables (`:` becomes `__`).
 | First admin's password | `Seed:AdminPassword` (`Seed__AdminPassword`) | at least 12 characters, not an example. The admin is created only when both are set; after the first start you may remove both |
 | Database password | `PGPASSWORD`, or `Password=` in `ConnectionStrings:AppDb` | at least 12 characters, not `marvi`, `postgres`, `password`... |
 | Public address of the site | `Cors:AllowedOrigin` (`Cors__AllowedOrigin`) | the `https://` address of the site |
+| CPF hash key (MRV-9.4) | `Privacy:CpfHashKey` (`Privacy__CpfHashKey`; compose reads `CPF_HASH_KEY`) | at least 32 random characters, not an example. Set it once and never change it: it makes the stored CPFs unique, so a new key makes every old hash stop matching |
+| Data Protection keys folder (MRV-9.4) | `DataProtection:KeysPath` (`DataProtection__KeysPath`) | a folder on a **persistent volume** outside the repository (see section 7). Without it Production refuses to start |
 
 Generate secrets with a password manager or `openssl rand -base64 48`. Keep them in your platform's secret store (for example
 Docker/Kubernetes secrets, a cloud key vault) and inject them as environment variables; never commit them. `deploy/.env` is
@@ -32,9 +34,9 @@ To see the check work: start the API image with the example values and without t
 
 Sign-in, registration (`/api/auth`), the public coverage check (`/api/coverage/check`, each call may reach the paid
 geocoding provider) and the public contact form (`POST /api/public/contact`, MRV-2.8: anyone can post to it, and each message is stored) are limited per client address, in fixed windows; over the limit the API answers `429` with `Retry-After`.
-Defaults: 10 requests per 60 s for `/api/auth`, 30 per 60 s for the coverage check, 5 per 60 s for the contact form. Tune with `RateLimiting__Auth__PermitLimit`,
+Defaults: 10 requests per 60 s for sign-in (`/api/auth/login`) and **5 per 60 s for registration** (`POST /api/auth/register`, its own policy: a registration is also a CNPJ/CPF probe, MRV-9.4), 30 per 60 s for the coverage check, 5 per 60 s for the contact form, 60 per 60 s for the address writes (`POST/PUT/DELETE /api/client/addresses`, the admin address fix; MRV-9.3). Two more limited endpoints (MRV-9.4): saving the customer's own data (`PUT /api/client/profile`, 20 per 60 s, a Pending customer can change the CPF/CNPJ freely, so this bounds duplicate probing) and the admin's "Mostrar CPF" (10 per 60 s). One more (MRV-9.5): the admin's guided product create (`POST /api/admin/products/with-setup`, 30 per 60 s; `RateLimiting__ProductSetup__PermitLimit`). Tune with `RateLimiting__Register__PermitLimit`, `RateLimiting__Profile__PermitLimit`, `RateLimiting__Reveal__PermitLimit` (each also `...__WindowSeconds`), `RateLimiting__Auth__PermitLimit`,
 `RateLimiting__Auth__WindowSeconds`, `RateLimiting__Coverage__PermitLimit`, `RateLimiting__Coverage__WindowSeconds`,
-`RateLimiting__Contact__PermitLimit`, `RateLimiting__Contact__WindowSeconds`.
+`RateLimiting__Contact__PermitLimit`, `RateLimiting__Contact__WindowSeconds`, `RateLimiting__Addresses__PermitLimit`, `RateLimiting__Addresses__WindowSeconds`.
 
 The limits are keyed on the caller's address. Behind a reverse proxy (the bundled nginx, or your load balancer) the API sees the
 proxy's address unless it reads `X-Forwarded-For`; set `ForwardedHeaders__Enabled=true` **only if the API port is reachable
@@ -69,7 +71,7 @@ window, so do it at a quiet hour. After a leak, also rotate the admin password a
 
 Everything that matters is in PostgreSQL (the `marvi-db-data` volume in compose): accounts, catalog, stock, quotes, orders and the
 audit trail. Back up the database (`pg_dump` nightly, plus a copy off the machine) and test a restore. Secrets live in your secret
-store, not in the repository or the database.
+store, not in the repository or the database. **Also back up the product photos** (the `/media` volume, section 9: the database only holds their names), **and the Data Protection keys folder** (section 7), **but never in the same archive, bucket or access group as the database backup**: the key ring decrypts every stored CPF, so a combined backup is a ready-made CPF leak. A database backup restored without the keys it was written with leaves every stored CPF unreadable; that is the price of keeping them apart, so test a restore with both.
 
 ## 6. Google reviews on the home page (MRV-2.5)
 
@@ -90,3 +92,73 @@ Place ID Finder.
 What to expect: Google decides which reviews it returns (at most five, "most relevant") and the section shows them as they come,
 a low rating included; the total and the average cover all reviews. Reviews can change on Google at any time. `Reviews:Google:BaseUrl` exists only for tests and local fakes; Production refuses to start with it set, because the key would be sent there. A refresh that fails (5 s timeout, quota, outage) keeps showing the last good answer; a site that never had one hides the section.
 A key that is wrong or blocked therefore hides it from the start (the API logs a warning with the status, never the key).
+
+## 7. Customers' registration data and the CPF (MRV-9.4)
+
+A customer registers as a **business** (CNPJ, razão social, inscrições, CNAE, regime...) or as a **person** (CPF and a birth date; 18 or older, because the
+company sells alcohol). The CPF is personal data (LGPD): it is stored **encrypted** with ASP.NET Data Protection and next to it a keyed hash (HMAC-SHA256 with
+`Privacy:CpfHashKey`) that only enforces "one account per CPF". Staff, the audit trail and the logs see it masked (`***.456.789-**`); an admin sees it in full
+only through "Mostrar CPF", which writes an audit entry (the entry itself holds only the mask).
+
+**The Data Protection keys must survive restarts and rebuilds.** They live in the folder `DataProtection:KeysPath`:
+
+- In `deploy/docker-compose.yml` it is `/keys`, the named volume `marvi-dataprotection` (the image creates `/keys` owned by the app user, so a new volume is
+  writable). `docker compose down` keeps it; `down -v` deletes it together with the database, which is consistent (no database, no CPFs to read).
+- In a real deployment mount a persistent folder (a volume, a mounted secret store path) and point `DataProtection__KeysPath` at it. Keep it **out of the
+  repository** (the keys are secrets) and **back it up with the database** (section 5). Lost keys cannot be recovered: stored CPFs would show as
+  `***.***.***-**` and "Mostrar CPF" would answer 404, and the customers would have to be asked for their CPF again (an admin types it in the edit panel).
+- **Store the key-ring backup apart from the database backups** (a different place with different access); never put both in one archive. The key ring is not encrypted at rest by the application (the folder's permissions are its only protection), and the CPF hash key (`Privacy__CpfHashKey`) is also a secret: with a database dump and that key anyone can try all 10^9 CPFs against the hashes. Keep that key in the secret store, not next to the dump.
+- **Pre-production follow-up (not done yet):** protect the key ring itself with a certificate (`ProtectKeysWithCertificate`, ASP.NET Data Protection), so the files in `/keys` are useless without the certificate. Decide this before the first real customer's CPF is stored.
+- Keys rotate by themselves every 90 days; old keys stay in the folder and keep decrypting old values. Never delete a key file.
+- The runtime suite (`bash test/runtime/run.sh`) restarts the API and proves a stored CPF still decrypts afterwards.
+
+### The hash-key canary (startup check)
+
+The first start after the migration `CpfKeyFingerprint` stores, in the table `app_settings` (`cpf_hash_key_fingerprint`), a keyed fingerprint of `Privacy:CpfHashKey` (it says nothing about any CPF and is not the key). Every later start compares it. **If the key was changed, Production refuses to start** with a message naming `Privacy:CpfHashKey` (restore the original key); outside Production it logs a warning. Changing the key on purpose needs the stored CPFs re-hashed first (decrypt each with the key ring and hash again with the new key, in one maintenance run); there is no tool for that yet, and deleting the `app_settings` row without it only silences the check while old CPFs can register again.
+
+### Registration data and rollback
+
+The migration `ClientRegistrationData` has a working `Down`, but a rollback **drops the columns and with them every customer's registration data** (account type, CNPJ, the encrypted CPF and its hash, birth date, phone, the rest). Take a database backup before rolling back, and expect to collect the data again.
+
+### "Mostrar CPF"
+
+An admin must give a reason (3 to 200 characters) for every reveal; it is written to the audit entry together with the masked CPF (never the number), and the endpoint is rate limited (above). The answer is `no-store`.
+
+### Categorising the existing customers when production is migrated
+
+The migration `ClientRegistrationData` adds the columns and makes **every existing customer a Business account** with no registration data (the development database
+is categorised this way too). A customer who is a person must be changed by an admin once, after the deploy:
+
+1. Admin portal, Clientes, **Editar** on the customer, section "Dados cadastrais": choose **Conta pessoal**, confirm the change, type the CPF and birth date
+   (the age rule applies) and save. The change is audited (before and after, CPF masked). A customer whose record is already approved cannot do it themselves.
+2. For the customers that stay business accounts, fill in the CNPJ and the rest as you receive them; the completeness indicator in the staff views lists what is
+   still missing. An incomplete record does not block anything.
+3. To list who still has no registration data: `SELECT number, company_name FROM client_accounts WHERE account_type = 0 AND cnpj IS NULL ORDER BY number;`
+   (`account_type`: 0 = Business, 1 = Personal). Do not write CPFs with SQL: the column is encrypted, and only the application can write and read it.
+
+## 8. Product data check before the production migration (MRV-9.8)
+
+Create, edit and the CSV import now share one rule set (`ProductRules`): SKU 3 to 40 characters of letters, digits, `-`, `_` and `.` (unique ignoring case); name 2 to 200; description up to 2,000; at most 30 attributes (name 1 to 60, value 1 to 200, no repeated name ignoring case); no control or invisible characters in names and values. a category is required. Products stored before these rules (an older SKU of up to 64 characters, a long description, many attributes, a CSV import that allowed more) are NOT rewritten by anything. Until they are fixed they cannot be edited (the form shows what to correct), a CSV row for them is refused, and the only edit that always works is activating or deactivating them.
+
+**Before the first production migration, run the data check and fix what it lists** (read-only, admin only):
+
+```
+TOKEN=$(curl -s -X POST https://<api>/api/auth/login -H 'Content-Type: application/json' -d '{"email":"<admin e-mail>","password":"<admin password>"}' | jq -r .token)
+curl -s https://<api>/api/admin/products/data-check -H "Authorization: Bearer $TOKEN" | jq '{checked, broken, products: [.products[] | {sku, name, problems}]}'
+```
+
+`broken: 0` means nothing to do. Otherwise each listed product has its SKU, name and the field messages (`sku`, `name`, `description`, `attributes`, `categoryId` for a product with no category): open it in Catálogo, Editar, correct the fields and save (a SKU that must change is changed there too; quotes and orders keep their own copy of the name and price). Run the check again until it lists nothing. It checks the content rules only (a duplicate SKU ignoring case cannot exist: the database has a unique index for it). It does not change any data and can be run as often as needed; do not fix by hand in SQL, so the audit trail records each correction.
+
+## 9. Product photos (MRV-9.7)
+
+An admin gives a product a photo in Catálogo (Novo produto / Editar). The photo is an **uploaded file stored on the server**, not an address: the database keeps only its relative path (`products.image_url`, `/api/public/media/products/{random name}`) and a table of uploads waiting to be linked (`product_photo_uploads`).
+
+- **Where the files live.** `Media:Path` (environment `Media__Path`). In `deploy/docker-compose.yml` it is `/media`, the named volume `marvi-media` (the image creates `/media` owned by the app user, so a new volume is writable). **In Production the API refuses to start without `Media:Path`**, so a deployment cannot lose its photos with its container: mount a persistent volume or a host folder (writable by the API's user) and set it. Outside Production, with no `Media:Path`, the API writes to a `media` folder next to its binaries (fine for `dotnet run`).
+- **Back it up with the database.** The database says which file belongs to which product; the volume holds the files. A restore of one without the other leaves products pointing at missing files (the storefront then shows the placeholder, nothing breaks) or files nobody points at (the cleanup removes those after an hour). Back both up together and test a restore of both. These are product photos, not personal data, so unlike the Data Protection keys they may sit in the same backup as the database.
+- **Growth.** At most 5 MB per photo, one photo per product: size the volume at roughly (products x average photo size); a catalogue of 2,000 products at 1 MB is about 2 GB. Replacing or removing a photo, and deleting a product, deletes its file. Uploads nobody links within an hour (a closed tab) are deleted by a background cleanup every 15 minutes (`Media:CleanupMinutes`), together with any file nothing refers to; photos linked to a product are never touched.
+- **One media folder for every API instance.** A photo uploaded through one instance must be readable by the others and the cleanup compares the folder with the database, so all instances mount the same volume (the bundled compose runs one). Instances with separate folders would serve each other's photos as 404.
+- **nginx.** Request bodies are limited to 1 MB (nginx default) everywhere except `POST /api/admin/media/product-photos`, which allows 6 MB (5 MB photo plus multipart framing). If a load balancer or another proxy sits in front, raise its body limit for that one path to 6 MB too. The photos are served by the API through `/api/public/media/products/`, with a year-long immutable cache (the names are random and never reused); nginx does not add `no-store` there. The `Content-Security-Policy` is unchanged (`img-src 'self' data:`): a same-origin image needs no exception.
+- **Upload limits and abuse.** Admin only, 30 uploads a minute per client address (`RateLimiting:ProductPhoto`), at most 50 uploads waiting per admin, JPEG/PNG/WebP only (decided by the file's own bytes, not its name), 400 to 6000 pixels per side. A file that is also a script, an archive or an SVG is refused.
+- **Metadata and privacy.** The photo is stored exactly as uploaded: **EXIF and other metadata (camera, date, and GPS position if the camera recorded one) are NOT stripped** (no image-processing library is in the project; stripping is a logged follow-up). The files are public by design (anyone with the address can fetch them), so **photograph products, not people or places, and remove location data from a photo before uploading it if it came from a phone**. The privacy page describes what customers give the site; product photos are the company's own content, but this note is here so nobody assumes the metadata is cleaned.
+- **Migration `ProductPhotos`.** Creates `product_photo_uploads` and **sets every existing `products.image_url` to NULL** (except a path of ours, so Down then Up again keeps uploaded photos): the old free `https` addresses could never display under the CSP, and the column now holds the relative path of an uploaded photo. Take the usual database backup before migrating: `Down` removes the table but cannot bring the cleared addresses back. After migrating, add photos in Catálogo (Editar, Foto do produto). `bash test/runtime/migration-photos.sh` proves all of this on a throwaway Postgres.
+- **Checking it works.** After a deploy: sign in as an admin, create a product with a photo, open the storefront and confirm the photo shows; `curl -I https://<site>/api/public/media/products/<name>` answers `200`, `image/...`, `nosniff` and `Cache-Control: public, max-age=31536000, immutable`; the files are listed in the volume.

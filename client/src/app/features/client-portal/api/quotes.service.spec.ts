@@ -7,12 +7,13 @@ import { QuotesService } from './quotes.service';
 const cases: EndpointCase<QuotesService>[] = [
   {
     name: 'createQuote',
-    call: (s) => s.createQuote({ lineItems: [{ productId: 'p1', qty: 3 }] }),
+    call: (s) => s.createQuote({ lineItems: [{ productId: 'p1', qty: 3 }], deliveryAddressKey: 'k1' }),
     method: 'POST',
     url: '/api/quotes',
-    body: { lineItems: [{ productId: 'p1', qty: 3 }] },
+    body: { lineItems: [{ productId: 'p1', qty: 3 }], deliveryAddressKey: 'k1' },
     response: { id: 'q1', status: 'Requested' },
   },
+  { name: 'changeDeliveryAddress', call: (s) => s.changeDeliveryAddress(123, 'k1'), method: 'PUT', url: '/api/quotes/123/delivery-address', body: { deliveryAddressKey: 'k1' }, response: { id: 'q1' } },
   { name: 'getMine', call: (s) => s.getMine(), method: 'GET', url: '/api/quotes/mine', response: [{ id: 'q1' }] },
   { name: 'reject', call: (s) => s.reject('q1'), method: 'POST', url: '/api/quotes/q1/reject', body: {}, response: { id: 'q1', status: 'Rejected' } },
   { name: 'accept', call: (s) => s.accept('q1'), method: 'POST', url: '/api/quotes/q1/accept', body: {}, response: { id: 'o1', status: 'Confirmed' } },

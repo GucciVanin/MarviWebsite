@@ -27,7 +27,7 @@ describe('AuthService requests', () => {
   const credentials = { email: 'ana@example.com', password: 'Abc123!' };
 
   describe('register', () => {
-    const request = { ...credentials, companyName: 'Bar do Zé', billingAddress: 'Rua A, 1' };
+    const request = { ...credentials, companyName: 'Bar do Zé', billingAddress: { label: null, kind: null, postalCode: '01001000', street: 'Rua A', number: '1', complement: null, district: 'Sé', city: 'São Paulo', state: 'SP', deliveryNotes: null, isBilling: false, isDefaultDelivery: false }, accountType: 'Business' as const, registration: { cnpj: '11222333000181' } };
 
     it('posts the registration and hands back the new id without signing in', () => {
       const results: unknown[] = [];

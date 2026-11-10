@@ -139,9 +139,9 @@ public class PrincipalTests : IClassFixture<MarviApiFactory>
         var byEmployee = await employee.PutAsJsonAsync($"/api/employee/quotes/{quote.Id}/price",
             new PriceQuoteRequest([new PriceQuoteLineRequest(quote.LineItems.Single().Id, 9m)]));
         var orderByEmployee = await employee.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(accountId, "1 Main St", [new EmployeeOrderLineItemRequest(productId, 1)]));
+            new CreateEmployeeOrderRequest(accountId, null, [new EmployeeOrderLineItemRequest(productId, 1)]));
         var orderByAdmin = await admin.PostAsJsonAsync("/api/employee/orders",
-            new CreateEmployeeOrderRequest(accountId, "1 Main St", [new EmployeeOrderLineItemRequest(productId, 1)]));
+            new CreateEmployeeOrderRequest(accountId, null, [new EmployeeOrderLineItemRequest(productId, 1)]));
 
         Assert.Equal(employeeId, (await byEmployee.Content.ReadFromJsonAsync<QuoteDto>())!.PricedByEmployeeId);
         Assert.Equal(employeeId, (await orderByEmployee.Content.ReadFromJsonAsync<OrderDto>())!.PlacedByEmployeeId);
@@ -178,7 +178,7 @@ public class PrincipalTests : IClassFixture<MarviApiFactory>
     public async Task ACustomerWhoseAccountRecordIsMissing_IsRefused_NotServedSomeoneElsesData()
     {
         var email = $"{Guid.NewGuid()}@example.com";
-        var register = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", "123 Main St"));
+        var register = await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, "Test1234!", "Acme Co", TestAddresses.Main));
         var accountId = (await register.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
         using (var scope = _factory.Services.CreateScope())
         {

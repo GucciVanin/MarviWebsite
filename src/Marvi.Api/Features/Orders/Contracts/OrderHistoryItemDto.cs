@@ -1,11 +1,14 @@
+using Marvi.Api.Features.Common;
 using Marvi.Domain.Orders;
 
 namespace Marvi.Api.Features.Orders.Contracts;
 
-/// <summary>An order in the employee history (MRV-1.2b): everything in <see cref="OrderDto"/> plus the customer's company name.</summary>
+/// <summary>An order in the employee history (MRV-1.2b): the same shape as <see cref="OrderDto"/>, which already names the customer.</summary>
 public record OrderHistoryItemDto(
     Guid Id,
+    int Number,
     Guid ClientAccountId,
+    int CustomerNumber,
     string CompanyName,
     Guid? QuoteId,
     OrderStatus Status,
@@ -14,13 +17,14 @@ public record OrderHistoryItemDto(
     Guid? PlacedByEmployeeId,
     DateTime PlacedAt,
     decimal TotalAmount,
-    List<OrderLineItemDto> LineItems)
+    List<OrderLineItemDto> LineItems,
+    DeliveryAddressSnapshotDto? DeliveryAddressSnapshot = null)
 {
     public static OrderHistoryItemDto From(Order order)
     {
         var dto = OrderDto.From(order);
         return new OrderHistoryItemDto(
-            dto.Id, dto.ClientAccountId, order.ClientAccount?.CompanyName ?? string.Empty, dto.QuoteId, dto.Status, dto.DeliveryAddress,
-            dto.WarehouseId, dto.PlacedByEmployeeId, dto.PlacedAt, dto.TotalAmount, dto.LineItems);
+            dto.Id, dto.Number, dto.ClientAccountId, dto.CustomerNumber, dto.CompanyName, dto.QuoteId, dto.Status, dto.DeliveryAddress,
+            dto.WarehouseId, dto.PlacedByEmployeeId, dto.PlacedAt, dto.TotalAmount, dto.LineItems, dto.DeliveryAddressSnapshot);
     }
 }

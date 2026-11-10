@@ -13,7 +13,7 @@ public class QuoteWorkflowServiceTests
         var productId = Guid.NewGuid();
         var lineItem = new QuoteLineItem { Id = Guid.NewGuid(), ProductId = productId, Qty = 3, SuggestedUnitPrice = 50m };
 
-        var quote = _sut.CreateQuote(clientAccountId, [lineItem]);
+        var quote = _sut.CreateQuote(clientAccountId, [lineItem], new Marvi.Domain.Identity.ClientAddress { Id = Guid.NewGuid(), Label = "Matriz", Street = "Rua A", Number = "1", District = "Centro", City = "Campinas", State = "SP", PostalCode = "13010000" });
         Assert.Equal(QuoteStatus.Submitted, quote.Status);
 
         var employeeId = Guid.NewGuid();

@@ -8,4 +8,6 @@ public record ProductListItemDto(
     Dictionary<string, string> Attributes,
     decimal? Price,
     string? DealName,
-    bool InStock);
+    bool InStock,
+    string? Description = null,
+    string? CategoryName = null);

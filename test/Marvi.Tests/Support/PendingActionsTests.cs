@@ -109,7 +109,7 @@ public class PendingActionsTests
         }
 
         var existing = (await admin.GetFromJsonAsync<ProductAdminDto>($"/api/admin/products/{inactive}"))!;
-        (await admin.PutAsJsonAsync($"/api/admin/products/{inactive}", new UpsertProductRequest(existing.Sku, existing.Name, null, null, null, false, new Dictionary<string, string>()))).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync($"/api/admin/products/{inactive}", new UpdateProductRequest(existing.Sku, existing.Name, null, existing.CategoryId, false, new Dictionary<string, string>()))).EnsureSuccessStatusCode();
 
         var pending = await GetAsync(admin);
 
@@ -195,7 +195,7 @@ public class PendingActionsTests
             {
                 db.ClientAccounts.Add(new ClientAccount
                 {
-                    Id = Guid.NewGuid(), UserId = Guid.NewGuid(), CompanyName = $"Espera {i:D2}", BillingAddress = "x",
+                    Id = Guid.NewGuid(), UserId = Guid.NewGuid(), CompanyName = $"Espera {i:D2}",
                     CreatedAt = DateTime.UtcNow.AddMinutes(-i), Status = ClientAccountStatus.Pending,
                 });
             }

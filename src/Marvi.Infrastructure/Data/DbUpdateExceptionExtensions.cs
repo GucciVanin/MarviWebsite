@@ -15,4 +15,8 @@ public static class DbUpdateExceptionExtensions
     /// </summary>
     public static bool IsConstraintViolation(this DbUpdateException exception) =>
         exception.InnerException is PostgresException { SqlState: UniqueViolation or ForeignKeyViolation };
+
+    /// <summary>True when the save failed on one of the named unique indexes (and nothing else): used to tell a duplicate CNPJ/CPF from any other constraint.</summary>
+    public static bool IsUniqueViolationOf(this DbUpdateException exception, params string[] constraintNames) =>
+        exception.InnerException is PostgresException { SqlState: UniqueViolation } postgres && constraintNames.Contains(postgres.ConstraintName);
 }

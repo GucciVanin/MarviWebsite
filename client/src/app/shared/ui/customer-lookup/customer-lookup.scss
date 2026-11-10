@@ -1,0 +1,59 @@
+:host {
+  position: relative;
+  display: inline-block;
+}
+
+// The dialog hangs under its button. TypeScript only shifts it sideways (--shift) so it stays inside the viewport; its own scroll-margin keeps
+// it clear of the sticky header (z 10) and the floating buttons (20, 30), which sit over it in the stacking order.
+.lookup {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 5;
+  box-sizing: border-box;
+  width: min(26rem, calc(100vw - 1rem));
+  max-height: min(26rem, calc(100dvh - 10rem));
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgba(10, 18, 48, 0.18);
+  transform: translateX(var(--shift, 0px));
+  scroll-margin-block: 5.5rem 6rem;
+  text-align: left;
+  font-weight: 400;
+
+  &:focus-visible { outline: 3px solid var(--color-gold-500); outline-offset: 2px; }
+}
+
+.lookup__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+
+  h3 { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 1.1rem; }
+}
+
+.lookup__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+
+  > div { min-width: 0; }
+  dt { color: var(--color-text-muted, #5a6275); font-size: 0.8rem; }
+  dd { margin: 0; overflow-wrap: anywhere; }
+}
+
+.lookup__wide { grid-column: 1 / -1; }
+
+.lookup__addresses {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li + li { margin-top: 0.25rem; }
+}

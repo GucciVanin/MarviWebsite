@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, map, of, throwError } from 'rxjs';
+import type { ClientAddress, ClientAddressRequest } from '../../../shared/models/client-address.model';
 import type { ClientSummary } from '../../../shared/models/client-summary.model';
+import type { AccountType, Registration, RegistrationRequest } from '../../../shared/models/registration.model';
 import type { PagedResult } from '../../../shared/models/paged.model';
 
 export interface CreateEmployeeRequest {
@@ -12,10 +14,12 @@ export interface CreateEmployeeRequest {
   hireDate: string;
 }
 
-/** One problem in an import file. Line 1 is the header; a row's line is where it starts in the file. */
+/** One problem in an import file. Line 1 is the header; a row's line is where it starts in the file. A problem about one row also names its SKU and the field. */
 export interface ProductImportError {
   line: number;
   message: string;
+  sku?: string | null;
+  field?: string | null;
 }
 
 /** What an import did, or would do (`dryRun`). `applied` is false for a dry run and for a file with errors, which imports nothing. */
@@ -30,6 +34,14 @@ export interface ProductImportReport {
 
 export interface UpdateClientTierRequest {
   pricingTierId: string;
+}
+
+/** An admin's edit of a customer's registration record (MRV-9.4); a changed account type needs `confirmTypeChange`. A CPF left out stays as stored. */
+export interface UpdateClientRegistrationRequest {
+  companyName: string;
+  accountType: AccountType;
+  registration: RegistrationRequest;
+  confirmTypeChange: boolean;
 }
 
 /** Approving is the admin's explicit choice of the customer's pricing tier: nobody is approved by default. */
@@ -48,14 +60,32 @@ export interface ProductAdmin {
   attributes: Record<string, string>;
 }
 
-export interface UpsertProductRequest {
+/**
+ * A product to save (MRV-9.8: one body for create and edit, checked by the same rules). The photo (MRV-9.7) is never an address typed by hand:
+ * `photoToken` links a file uploaded with `uploadProductPhoto` (the same save, so it is all or nothing); on an edit `removePhoto` clears the
+ * current one; neither keeps it.
+ */
+export interface UpdateProductRequest {
   sku: string;
   name: string;
   description: string | null;
   categoryId: string | null;
-  imageUrl: string | null;
   isActive: boolean;
   attributes: Record<string, string>;
+  photoToken?: string | null;
+  removePhoto?: boolean;
+}
+
+/** What an upload answers: the token to send with the product, and the same-origin address that previews the stored file. */
+export interface ProductPhotoUploaded {
+  photoToken: string;
+  previewUrl: string;
+}
+
+/** The guided "Novo produto" (MRV-9.5): the product plus a price per tier and a quantity per warehouse; a row with null is skipped. */
+export interface CreateProductWithSetupRequest extends UpdateProductRequest {
+  prices: { pricingTierId: string; unitPrice: number | null }[];
+  stock: { warehouseId: string; qtyOnHand: number | null }[];
 }
 
 export interface CategoryAdmin {
@@ -176,6 +206,8 @@ export interface AuditLogEntry {
   action: string;
   entityName: string;
   entityId: string;
+  /** The customer, quote or order number when the entity is one of those, else null. */
+  entityNumber: number | null;
   timestamp: string;
   details: Record<string, string>;
 }
@@ -202,6 +234,20 @@ export class AdminService {
 
   updateClientTier(id: string, request: UpdateClientTierRequest): Observable<void> {
     return this.http.put<void>(`/api/admin/clients/${id}/pricing-tier`, request);
+  }
+
+  updateClientRegistration(id: string, request: UpdateClientRegistrationRequest): Observable<Registration> {
+    return this.http.put<Registration>(`/api/admin/clients/${id}/registration`, request);
+  }
+
+  /** Shows the full CPF of a customer. The admin says why (3 to 200 characters); the API writes an audit entry with the reason before it answers. */
+  revealClientCpf(id: string, reason: string): Observable<{ cpf: string }> {
+    return this.http.post<{ cpf: string }>(`/api/admin/clients/${id}/cpf/reveal`, { reason });
+  }
+
+  /** An admin fixes one of a customer's addresses (MRV-9.3); the same rules as the customer's own edit, audited. */
+  updateClientAddress(id: string, key: string, request: ClientAddressRequest): Observable<ClientAddress> {
+    return this.http.put<ClientAddress>(`/api/admin/clients/${id}/addresses/${key}`, request);
   }
 
   /** The customer directory (`GET /api/employee/clients`, which admins may use too), one page. */
@@ -284,11 +330,18 @@ export class AdminService {
     return this.http.get<ProductAdmin>(`/api/admin/products/${id}`);
   }
 
-  createProduct(request: UpsertProductRequest): Observable<ProductAdmin> {
-    return this.http.post<ProductAdmin>('/api/admin/products', request);
+  createProductWithSetup(request: CreateProductWithSetupRequest): Observable<ProductAdmin> {
+    return this.http.post<ProductAdmin>('/api/admin/products/with-setup', request);
   }
 
-  updateProduct(id: string, request: UpsertProductRequest): Observable<void> {
+  /** Uploads one photo (multipart, 5 MB at most); it belongs to no product until the product is saved with the returned token. */
+  uploadProductPhoto(file: File): Observable<ProductPhotoUploaded> {
+    const form = new FormData();
+    form.append('photo', file, file.name);
+    return this.http.post<ProductPhotoUploaded>('/api/admin/media/product-photos', form);
+  }
+
+  updateProduct(id: string, request: UpdateProductRequest): Observable<void> {
     return this.http.put<void>(`/api/admin/products/${id}`, request);
   }
 

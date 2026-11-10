@@ -1,0 +1,9 @@
+# MRV-9.8 orders (issue #60)
+Serves AC-1..AC-7. Constraints: no new dependency; never touch deploy/.env, never wipe or write the dev DB (throwaway stacks only); layout audit 0, axe 0, client suite with exit code 0 and no `Errors` line; no commit, no push (the Captain commits).
+- O-1 (AC-1) One validator: `ProductSetupRules` becomes `ProductRules` (the old two-constant `ProductRules` is absorbed); create, edit and the import call it; an architecture test fails on a second product validator or on a limit compared in a product entry point.
+- O-2 (AC-2) Remove `POST /api/admin/products`; every caller (SPA service, tests, seed, runtime suite, docs) uses `with-setup`; `PUT` validates the whole product with the same rules and answers `[{field, message}]`; the IsActive-only exception with a positive and a negative test.
+- O-3 (AC-3) CSV import: each row through `ProductRules`; failing rows reported (line, SKU, field, message) in the dry run and the real import, never saved; response, import screen, hint and docs updated.
+- O-4 (AC-4) Data check for stored products that break the rules (the smaller of an admin-only endpoint or documented SQL), read-only, tested with rows built directly; `docs/operations.md` says to run it before the production migration.
+- O-5 (AC-5) The panel shows the API field messages for create and edit; no client rule differs from the server: a shared contract file read by an API test and a client spec.
+- O-6 (AC-6) Tests: a table-driven test of the same input through create, update and import; null/oversize/removed endpoint/401/403; runtime suite additions (import rejects a bad row, edit refuses invalid data, create still atomic); client specs; layout audit and axe; the client suite with exit code 0 and no Errors line.
+- O-7 (AC-7) project.md endpoint table, architecture.md, docs/tests/coverage-map*.md, CONTEXT.md, docs/operations.md, docs/learning-log.md (CI unhandled-errors gap), pr-notes.md.

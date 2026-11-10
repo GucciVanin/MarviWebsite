@@ -21,7 +21,15 @@ describe('Privacy policy page', () => {
     for (const expected of ['responsável', 'dados coletamos', 'Para que', 'art. 18', 'dispositivo', 'Terceiros', 'Última atualização']) {
       expect(headings.some((h) => h.includes(expected))).toBe(true);
     }
-    expect(el.textContent).toContain('28/10/2026');
+    expect(el.textContent).toContain('30/10/2026');
+  });
+
+  it('says the address typed for a coverage check goes to a map provider, in the still-draft text', () => {
+    const el = render();
+
+    expect(el.textContent).toContain('Verificar cobertura');
+    expect(el.textContent).toContain('provedor de mapas');
+    expect(el.textContent).toContain('Texto em elaboração');
   });
 
   it('shows legal name, CNPJ and contacts as plain placeholder text, never as links', () => {

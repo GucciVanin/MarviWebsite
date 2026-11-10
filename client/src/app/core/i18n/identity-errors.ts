@@ -12,12 +12,18 @@ const KNOWN: [RegExp, string][] = [
   [/invalid.*email|email.*invalid/i, 'Informe um e-mail válido.'],
 ];
 
+// The registration data rules (MRV-9.4) answer in pt-BR already, naming the field ("CNPJ inválido: ...", "CPF já cadastrado."); every other message is
+// English, and carries no accented letter. A known English message is mapped above; a message with accents is the server's own pt-BR text and is kept.
+const PORTUGUESE = /[à-úÀ-Ú]/;
+
 export function translateIdentityErrors(messages: unknown): string {
   if (!Array.isArray(messages) || messages.length === 0) {
     return PT.auth.registerFailed;
   }
-  const translated = messages.map(
-    (message) => KNOWN.find(([pattern]) => pattern.test(String(message)))?.[1] ?? PT.auth.registerFailed,
-  );
+  const translated = messages.map((item) => {
+    // A registration-data problem arrives as { field, message } (MRV-9.4); anything else is a plain string.
+    const message = item && typeof item === 'object' && 'message' in item ? String((item as { message: unknown }).message) : String(item);
+    return KNOWN.find(([pattern]) => pattern.test(message))?.[1] ?? (PORTUGUESE.test(message) ? message : PT.auth.registerFailed);
+  });
   return [...new Set(translated)].join(' ');
 }

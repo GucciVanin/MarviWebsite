@@ -4,6 +4,7 @@ import { PT } from '../../core/i18n/pt-br';
 import { action } from '../../core/http/action';
 import { loadable } from '../../core/http/loadable';
 import { ErrorAlert } from '../../shared/ui/error-alert/error-alert';
+import { auditEntityLabel } from './audit/admin-audit';
 import { PtDatePipe } from '../../shared/format/pt-date.pipe';
 import { LoadState } from '../../shared/ui/load-state/load-state';
 import {
@@ -34,6 +35,10 @@ export class AdminPortal implements OnInit {
   ngOnInit(): void {
     this.deals.load();
     this.auditLog.load();
+  }
+
+  protected entityOf(entry: AuditLogEntry): string {
+    return auditEntityLabel(entry);
   }
 
   createEmployee(): void {

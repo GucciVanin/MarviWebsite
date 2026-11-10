@@ -36,7 +36,7 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
         var (customer, _) = await _factory.RegisterPendingClientAsync();
 
         var profile = (await customer.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!;
-        var edited = await customer.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest("Nova Ltda", "Rua A, 1", ["Rua B, 2"]));
+        var edited = await customer.PutAsJsonAsync("/api/client/profile", new UpdateClientProfileRequest("Nova Ltda"));
 
         Assert.Equal(ClientAccountStatus.Pending, profile.Status);
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
@@ -66,7 +66,7 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
         var (customer, id) = await _factory.RegisterPendingClientAsync();
         var product = await admin.CreatePricedProductAsync(10m);
 
-        var order = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(id, "1 Main St", [new EmployeeOrderLineItemRequest(product, 1)]));
+        var order = await admin.PostAsJsonAsync("/api/employee/orders", new CreateEmployeeOrderRequest(id, null, [new EmployeeOrderLineItemRequest(product, 1)]));
         var accept = await customer.PostAsync($"/api/quotes/{Guid.NewGuid()}/accept", null);
 
         Assert.Equal(HttpStatusCode.Forbidden, order.StatusCode);
@@ -99,8 +99,11 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
 
         (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).EnsureSuccessStatusCode();
 
-        Assert.Equal(10m, (await customer.GetFromJsonAsync<List<ProductListItemDto>>("/api/products"))!.Single(p => p.Id == product).Price);
-        Assert.Equal(10m, (await customer.GetFromJsonAsync<ProductDetailDto>($"/api/products/{product}"))!.Price);
+        // MRV-9.9: the old token is refused even on the public catalogue; without it (signed out) the person sees what any visitor sees.
+        Assert.Equal(HttpStatusCode.Forbidden, (await customer.GetAsync("/api/products")).StatusCode);
+        var visitor = _factory.CreateClient();
+        Assert.Equal(10m, (await visitor.GetFromJsonAsync<List<ProductListItemDto>>("/api/products"))!.Single(p => p.Id == product).Price);
+        Assert.Equal(10m, (await visitor.GetFromJsonAsync<ProductDetailDto>($"/api/products/{product}"))!.Price);
     }
 
     [Fact]
@@ -172,7 +175,8 @@ public class CustomerApprovalTests : IClassFixture<MarviApiFactory>
         var tier = await CreateTierAsync(admin);
 
         Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsync($"/api/admin/clients/{id}/suspend", null)).StatusCode);
-        Assert.Equal(ClientAccountStatus.Suspended, (await customer.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!.Status);
+        Assert.Equal(ClientAccountStatus.Suspended, (await admin.GetFromJsonAsync<ClientProfileDto>($"/api/employee/clients/{id}"))!.Status);
+        Assert.Equal(HttpStatusCode.Forbidden, (await customer.GetAsync("/api/client/profile")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await ApproveAsync(admin, id, tier)).StatusCode);
         Assert.Equal(ClientAccountStatus.Approved, (await customer.GetFromJsonAsync<ClientOwnProfileDto>("/api/client/profile"))!.Status);
     }
